@@ -18,19 +18,19 @@ const router = Router();
  *             $ref: '#/components/schemas/RegisterInput'
  *     responses:
  *       201:
- *         description: User created successfully
+ *         description: User created — returns JWT token + user object
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/AuthResponse'
  *       400:
- *         description: Missing required fields
+ *         description: Validation error
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *       409:
- *         description: Email already exists
+ *         description: Email already taken
  */
 router.post('/register', register);
 
@@ -38,7 +38,7 @@ router.post('/register', register);
  * @swagger
  * /auth/login:
  *   post:
- *     summary: Log in with email and password
+ *     summary: Login and receive JWT token
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -53,12 +53,10 @@ router.post('/register', register);
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/AuthResponse'
+ *       400:
+ *         description: Missing fields
  *       401:
- *         description: Incorrect email or password
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
+ *         description: Invalid credentials
  */
 router.post('/login', login);
 
@@ -66,26 +64,17 @@ router.post('/login', login);
  * @swagger
  * /auth/me:
  *   get:
- *     summary: Get current authenticated user
+ *     summary: Get the currently authenticated user
  *     tags: [Auth]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Current user data
+ *         description: Current user
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 data:
- *                   type: object
- *                   properties:
- *                     user:
- *                       $ref: '#/components/schemas/User'
+ *               $ref: '#/components/schemas/SuccessResponse'
  *       401:
  *         description: Unauthorized
  */
