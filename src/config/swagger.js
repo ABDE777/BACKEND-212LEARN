@@ -225,6 +225,99 @@ const options = {
             courseId: { type: 'string', format: 'uuid', example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' },
           },
         },
+
+        // ─── Curriculum ──────────────────────────────────────────────────────
+        Section: {
+          type: 'object',
+          description: 'A course section (grouping of lessons)',
+          properties: {
+            id:       { type: 'string', format: 'uuid' },
+            courseId: { type: 'string', format: 'uuid' },
+            title:    { type: 'string', example: 'Getting Started' },
+            position: { type: 'integer', example: 1, description: 'Order within the course' },
+            lessons:  { type: 'array', items: { $ref: '#/components/schemas/Lesson' } },
+          },
+        },
+        SectionInput: {
+          type: 'object',
+          description: 'Payload for creating or updating a section',
+          properties: {
+            title:    { type: 'string', example: 'Introduction to React' },
+            position: { type: 'integer', example: 1, description: 'Desired position — omit to auto-append' },
+          },
+        },
+        Lesson: {
+          type: 'object',
+          description: 'A single lesson inside a section',
+          properties: {
+            id:        { type: 'string', format: 'uuid' },
+            sectionId: { type: 'string', format: 'uuid' },
+            title:     { type: 'string', example: 'What is JSX?' },
+            position:  { type: 'integer', example: 1 },
+            resources: { type: 'array', items: { $ref: '#/components/schemas/Resource' } },
+          },
+        },
+        LessonInput: {
+          type: 'object',
+          description: 'Payload for creating or updating a lesson',
+          properties: {
+            title:    { type: 'string', example: 'Understanding Props' },
+            position: { type: 'integer', example: 2 },
+          },
+        },
+
+        // ─── Resources ───────────────────────────────────────────────────────
+        Resource: {
+          type: 'object',
+          description: 'A media/document resource attached to a lesson',
+          properties: {
+            id:       { type: 'string', format: 'uuid' },
+            lessonId: { type: 'string', format: 'uuid' },
+            type:     { type: 'string', enum: ['video', 'pdf', 'zip', 'image', 'link'], example: 'video' },
+            url:      { type: 'string', format: 'uri', example: 'https://res.cloudinary.com/...' },
+          },
+        },
+
+        // ─── Assignments ──────────────────────────────────────────────────────
+        AssignmentInput: {
+          type: 'object',
+          required: ['title'],
+          description: 'Payload for creating an assignment',
+          properties: {
+            title:   { type: 'string', example: 'Build a Todo App in React' },
+            dueDate: { type: 'string', format: 'date-time', example: '2026-09-01T23:59:00Z', nullable: true },
+          },
+        },
+        Assignment: {
+          type: 'object',
+          properties: {
+            id:       { type: 'string', format: 'uuid' },
+            lessonId: { type: 'string', format: 'uuid' },
+            title:    { type: 'string', example: 'Build a Todo App in React' },
+            dueDate:  { type: 'string', format: 'date-time', nullable: true },
+          },
+        },
+        Submission: {
+          type: 'object',
+          properties: {
+            id:           { type: 'string', format: 'uuid' },
+            assignmentId: { type: 'string', format: 'uuid' },
+            userId:       { type: 'string', format: 'uuid' },
+            fileUrl:      { type: 'string', format: 'uri', nullable: true },
+            grade:        { type: 'number', example: 87.5, nullable: true },
+            feedback:     { type: 'string', nullable: true, example: 'Good work! Clean code.' },
+            submittedAt:  { type: 'string', format: 'date-time' },
+          },
+        },
+        GradeInput: {
+          type: 'object',
+          required: ['grade'],
+          description: 'Payload for grading a submission',
+          properties: {
+            grade:    { type: 'number', minimum: 0, maximum: 100, example: 87.5 },
+            feedback: { type: 'string', example: 'Good work! Clean code and well-structured.' },
+          },
+        },
       },
     },
     tags: [
@@ -233,6 +326,9 @@ const options = {
       { name: 'Categories',  description: 'Course category tree management' },
       { name: 'Courses',     description: 'Course catalogue — public browsing and instructor management' },
       { name: 'Enrollments', description: 'Enroll / unenroll from published courses' },
+      { name: 'Curriculum',  description: 'Sections & Lessons — pedagogical content hierarchy' },
+      { name: 'Resources',   description: 'Lesson resource attachments (video, PDF, ZIP, image, link)' },
+      { name: 'Assignments', description: 'Assignments, student submissions, and instructor grading' },
     ],
   },
   apis: ['./src/routes/*.js'],

@@ -15,6 +15,9 @@ import userRoutes       from './routes/user.routes.js';
 import courseRoutes     from './routes/course.routes.js';
 import enrollmentRoutes from './routes/enrollment.routes.js';
 import categoryRoutes   from './routes/category.routes.js';
+import sectionRoutes    from './routes/section.routes.js';
+import resourceRoutes   from './routes/resource.routes.js';
+import assignmentRoutes from './routes/assignment.routes.js';
 
 dotenv.config();
 
@@ -77,6 +80,9 @@ app.use(`${V1}/users`,       userRoutes);
 app.use(`${V1}/courses`,     courseRoutes);
 app.use(`${V1}/enrollments`, enrollmentRoutes);
 app.use(`${V1}/categories`,  categoryRoutes);
+app.use(`${V1}`,             sectionRoutes);    // /courses/:id/curriculum, /sections/:id, /lessons/:id
+app.use(`${V1}`,             resourceRoutes);   // /lessons/:id/resources, /resources/:id
+app.use(`${V1}`,             assignmentRoutes); // /lessons/:id/assignments, /submissions/:id/grade
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.all('*', (req, res, next) => {
@@ -90,5 +96,6 @@ app.use(errorHandler);
 app.listen(PORT, () => {
   console.log(`⚡ [server]  http://localhost:${PORT}`);
   console.log(`📚 [docs]    http://localhost:${PORT}/api-docs`);
-  console.log(`📋 [v1]      ${V1}/auth | ${V1}/users | ${V1}/courses | ${V1}/enrollments`);
+  console.log(`📋 [v1]      ${V1}/auth | ${V1}/users | ${V1}/courses | ${V1}/enrollments | ${V1}/categories`);
+  console.log(`📋 [v1]      ${V1}/(courses|sections|lessons) | ${V1}/(lessons|resources) | ${V1}/(lessons|assignments|submissions)`);
 });
