@@ -1,0 +1,401 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ─── Module 1: Utilisateurs (User) ──────────────────────────────────────────
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  firstName    String    @db.VarChar(100)
+  lastName     String    @db.VarChar(100)
+  email        String    @unique @db.VarChar(255)
+  passwordHash String    @db.VarChar(255)
+  avatar       String?   @db.VarChar(500)
+  bio          String?   @db.Text
+  role         String    @db.VarChar(50)
+  isVerified   Boolean
+  lastLogin    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  // Relations
+  coursesInstructed CourseInstructor[]
+  enrollments       Enrollment[]
+  cart              Cart?
+  wishlist          Wishlist[]
+  submissions       Submission[]
+  quizAttempts      QuizAttempt[]
+  lessonProgress    LessonProgress[]
+  reviews           Review[]
+  notifications     Notification[]
+  badges            UserBadge[]
+  certificates      Certificate[]
+
+  @@map("users")
+}
+
+// ─── Module 2: Cours & Catalogue (Course) ────────────────────────────────────
+
+model Category {
+  id          String    @id @default(uuid()) @db.Uuid
+  name        String    @unique @db.VarChar(150)
+  description String?   @db.Text
+  parentId    String?   @db.Uuid
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  // Self-relation
+  parent   Category?  @relation("CategoryToCategory", fields: [parentId], references: [id], onDelete: Cascade)
+  children Category[] @relation("CategoryToCategory")
+
+  // Relations
+  courses Course[]
+
+  @@map("categories")
+}
+
+model Course {
+  id          String    @id @default(uuid()) @db.Uuid
+  categoryId  String    @db.Uuid
+  title       String    @db.VarChar(255)
+  description String?   @db.Text
+  price       Decimal   @db.Decimal(10, 2)
+  level       String?   @db.VarChar(50)
+  language    String?   @db.VarChar(50)
+  duration    Int?
+  status      String    @db.VarChar(50)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  // Relations
+  category    Category           @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  instructors CourseInstructor[]
+  sections    Section[]
+  enrollments Enrollment[]
+  cartItems   CartItem[]
+  wishlists   Wishlist[]
+  meetings    Meeting[]
+  reviews     Review[]
+  certificates Certificate[]
+
+  @@map("courses")
+}
+
+model CourseInstructor {
+  id       String @id @default(uuid()) @db.Uuid
+  courseId String @db.Uuid
+  userId   String @db.Uuid
+  role     String @db.VarChar(50)
+
+  // Relations
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("course_instructors")
+}
+
+// ─── Module 3: Contenu Pédagogique (Content) ───────────────────────────────
+
+model Section {
+  id       String @id @default(uuid()) @db.Uuid
+  courseId String @db.Uuid
+  title    String @db.VarChar(255)
+  position Int
+
+  // Relations
+  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons Lesson[]
+
+  @@map("sections")
+}
+
+model Lesson {
+  id        String @id @default(uuid()) @db.Uuid
+  sectionId String @db.Uuid
+  title     String @db.VarChar(255)
+  position  Int
+
+  // Relations
+  section        Section          @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  resources      Resource[]
+  assignments    Assignment[]
+  quizzes        Quiz[]
+  lessonProgress LessonProgress[]
+
+  @@map("lessons")
+}
+
+model Resource {
+  id       String @id @default(uuid()) @db.Uuid
+  lessonId String @db.Uuid
+  type     String @db.VarChar(50)
+  url      String @db.VarChar(500)
+
+  // Relations
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@map("resources")
+}
+
+model Assignment {
+  id       String    @id @default(uuid()) @db.Uuid
+  lessonId String    @db.Uuid
+  title    String    @db.VarChar(255)
+  dueDate  DateTime?
+
+  // Relations
+  lesson      Lesson       @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  submissions Submission[]
+
+  @@map("assignments")
+}
+
+model Submission {
+  id           String    @id @default(uuid()) @db.Uuid
+  assignmentId String    @db.Uuid
+  userId       String    @db.Uuid
+  fileUrl      String?   @db.VarChar(500)
+  grade        Decimal?  @db.Decimal(5, 2)
+  feedback     String?   @db.Text
+  submittedAt  DateTime  @default(now())
+
+  // Relations
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("submissions")
+}
+
+// ─── Module 4: Commerce (Commerce) ──────────────────────────────────────────
+
+model Enrollment {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  courseId   String   @db.Uuid
+  enrolledAt DateTime @default(now())
+
+  // Relations
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  payment Payment?
+
+  @@map("enrollments")
+}
+
+model Payment {
+  id                   String    @id @default(uuid()) @db.Uuid
+  enrollmentId         String    @unique @db.Uuid
+  amount               Decimal   @db.Decimal(10, 2)
+  currency             String    @db.VarChar(10)
+  provider             String    @db.VarChar(50)
+  transactionReference String    @unique @db.VarChar(255)
+  status               String    @db.VarChar(50)
+  paidAt               DateTime?
+  couponId             String?   @db.Uuid
+
+  // Relations
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  coupon     Coupon?    @relation(fields: [couponId], references: [id], onDelete: SetNull)
+
+  @@map("payments")
+}
+
+model Cart {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @unique @db.Uuid
+
+  // Relations
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CartItem[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  id       String @id @default(uuid()) @db.Uuid
+  cartId   String @db.Uuid
+  courseId String @db.Uuid
+
+  // Relations
+  cart   Cart   @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@map("cart_items")
+}
+
+model Wishlist {
+  id       String @id @default(uuid()) @db.Uuid
+  userId   String @db.Uuid
+  courseId String @db.Uuid
+
+  // Relations
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@map("wishlists")
+}
+
+model Coupon {
+  id             String   @id @default(uuid()) @db.Uuid
+  code           String   @unique @db.VarChar(50)
+  discount       Decimal  @db.Decimal(5, 2)
+  expirationDate DateTime
+
+  // Relations
+  payments Payment[]
+
+  @@map("coupons")
+}
+
+// ─── Module 5: Quiz & Évaluations (Quiz) ───────────────────────────────────
+
+model Quiz {
+  id               String @id @default(uuid()) @db.Uuid
+  lessonId         String @db.Uuid
+  title            String @db.VarChar(255)
+  validationStatus String @db.VarChar(50)
+
+  // Relations
+  lesson    Lesson        @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  questions Question[]
+  attempts  QuizAttempt[]
+
+  @@map("quizzes")
+}
+
+model Question {
+  id            String @id @default(uuid()) @db.Uuid
+  quizId        String @db.Uuid
+  statement     String @db.Text
+  correctAnswer String @db.Text
+
+  // Relations
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@map("questions")
+}
+
+model QuizAttempt {
+  id          String   @id @default(uuid()) @db.Uuid
+  quizId      String   @db.Uuid
+  userId      String   @db.Uuid
+  score       Decimal? @db.Decimal(5, 2)
+  duration    Int?
+  attemptDate DateTime @default(now())
+
+  // Relations
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("quiz_attempts")
+}
+
+// ─── Module 6: Social & Suivi (Social) ──────────────────────────────────────
+
+model LessonProgress {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @db.Uuid
+  lessonId      String    @db.Uuid
+  completed     Boolean
+  videoPosition Int
+  timeSpent     Int
+  startedAt     DateTime  @default(now())
+  completedAt   DateTime?
+
+  // Relations
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@map("lesson_progresses")
+}
+
+model Review {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  courseId   String   @db.Uuid
+  rating     Int      @db.SmallInt
+  comment    String?  @db.Text
+  reviewDate DateTime @default(now())
+
+  // Relations
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@map("reviews")
+}
+
+model Notification {
+  id      String   @id @default(uuid()) @db.Uuid
+  userId  String   @db.Uuid
+  content String   @db.Text
+  isRead  Boolean
+  sentAt  DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+// ─── Module 7: Gamification (Gamif) ──────────────────────────────────────────
+
+model BadgeDefinition {
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String  @unique @db.VarChar(150)
+  description String? @db.Text
+  icon        String? @db.VarChar(500)
+
+  // Relations
+  userBadges UserBadge[]
+
+  @@map("badge_definitions")
+}
+
+model UserBadge {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @db.Uuid
+  badgeDefinitionId String   @db.Uuid
+  obtainedAt        DateTime @default(now())
+
+  // Relations
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeDefinition BadgeDefinition @relation(fields: [badgeDefinitionId], references: [id], onDelete: Cascade)
+
+  @@map("user_badges")
+}
+
+model Certificate {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @db.Uuid
+  courseId          String   @db.Uuid
+  certificateNumber String   @unique @db.VarChar(100)
+  issuedAt          DateTime @default(now())
+
+  // Relations
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@map("certificates")
+}
+
+// ─── Module 8: Sessions Live (Meeting) ───────────────────────────────────────
+
+model Meeting {
+  id          String   @id @default(uuid()) @db.Uuid
+  courseId    String   @db.Uuid
+  title       String   @db.VarChar(255)
+  meetingUrl  String   @db.VarChar(500)
+  meetingDate DateTime
+
+  // Relations
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@map("meetings")
+}
