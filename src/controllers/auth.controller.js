@@ -1,4 +1,4 @@
-import bcrypt from 'bcryptjs';
+  import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
