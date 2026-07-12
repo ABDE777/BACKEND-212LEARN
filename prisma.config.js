@@ -1,9 +1,9 @@
 import "dotenv/config";
-import { defineConfig, env } from "prisma/config";
+import { defineConfig } from "prisma/config";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
   datasource: {
-    url: env("DATABASE_URL"),
+    url: process.env.DATABASE_URL || "postgresql://neondb_owner:npg_dummy@ep-dummy-pooler.us-east-1.aws.neon.tech/neondb",
   },
 });
