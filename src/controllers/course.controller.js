@@ -1,3 +1,4 @@
+import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse, paginationMeta, parsePagination, parseSort } from '../utils/response.js';
@@ -9,15 +10,62 @@ export const getAllCourses = async (req, res, next) => {
   try {
     const { page, limit, skip } = parsePagination(req.query);
     const orderBy = parseSort(req.query, SORTABLE_FIELDS);
-    const { categoryId, level, language, status, search } = req.query;
+    const { categoryId, level, language, status, search, instructorId } = req.query;
+
+    // ── Soft authentication for catalog filters ─────────────────────────────
+    let currentUser = null;
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      try {
+        const token = req.headers.authorization.split(' ')[1];
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret-key-212learn');
+        currentUser = await prisma.user.findUnique({ where: { id: decoded.id } });
+      } catch (err) {
+        // Soft auth: silent fail if token is invalid or expired
+      }
+    }
+
+    // Resolve 'me' instructor alias
+    let targetInstructorId = instructorId;
+    if (instructorId === 'me') {
+      if (!currentUser) {
+        return next(new AppError('Authentication required to use instructorId=me.', 401, 'UNAUTHORIZED'));
+      }
+      targetInstructorId = currentUser.id;
+    }
+
+    // Resolve course visibility status:
+    // Only course instructors or admins can see 'draft' / non-published statuses.
+    let targetStatus = 'published';
+    if (status) {
+      if (status !== 'published') {
+        const isAuthorized =
+          currentUser &&
+          (currentUser.role === 'admin' ||
+            (targetInstructorId === currentUser.id && currentUser.role === 'instructor'));
+
+        if (!isAuthorized) {
+          return next(new AppError('You do not have permission to view non-published courses.', 403, 'FORBIDDEN'));
+        }
+        targetStatus = status;
+      } else {
+        targetStatus = 'published';
+      }
+    }
 
     const where = {
       deletedAt: null,
       ...(categoryId && { categoryId }),
       ...(level && { level }),
       ...(language && { language }),
-      ...(status ? { status } : { status: 'published' }),
+      ...(targetStatus && { status: targetStatus }),
       ...(search && { title: { contains: search, mode: 'insensitive' } }),
+      ...(targetInstructorId && {
+        instructors: {
+          some: {
+            userId: targetInstructorId,
+          },
+        },
+      }),
     };
 
     const [total, courses] = await Promise.all([

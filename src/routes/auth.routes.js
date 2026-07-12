@@ -33,6 +33,7 @@ const router = Router();
  *         description: Email already taken
  */
 router.post('/register', register);
+router.post('/signup', register);
 
 /**
  * @swagger

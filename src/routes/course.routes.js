@@ -163,6 +163,7 @@ router.post('/', restrictTo('instructor', 'admin'), createCourse);
  *         description: Course not found
  */
 router.patch('/:id', restrictTo('instructor', 'admin'), updateCourse);
+router.put('/:id',   restrictTo('instructor', 'admin'), updateCourse);
 
 /**
  * @swagger
