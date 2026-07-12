@@ -77,12 +77,12 @@ app.get(`${V1}/diagnostics`, async (req, res, next) => {
 // ── API v1 Routes ─────────────────────────────────────────────────────────────
 app.use(`${V1}/auth`,        authRoutes);
 app.use(`${V1}/users`,       userRoutes);
-app.use(`${V1}/courses`,     courseRoutes);
-app.use(`${V1}/enrollments`, enrollmentRoutes);
-app.use(`${V1}/categories`,  categoryRoutes);
 app.use(`${V1}`,             sectionRoutes);    // /courses/:id/curriculum, /sections/:id, /lessons/:id
 app.use(`${V1}`,             resourceRoutes);   // /lessons/:id/resources, /resources/:id
 app.use(`${V1}`,             assignmentRoutes); // /lessons/:id/assignments, /submissions/:id/grade
+app.use(`${V1}/courses`,     courseRoutes);
+app.use(`${V1}/enrollments`, enrollmentRoutes);
+app.use(`${V1}/categories`,  categoryRoutes);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.all('*', (req, res, next) => {
