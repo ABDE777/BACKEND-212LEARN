@@ -51,16 +51,16 @@ PORT=5000
 NODE_ENV=development
 
 # Neon Database URL
-DATABASE_URL="postgresql://neondb_owner:npg_NiHghYJf59Wv@ep-soft-scene-ah8r0gt7-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+DATABASE_URL="postgresql://username:password@hostname/dbname?sslmode=require"
 
 # JWT Configuration
-JWT_SECRET="d7caee690d0435ae7343d847eaff384c7e7a9aebd05dc311987f82026a816c456dbcda6f213f09b3f25b87ec21fb8dabb168f9074f38be497c27c47f666ec8ab"
+JWT_SECRET="your-jwt-secret-key-here"
 JWT_EXPIRES_IN="7d"
 
 # Cloudinary Credentials
-CLOUDINARY_CLOUD_NAME=bhhk8frv
-CLOUDINARY_API_KEY=537184235698888
-CLOUDINARY_API_SECRET=f1zQMnorNk820GCofmZs5tHxI-g
+CLOUDINARY_CLOUD_NAME="your-cloudinary-cloud-name"
+CLOUDINARY_API_KEY="your-cloudinary-api-key"
+CLOUDINARY_API_SECRET="your-cloudinary-api-secret"
 ```
 
 ---
