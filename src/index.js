@@ -14,6 +14,7 @@ import authRoutes       from './routes/auth.routes.js';
 import userRoutes       from './routes/user.routes.js';
 import courseRoutes     from './routes/course.routes.js';
 import enrollmentRoutes from './routes/enrollment.routes.js';
+import categoryRoutes   from './routes/category.routes.js';
 
 dotenv.config();
 
@@ -75,6 +76,7 @@ app.use(`${V1}/auth`,        authRoutes);
 app.use(`${V1}/users`,       userRoutes);
 app.use(`${V1}/courses`,     courseRoutes);
 app.use(`${V1}/enrollments`, enrollmentRoutes);
+app.use(`${V1}/categories`,  categoryRoutes);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.all('*', (req, res, next) => {
