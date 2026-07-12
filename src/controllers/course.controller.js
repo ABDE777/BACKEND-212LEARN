@@ -182,3 +182,30 @@ export const searchCourses = async (req, res, next) => {
     next(error);
   }
 };
+
+// POST /api/v1/courses/:id/publish  (Admin only)
+export const publishCourse = async (req, res, next) => {
+  try {
+    const course = await prisma.course.findUnique({
+      where: { id: req.params.id },
+    });
+
+    if (!course || course.deletedAt) {
+      return next(new AppError('Course not found.', 404, 'NOT_FOUND'));
+    }
+
+    if (course.status === 'published') {
+      return next(new AppError('Course is already published.', 409, 'CONFLICT'));
+    }
+
+    const updated = await prisma.course.update({
+      where: { id: req.params.id },
+      data: { status: 'published' },
+    });
+
+    res.status(200).json(successResponse({ course: updated }));
+  } catch (error) {
+    next(error);
+  }
+};
+

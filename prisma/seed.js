@@ -113,7 +113,7 @@ async function main() {
       level: 'intermediate',
       language: 'french',
       duration: 1200, // 20 hours
-      status: 'active',
+      status: 'published',
     },
   });
 

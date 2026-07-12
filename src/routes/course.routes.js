@@ -6,6 +6,7 @@ import {
   updateCourse,
   deleteCourse,
   searchCourses,
+  publishCourse,
 } from '../controllers/course.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
 
@@ -183,5 +184,34 @@ router.patch('/:id', restrictTo('instructor', 'admin'), updateCourse);
  *         description: Forbidden — admin only
  */
 router.delete('/:id', restrictTo('admin'), deleteCourse);
+
+/**
+ * @swagger
+ * /courses/{id}/publish:
+ *   post:
+ *     summary: Publish a draft course (Admin only)
+ *     tags: [Courses]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Course published successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessResponse'
+ *       404:
+ *         description: Course not found
+ *       409:
+ *         description: Course is already published
+ *       403:
+ *         description: Forbidden — admin only
+ */
+router.post('/:id/publish', restrictTo('admin'), publishCourse);
 
 export default router;
