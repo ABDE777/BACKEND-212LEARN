@@ -45,12 +45,7 @@ router.get('/', getMyCourses);
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required: [courseId]
- *             properties:
- *               courseId:
- *                 type: string
- *                 format: uuid
+ *             $ref: '#/components/schemas/EnrollInput'
  *     responses:
  *       201:
  *         description: Enrolled successfully

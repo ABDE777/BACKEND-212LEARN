@@ -42,12 +42,7 @@ router.get('/me', (req, res) => {
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             properties:
- *               firstName: { type: string }
- *               lastName:  { type: string }
- *               avatar:    { type: string }
- *               bio:       { type: string }
+ *             $ref: '#/components/schemas/UpdateUserInput'
  *     responses:
  *       200:
  *         description: Profile updated

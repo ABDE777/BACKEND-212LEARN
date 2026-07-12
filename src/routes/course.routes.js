@@ -153,7 +153,7 @@ router.post('/', restrictTo('instructor', 'admin'), createCourse);
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/CreateCourseInput'
+ *             $ref: '#/components/schemas/UpdateCourseInput'
  *     responses:
  *       200:
  *         description: Course updated
