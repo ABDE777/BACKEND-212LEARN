@@ -18,9 +18,8 @@ import categoryRoutes   from './routes/category.routes.js';
 import sectionRoutes    from './routes/section.routes.js';
 import resourceRoutes   from './routes/resource.routes.js';
 import assignmentRoutes from './routes/assignment.routes.js';
-import paymentRoutes, { stripeWebhookHandler } from './routes/payment.routes.js';
+import wafacashRoutes from './routes/wafacash.routes.js';
 import progressRoutes from './routes/progress.routes.js';
-import Stripe from 'stripe';
 
 dotenv.config();
 
@@ -57,13 +56,6 @@ app.use(
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   })
-);
-
-// ── Stripe Webhook — MUST be before express.json() (needs raw body for signature) ──
-app.post(
-  '/api/v1/payments/webhook',
-  express.raw({ type: 'application/json' }),
-  stripeWebhookHandler
 );
 
 app.use(express.json());
@@ -119,7 +111,7 @@ app.use(`${V1}`,             assignmentRoutes); // /lessons/:id/assignments, /su
 app.use(`${V1}/courses`,     courseRoutes);
 app.use(`${V1}/enrollments`, enrollmentRoutes);
 app.use(`${V1}/categories`,  categoryRoutes);
-app.use(`${V1}/payments`,    paymentRoutes);
+app.use(`${V1}/payments/wafacash`, wafacashRoutes);
 app.use(`${V1}`,             progressRoutes); // /courses/:id/quizzes, /lessons/:id/progress, /users/:id/achievements
 
 // ── 404 ───────────────────────────────────────────────────────────────────────

@@ -98,16 +98,19 @@ export const checkEnrollment = async (req, res, next) => {
       return next(new AppError('Course context could not be determined.', 400, 'BAD_REQUEST'));
     }
 
-    // Verify active enrollment in the database
+    // Verify active enrollment in the database with status = paid
     const enrollment = await prisma.enrollment.findFirst({
       where: {
         userId:   user.id,
         courseId,
+        payment: {
+          status: 'PAID',
+        },
       },
     });
 
     if (!enrollment) {
-      return next(new AppError('Access denied. You must be enrolled in this course to view this content.', 403, 'FORBIDDEN'));
+      return next(new AppError('Access denied. You must be enrolled with a validated payment to view this content.', 403, 'FORBIDDEN'));
     }
 
     next();

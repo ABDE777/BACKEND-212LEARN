@@ -24,11 +24,17 @@ export const getCurriculum = async (req, res, next) => {
       return next(new AppError('Course not found.', 404, 'NOT_FOUND'));
     }
 
-    // Check if the requesting user is an enrolled student
+    // Check if the requesting user is an enrolled student with a validated paid status
     let isEnrolled = false;
     if (req.user && req.user.role === 'student') {
       const enrollment = await prisma.enrollment.findFirst({
-        where: { userId: req.user.id, courseId: req.params.courseId },
+        where: {
+          userId: req.user.id,
+          courseId: req.params.courseId,
+          payment: {
+            status: 'PAID',
+          },
+        },
       });
       isEnrolled = !!enrollment;
     }

@@ -196,9 +196,16 @@ model Payment {
   currency             String    @db.VarChar(10)
   provider             String    @db.VarChar(50)
   transactionReference String    @unique @db.VarChar(255)
-  status               String    @db.VarChar(50)
+  status               String    @db.VarChar(50) // 'PENDING', 'WAITING_VERIFICATION', 'PAID', 'REJECTED', 'REFUNDED'
   paidAt               DateTime?
   couponId             String?   @db.Uuid
+
+  // Wafacash robust validation fields
+  mtcn                 String?   @db.VarChar(50)
+  receiptUrl           String?   @db.VarChar(500)
+  verifiedBy           String?   @db.Uuid
+  verifiedAt           DateTime?
+  notes                String?   @db.Text
 
   // Relations
   enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
