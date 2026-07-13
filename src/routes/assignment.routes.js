@@ -166,5 +166,6 @@ router.get(
  *         description: Submission not found
  */
 router.patch('/submissions/:id/grade', protect, restrictTo('instructor', 'admin'), gradeSubmission);
+router.put('/submissions/:id/grade',   protect, restrictTo('instructor', 'admin'), gradeSubmission); // alias for frontend compatibility
 
 export default router;

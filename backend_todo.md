@@ -55,32 +55,40 @@
 
 ---
 
-## ⏳ Sprint 4: Stripe Payment & Access Control
+## ✅ Sprint 4: Stripe Payment & Access Control
 > Goal: Payment gateway integration and enrollment access control.
 
-- [ ] `POST /api/v1/payments/checkout-session` — Create Stripe checkout session
-- [ ] `POST /api/v1/payments/webhook` — Handle Stripe webhook events
-- [ ] On `payment_intent.succeeded` → create `Enrollment` + update `Payment` table
-- [ ] Enrollment access middleware — block unenrolled students from lesson resources
+- [x] `POST /api/v1/payments/checkout-session` — Create Stripe checkout session (with coupon support)
+- [x] `POST /api/v1/payments/webhook` — Handle Stripe webhook events (signature verified)
+- [x] On `checkout.session.completed` → create `Enrollment` + record `Payment` table (idempotent transaction)
+- [x] Enrollment access middleware — `checkEnrollment` blocks unenrolled students from lesson resources
+- [x] `optionalProtect` middleware — curriculum preview with URL redaction for guests/unenrolled students
+- [x] CORS updated — `https://212-learn.vercel.app` added as allowed origin
+- [x] Stripe API version aligned with dashboard (`2026-06-24.dahlia`)
+- [x] All 7 integration tests PASSED ✅ against live Vercel API
 
 ---
 
-## ⏳ Sprint 5: Quiz Engine & AI Generation
-> Goal: Manual and AI-generated quizzes with student attempts.
+## ✅ Sprint 5 (Partial): Quiz Engine — Frontend Compatibility Fixes
+> Goal: Expose quiz data needed by the Quiz Player frontend page.
+> Frontend pages: Quiz Player (`/learn/:courseId/quiz/:quizId`), AI Quiz Builder (`/instructor/lesson/:lessonId/quiz`)
 
-- [ ] `POST /api/v1/lessons/:lessonId/quizzes` — Create a quiz manually
-- [ ] `POST /api/v1/quizzes/:quizId/questions` — Add questions (MCQ, options, answer)
+- [x] `GET /api/v1/courses/:courseId/quizzes` — List quizzes for a course (needed by frontend Quiz Player) ✅ NEW
+- [x] `PUT /api/v1/submissions/:id/grade` — Added PUT alias alongside PATCH for frontend compatibility ✅ FIXED
+- [ ] `POST /api/v1/lessons/:lessonId/quizzes` — Create a quiz manually (Instructor)
+- [ ] `POST /api/v1/quizzes/:quizId/questions` — Add MCQ questions with options & correct answer
 - [ ] `POST /api/v1/lessons/:lessonId/quizzes/generate-ai` — AI-generated quiz (OpenAI/Claude)
 - [ ] `POST /api/v1/quizzes/:quizId/attempts` — Submit answers, calculate score, store attempt
 
 ---
 
-## ⏳ Sprint 6: Engagement, Gamification & Reviews
-> Goal: Progression tracking, badges, reviews, notifications.
+## ✅ Sprint 6 (Partial): Progress Tracking — Frontend Compatibility Fixes
+> Goal: Expose progress and achievement data needed by Classroom Player and Student Dashboard.
+> Frontend pages: Classroom Player (`/learn/:courseId/lesson/:lessonId`), Student Dashboard (`/student/dashboard`)
 
-- [ ] `POST /api/v1/lessons/:lessonId/progress` — Log progress / mark lesson complete
+- [x] `POST /api/v1/lessons/:lessonId/progress` — Log progress / mark lesson complete ✅ NEW (Classroom Player)
+- [x] `GET /api/v1/users/:userId/achievements` — Fetch badges, certs & stats ✅ NEW (Student Dashboard)
 - [ ] Gamification engine — award points on quiz attempts & lesson completion
-- [ ] `GET /api/v1/users/:userId/achievements` — Fetch points & unlocked badges
 - [ ] `POST /api/v1/courses/:courseId/reviews` — Student star review submission
 - [ ] Notification dispatcher — Socket.io or REST polling for in-app alerts
 

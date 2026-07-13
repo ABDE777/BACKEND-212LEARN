@@ -19,6 +19,7 @@ import sectionRoutes    from './routes/section.routes.js';
 import resourceRoutes   from './routes/resource.routes.js';
 import assignmentRoutes from './routes/assignment.routes.js';
 import paymentRoutes, { stripeWebhookHandler } from './routes/payment.routes.js';
+import progressRoutes from './routes/progress.routes.js';
 import Stripe from 'stripe';
 
 dotenv.config();
@@ -119,6 +120,7 @@ app.use(`${V1}/courses`,     courseRoutes);
 app.use(`${V1}/enrollments`, enrollmentRoutes);
 app.use(`${V1}/categories`,  categoryRoutes);
 app.use(`${V1}/payments`,    paymentRoutes);
+app.use(`${V1}`,             progressRoutes); // /courses/:id/quizzes, /lessons/:id/progress, /users/:id/achievements
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.all('*', (req, res, next) => {
