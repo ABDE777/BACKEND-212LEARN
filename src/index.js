@@ -34,6 +34,7 @@ const allowedOrigins = [
   'http://localhost:5174',
   'http://localhost:5175',
   'https://backend-212learn.vercel.app',
+  'https://212-learn.vercel.app/',
   process.env.FRONTEND_URL,
 ].filter(Boolean);
 
