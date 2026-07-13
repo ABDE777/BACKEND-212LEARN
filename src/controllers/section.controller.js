@@ -4,7 +4,8 @@ import { successResponse } from '../utils/response.js';
 
 // ─── GET /courses/:courseId/curriculum ───────────────────────────────────────
 // Returns the full section → lesson tree for a course.
-// Public for published courses; instructors/admins can view any status.
+// Public preview: resource URLs are REDACTED for unenrolled users.
+// Full access: admins, instructors, and enrolled students see everything.
 export const getCurriculum = async (req, res, next) => {
   try {
     const course = await prisma.course.findUnique({
@@ -23,6 +24,15 @@ export const getCurriculum = async (req, res, next) => {
       return next(new AppError('Course not found.', 404, 'NOT_FOUND'));
     }
 
+    // Check if the requesting user is an enrolled student
+    let isEnrolled = false;
+    if (req.user && req.user.role === 'student') {
+      const enrollment = await prisma.enrollment.findFirst({
+        where: { userId: req.user.id, courseId: req.params.courseId },
+      });
+      isEnrolled = !!enrollment;
+    }
+
     const sections = await prisma.section.findMany({
       where: { courseId: req.params.courseId },
       orderBy: { position: 'asc' },
@@ -36,7 +46,29 @@ export const getCurriculum = async (req, res, next) => {
       },
     });
 
-    res.status(200).json(successResponse({ courseId: req.params.courseId, sections }));
+    // Redact resource URLs for users without full access (guests + unenrolled students)
+    const hasFullAccess = isPrivileged || isEnrolled;
+    const sanitizedSections = hasFullAccess
+      ? sections
+      : sections.map((section) => ({
+          ...section,
+          lessons: section.lessons.map((lesson) => ({
+            ...lesson,
+            resources: lesson.resources.map((resource) =>
+              resource.type === 'link'
+                ? resource // External links can be previewed
+                : { ...resource, url: 'ENROLLMENT_REQUIRED' }
+            ),
+          })),
+        }));
+
+    res.status(200).json(
+      successResponse({
+        courseId:  req.params.courseId,
+        sections:  sanitizedSections,
+        hasFullAccess,
+      })
+    );
   } catch (error) {
     next(error);
   }

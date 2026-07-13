@@ -7,6 +7,7 @@ import {
   gradeSubmission,
 } from '../controllers/assignment.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
+import { checkEnrollment } from '../middleware/enrollment.js';
 import { upload } from '../config/cloudinary.js';
 
 const router = Router();
@@ -56,7 +57,7 @@ const router = Router();
  *         description: Lesson not found
  */
 router.post('/lessons/:lessonId/assignments', protect, restrictTo('instructor', 'admin'), createAssignment);
-router.get('/lessons/:lessonId/assignments',  protect, getAssignments);
+router.get('/lessons/:lessonId/assignments',  protect, checkEnrollment, getAssignments);
 
 // ─── Submissions ──────────────────────────────────────────────────────────────
 
@@ -124,6 +125,7 @@ router.post(
   '/assignments/:assignmentId/submissions',
   protect,
   restrictTo('student'),
+  checkEnrollment,
   upload.single('file'),
   submitWork
 );

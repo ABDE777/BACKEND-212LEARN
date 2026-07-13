@@ -7,6 +7,7 @@ import {
 } from '../controllers/section.controller.js';
 import { createLesson, updateLesson, deleteLesson } from '../controllers/lesson.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
+import { optionalProtect } from '../middleware/enrollment.js';
 
 const router = Router();
 
@@ -33,7 +34,7 @@ const router = Router();
  *       404:
  *         description: Course not found or not published
  */
-router.get('/courses/:courseId/curriculum', getCurriculum);
+router.get('/courses/:courseId/curriculum', optionalProtect, getCurriculum);
 
 // ─── Sections ─────────────────────────────────────────────────────────────────
 
