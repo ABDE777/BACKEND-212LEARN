@@ -55,17 +55,32 @@
 
 ---
 
-## ✅ Sprint 4: Stripe Payment & Access Control
-> Goal: Payment gateway integration and enrollment access control.
+## ✅ Sprint 4: Wafacash Payment & Access Control (COMPLETED — 8/8 Tests Passed ✅)
+> Goal: Moroccan Wafacash manual cash payment workflow and enrollment access control.
+> Payment Statuses: `PENDING` → `WAITING_VERIFICATION` → `PAID` / `REJECTED` / `REFUNDED`
 
-- [x] `POST /api/v1/payments/checkout-session` — Create Stripe checkout session (with coupon support)
-- [x] `POST /api/v1/payments/webhook` — Handle Stripe webhook events (signature verified)
-- [x] On `checkout.session.completed` → create `Enrollment` + record `Payment` table (idempotent transaction)
-- [x] Enrollment access middleware — `checkEnrollment` blocks unenrolled students from lesson resources
-- [x] `optionalProtect` middleware — curriculum preview with URL redaction for guests/unenrolled students
-- [x] CORS updated — `https://212-learn.vercel.app` added as allowed origin
-- [x] Stripe API version aligned with dashboard (`2026-06-24.dahlia`)
-- [x] All 7 integration tests PASSED ✅ against live Vercel API
+**Wafacash Payment Routes** (`src/routes/wafacash.routes.js`, `src/controllers/wafacash.controller.js`):
+- [x] `POST /api/v1/payments/wafacash/request` (Student) — Initialize payment voucher, creates `Enrollment` + `Payment` with status `PENDING`, returns `WFC-XXXXXXXX` reference & MAD amount
+- [x] `POST /api/v1/payments/wafacash/submit` (Student) — Upload receipt photo (Cloudinary) + 10-digit MTCN code → moves to `WAITING_VERIFICATION`
+- [x] `GET /api/v1/payments/wafacash/pending` (Admin) — List all payments awaiting verification
+- [x] `PATCH /api/v1/payments/wafacash/verify` (Admin) — Approve (`PAID`) or reject (`REJECTED`) with optional notes
+
+**Prisma Schema** (`prisma/schema.prisma`):
+- [x] Added `mtcn`, `receiptUrl`, `verifiedBy`, `verifiedAt`, `notes` fields to `Payment` model
+- [x] `npx prisma db push` + `npx prisma generate` to sync new fields
+
+**Access Control**:
+- [x] `checkEnrollment` middleware — blocks access unless `payment.status === 'PAID'`
+- [x] `getCurriculum` — resource URLs replaced with `"ENROLLMENT_REQUIRED"` for non-`PAID` students
+- [x] `optionalProtect` middleware — curriculum preview works for guests/unenrolled
+- [x] CORS updated — `https://212-learn.vercel.app` authorized
+
+**Security & Demo Mode**:
+- [x] `?demo=true` on `/submit` enables instant auto-approval (blocked in `NODE_ENV=production`)
+- [x] `WAFACASH_AUTO_APPROVE=false` in `.env` — manual admin verification required by default
+
+**Tests**:
+- [x] All 8 integration tests PASSED ✅ against local dev server
 
 ---
 
