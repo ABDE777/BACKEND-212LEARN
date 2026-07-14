@@ -84,16 +84,19 @@
 
 ---
 
-## ✅ Sprint 5 (Partial): Quiz Engine — Frontend Compatibility Fixes
-> Goal: Expose quiz data needed by the Quiz Player frontend page.
+## ✅ Sprint 5: Quiz Engine & AI Generation (COMPLETED — 6/6 Tests Passed ✅)
+> Goal: Implement manual and AI-powered MCQ quiz creation, question management, and attempt verification.
 > Frontend pages: Quiz Player (`/learn/:courseId/quiz/:quizId`), AI Quiz Builder (`/instructor/lesson/:lessonId/quiz`)
 
 - [x] `GET /api/v1/courses/:courseId/quizzes` — List quizzes for a course (needed by frontend Quiz Player) ✅ NEW
 - [x] `PUT /api/v1/submissions/:id/grade` — Added PUT alias alongside PATCH for frontend compatibility ✅ FIXED
-- [ ] `POST /api/v1/lessons/:lessonId/quizzes` — Create a quiz manually (Instructor)
-- [ ] `POST /api/v1/quizzes/:quizId/questions` — Add MCQ questions with options & correct answer
-- [ ] `POST /api/v1/lessons/:lessonId/quizzes/generate-ai` — AI-generated quiz (OpenAI/Claude)
-- [ ] `POST /api/v1/quizzes/:quizId/attempts` — Submit answers, calculate score, store attempt
+- [x] `POST /api/v1/lessons/:lessonId/quizzes` — Create a quiz manually (Instructor)
+- [x] `POST /api/v1/quizzes/:quizId/questions` — Add MCQ questions with options & correct answer
+- [x] `POST /api/v1/lessons/:lessonId/quizzes/generate-ai` — AI-generated quiz using Google Gemini API with automatic robust fallback simulation
+- [x] `GET /api/v1/quizzes/:quizId` — Get quiz with choices (correct answers hidden for students)
+- [x] `PATCH /api/v1/quizzes/:quizId` — Publish / approve quiz
+- [x] `POST /api/v1/quizzes/:quizId/attempts` — Submit student answers, calculate score, record attempt
+- [x] All 6 integration tests PASSED ✅ against local dev server
 
 ---
 

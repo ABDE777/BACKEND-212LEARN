@@ -281,7 +281,8 @@ model Question {
   id            String @id @default(uuid()) @db.Uuid
   quizId        String @db.Uuid
   statement     String @db.Text
-  correctAnswer String @db.Text
+  options       Json?  // Array of strings: ["Option A", "Option B", "Option C", "Option D"]
+  correctAnswer String @db.Text // Must match one of the options exactly
 
   // Relations
   quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)

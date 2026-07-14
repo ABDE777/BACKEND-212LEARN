@@ -227,14 +227,14 @@ async function main() {
 
   await prisma.payment.create({
     data: {
-      enrollmentId: enrollment.id,
-      amount: 39.99, // discounted
-      currency: 'USD',
-      provider: 'stripe',
-      transactionReference: 'ch_stripe_mock_12345',
-      status: 'paid',
-      paidAt: new Date(),
-      couponId: coupon.id,
+      enrollmentId:         enrollment.id,
+      amount:               399.00,
+      currency:             'MAD',
+      provider:             'wafacash',
+      transactionReference: 'WFC-SEEDMOCK1',
+      status:               'PAID',
+      paidAt:               new Date(),
+      couponId:             coupon.id,
     },
   });
 
@@ -276,6 +276,12 @@ async function main() {
     data: {
       quizId: quiz.id,
       statement: 'What does useState return?',
+      options: [
+        'An array with two elements: the state and a function to update it.',
+        'A single state value.',
+        'A dispatch function only.',
+        'An object containing all state variables.'
+      ],
       correctAnswer: 'An array with two elements: the state and a function to update it.',
     },
   });
