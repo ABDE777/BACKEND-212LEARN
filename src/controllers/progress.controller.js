@@ -1,6 +1,7 @@
 import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
+import { checkAndAwardBadges } from '../utils/gamification.js';
 
 // ─── GET /api/v1/courses/:courseId/quizzes ────────────────────────────────────
 // List all quizzes for a course (via its lessons → sections).
@@ -104,6 +105,18 @@ export const logProgress = async (req, res, next) => {
       },
     });
 
+    // Import the checkAndAwardBadges utility inside the controller file
+    // Trigger the gamification and certificate processor in background
+    const section = await prisma.section.findFirst({
+      where: { lessons: { some: { id: lessonId } } }
+    });
+    const courseId = section?.courseId || null;
+
+    if (completed === true) {
+      // Defer badge check to avoid blocking response
+      checkAndAwardBadges(userId, courseId).catch(console.error);
+    }
+
     res.status(200).json(successResponse({ progress }));
   } catch (error) {
     // Fallback: upsert by id 'new' fails — use create or update directly
@@ -136,6 +149,14 @@ export const logProgress = async (req, res, next) => {
             ...(completed === true && { completedAt: new Date() }),
           },
         });
+      }
+
+      if (completed === true) {
+        const section = await prisma.section.findFirst({
+          where: { lessons: { some: { id: req.params.lessonId } } }
+        });
+        const courseId = section?.courseId || null;
+        checkAndAwardBadges(req.user.id, courseId).catch(console.error);
       }
 
       res.status(200).json(successResponse({ progress }));
@@ -200,6 +221,16 @@ export const getAchievements = async (req, res, next) => {
     const completedLessons = lessonProgresses.filter((p) => p.completed).length;
     const totalLessons = lessonProgresses.length;
 
+    // Calculate total points dynamically
+    const quizPoints = quizAttempts.reduce((sum, attempt) => {
+      const score = Number(attempt.score);
+      if (score === 100) return sum + 50;
+      if (score >= 60) return sum + 20;
+      return sum;
+    }, 0);
+    const lessonPoints = completedLessons * 10;
+    const totalPoints = lessonPoints + quizPoints;
+
     const stats = {
       totalEnrollments:   enrollments.length,
       completedLessons,
@@ -209,6 +240,7 @@ export const getAchievements = async (req, res, next) => {
       certificatesEarned: certificates.length,
       bestQuizScore:      quizAttempts[0]?.score ?? null,
       totalTimeSpent:     lessonProgresses.reduce((sum, p) => sum + (p.timeSpent || 0), 0),
+      points:             totalPoints,
     };
 
     res.status(200).json(

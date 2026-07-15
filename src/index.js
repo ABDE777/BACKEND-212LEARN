@@ -21,6 +21,7 @@ import assignmentRoutes from './routes/assignment.routes.js';
 import wafacashRoutes from './routes/wafacash.routes.js';
 import progressRoutes from './routes/progress.routes.js';
 import quizRoutes     from './routes/quiz.routes.js';
+import reviewRoutes   from './routes/review.routes.js';
 
 dotenv.config();
 
@@ -115,6 +116,7 @@ app.use(`${V1}/categories`,  categoryRoutes);
 app.use(`${V1}/payments/wafacash`, wafacashRoutes);
 app.use(`${V1}`,             progressRoutes); // /courses/:id/quizzes, /lessons/:id/progress, /users/:id/achievements
 app.use(`${V1}`,             quizRoutes);     // /lessons/:id/quizzes, /quizzes/:id, /quizzes/:id/attempts
+app.use(`${V1}`,             reviewRoutes);   // /courses/:id/reviews, /users/:id/notifications
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.all('*', (req, res, next) => {

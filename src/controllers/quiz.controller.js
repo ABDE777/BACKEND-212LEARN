@@ -1,6 +1,7 @@
 import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
+import { checkAndAwardBadges } from '../utils/gamification.js';
 
 // ─── POST /api/v1/lessons/:lessonId/quizzes ───────────────────────────────────
 // Instructor creates a new quiz manually for a lesson.
@@ -374,6 +375,10 @@ export const submitAttempt = async (req, res, next) => {
         attemptDate: new Date(),
       },
     });
+
+    // ── Trigger gamification check in background ──────────────────────────────
+    // Checks badge unlocks (Quiz Master, etc.) without blocking the response
+    checkAndAwardBadges(req.user.id, null).catch(console.error);
 
     res.status(201).json(
       successResponse({

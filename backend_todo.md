@@ -100,15 +100,24 @@
 
 ---
 
-## ✅ Sprint 6 (Partial): Progress Tracking — Frontend Compatibility Fixes
-> Goal: Expose progress and achievement data needed by Classroom Player and Student Dashboard.
+## ✅ Sprint 6: Gamification, Reviews & Notifications (COMPLETED — 9/9 Tests Passed ✅)
+> Goal: Progression tracking, badge rewards, course reviews, and notification dispatching.
 > Frontend pages: Classroom Player (`/learn/:courseId/lesson/:lessonId`), Student Dashboard (`/student/dashboard`)
 
-- [x] `POST /api/v1/lessons/:lessonId/progress` — Log progress / mark lesson complete ✅ NEW (Classroom Player)
-- [x] `GET /api/v1/users/:userId/achievements` — Fetch badges, certs & stats ✅ NEW (Student Dashboard)
-- [ ] Gamification engine — award points on quiz attempts & lesson completion
-- [ ] `POST /api/v1/courses/:courseId/reviews` — Student star review submission
-- [ ] Notification dispatcher — Socket.io or REST polling for in-app alerts
+- [x] `POST /api/v1/lessons/:lessonId/progress` — Log progress / mark lesson complete ✅ (Classroom Player)
+- [x] `GET /api/v1/users/:userId/achievements` — Fetch badges, certs & stats with **dynamic point system** ✅ (Student Dashboard)
+- [x] Gamification engine — Auto-award badges on lesson completion & perfect quiz scores
+  - [x] 🥇 **"First Steps"** — Unlocks on first completed lesson (+10 pts/lesson)
+  - [x] 🏆 **"Quiz Master"** — Unlocks on first 100% quiz score (+50 pts)
+  - [x] 🎓 **"Course Finisher"** — Unlocks when all lessons in a course are done → **Auto-generates certificate**
+- [x] `GET /api/v1/courses/:courseId/reviews` — List course reviews with average rating (public) ✅
+- [x] `POST /api/v1/courses/:courseId/reviews` — Student star review submission (PAID enrollment required) ✅
+  - Smart update: if review already exists, it is updated instead of creating a duplicate
+  - Instructor receives a notification when a new review is submitted
+- [x] `GET /api/v1/users/:userId/notifications` — Fetch notifications with unread count ✅
+- [x] `PATCH /api/v1/users/:userId/notifications/read-all` — Mark all notifications as read ✅
+- [x] Notification dispatcher — Integrated into gamification engine (badge unlocks, certificate generation, reviews)
+- [x] All 9 integration tests PASSED ✅ against local dev server
 
 ---
 
