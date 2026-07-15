@@ -73,6 +73,23 @@ async function runTests() {
   console.log('📌 Course ID:', courseId);
   console.log('📌 Lesson ID:', lessonId);
 
+  // ── Ensure student has a PAID enrollment for this course to avoid 403s ──────────
+  const myCoursesRes = await request('GET', '/enrollments', null, { Authorization: `Bearer ${studentToken}` });
+  const existingEnrollment = myCoursesRes.body?.data?.enrollments?.find(e => e.courseId === courseId);
+  if (existingEnrollment) {
+    await request('DELETE', `/enrollments/${existingEnrollment.id}`, null, { Authorization: `Bearer ${studentToken}` });
+  }
+
+  const reqPay = await request('POST', '/payments/wafacash/request', { courseId }, { Authorization: `Bearer ${studentToken}` });
+  const pId = reqPay.body?.data?.paymentId;
+  const pRef = reqPay.body?.data?.paymentReference;
+  
+  if (pId && pRef) {
+    await request('POST', '/payments/wafacash/submit', { paymentReference: pRef, mtcn: '9999999999' }, { Authorization: `Bearer ${studentToken}` });
+    await request('PATCH', '/payments/wafacash/verify', { paymentId: pId, action: 'approve' }, { Authorization: `Bearer ${adminToken}` });
+    console.log('🚀 Ensured student has active PAID enrollment for Sprint 6 tests.\n');
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   // TEST 1: Get student achievements BEFORE any action (baseline)
   // ─────────────────────────────────────────────────────────────────────────
