@@ -1,8 +1,12 @@
 import { Router } from 'express';
 import { register, login, getMe } from '../controllers/auth.controller.js';
 import { protect } from '../middleware/auth.js';
+import { rateLimiter } from '../middleware/security.js';
 
 const router = Router();
+
+// Strict rate limiter for sensitive authentication endpoints: max 10 attempts per minute
+const authRateLimit = rateLimiter(60000, 10, 'Too many login or registration attempts. Please try again in a minute.');
 
 /**
  * @swagger
@@ -32,8 +36,8 @@ const router = Router();
  *       409:
  *         description: Email already taken
  */
-router.post('/register', register);
-router.post('/signup', register);
+router.post('/register', authRateLimit, register);
+router.post('/signup', authRateLimit, register);
 
 /**
  * @swagger
@@ -59,7 +63,7 @@ router.post('/signup', register);
  *       401:
  *         description: Invalid credentials
  */
-router.post('/login', login);
+router.post('/login', authRateLimit, login);
 
 /**
  * @swagger

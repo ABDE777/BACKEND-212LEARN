@@ -1,4 +1,4 @@
-import express from 'express'; // reload server with updated prisma client
+import express from 'express'; // reload server with security middlewares
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -24,6 +24,7 @@ import quizRoutes     from './routes/quiz.routes.js';
 import reviewRoutes    from './routes/review.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
 import adminRoutes     from './routes/admin.routes.js';
+import { xssSanitizer, preventParameterPollution, rateLimiter } from './middleware/security.js';
 
 dotenv.config();
 
@@ -64,6 +65,11 @@ app.use(
 
 app.use(express.json());
 app.use(process.env.NODE_ENV === 'development' ? morgan('dev') : morgan('combined'));
+
+// ── Security Hardening Middlewares ───────────────────────────────────────────
+app.use(preventParameterPollution); // Protect against HTTP Parameter Pollution
+app.use(xssSanitizer);              // Sanitize input body/query/params from XSS scripts
+app.use(rateLimiter(900000, 150, 'Too many requests from this IP. Please try again later.')); // 150 requests per 15 minutes limit
 
 // ── Swagger UI ────────────────────────────────────────────────────────────────
 app.use(
