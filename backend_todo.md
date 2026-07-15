@@ -121,11 +121,22 @@
 
 ---
 
-## ⏳ Sprint 7: Live Meetings & Analytics
+## ✅ Sprint 7: Live Meetings & Analytics (COMPLETED — 10/10 Tests Passed ✅)
 > Goal: Live sessions management, instructor analytics, admin portal.
 
-- [ ] `POST /api/v1/courses/:courseId/meetings` — Post Zoom/Meet link & date
-- [ ] `GET /api/v1/instructor/analytics/revenue` — Monthly revenue trends
-- [ ] `GET /api/v1/instructor/analytics/students` — Active students metrics
-- [ ] `GET /api/v1/instructor/analytics/completion` — Course completion rates
-- [ ] Admin moderation endpoints — instructor KYC, refund processing, audit logs
+- [x] `POST /api/v1/courses/:courseId/meetings` — Post Zoom/Meet link & date ✅
+- [x] `GET /api/v1/instructor/analytics/revenue` — Monthly revenue trends ✅
+- [x] `GET /api/v1/instructor/analytics/students` — Active students metrics ✅
+- [x] `GET /api/v1/instructor/analytics/completion` — Course completion rates ✅
+- [x] `GET /api/v1/courses/:courseId/meetings` — List course meetings (upcoming/past) ✅
+- [x] All 10 integration tests PASSED ✅ against local dev server
+
+---
+
+## ✅ Sprint 8: Admin Moderation, Refunds & Auditing (COMPLETED — 10/10 Tests Passed ✅)
+> Goal: instructor KYC, refund processing, audit logs.
+
+- [x] Admin KYC Verification endpoints for Instructors (`GET /admin/users/pending-kyc`, `PATCH /admin/users/:userId/verify`) ✅
+- [x] Refund processing and validation endpoints (`PATCH /admin/payments/:paymentId/refund`) ✅
+- [x] Audit logs viewer / database logger for actions (`GET /admin/audit-logs`, logAuditEvent utility) ✅
+- [x] All 10 integration tests PASSED ✅ against local dev server

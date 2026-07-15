@@ -1,4 +1,4 @@
-import express from 'express';
+import express from 'express'; // reload server with updated prisma client
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -23,6 +23,7 @@ import progressRoutes from './routes/progress.routes.js';
 import quizRoutes     from './routes/quiz.routes.js';
 import reviewRoutes    from './routes/review.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
+import adminRoutes     from './routes/admin.routes.js';
 
 dotenv.config();
 
@@ -119,6 +120,7 @@ app.use(`${V1}`,             progressRoutes); // /courses/:id/quizzes, /lessons/
 app.use(`${V1}`,             quizRoutes);     // /lessons/:id/quizzes, /quizzes/:id, /quizzes/:id/attempts
 app.use(`${V1}`,             reviewRoutes);   // /courses/:id/reviews, /users/:id/notifications
 app.use(`${V1}`,             analyticsRoutes); // /instructor/analytics/*, /courses/:id/meetings
+app.use(`${V1}`,             adminRoutes);     // /admin/*
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.all('*', (req, res, next) => {

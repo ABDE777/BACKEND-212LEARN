@@ -35,6 +35,7 @@ model User {
   notifications     Notification[]
   badges            UserBadge[]
   certificates      Certificate[]
+  auditLogs         AuditLog[]
 
   @@map("users")
 }
@@ -407,3 +408,21 @@ model Meeting {
 
   @@map("meetings")
 }
+
+// ─── Module 9: Audit Logs (AuditLog) ─────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String?  @db.Uuid
+  action     String   @db.VarChar(100)
+  resource   String   @db.VarChar(100)
+  resourceId String?  @db.VarChar(100)
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+}
+

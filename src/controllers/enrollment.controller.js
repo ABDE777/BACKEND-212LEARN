@@ -17,7 +17,7 @@ export const getMyCourses = async (req, res, next) => {
           course: {
             include: {
               category: { select: { id: true, name: true } },
-              _count: { select: { sections: true, reviews: true, lessons: false } },
+              _count: { select: { sections: true, reviews: true } },
             },
           },
         },
