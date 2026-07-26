@@ -5,9 +5,15 @@ const options = {
     openapi: '3.0.0',
     info: {
       title: '212Learning API',
-      version: '1.0.0',
+      version: '1.1.0',
       description:
         'REST API for the 212Learning e-learning platform.\n\n' +
+        '**Security Features:**\n' +
+        '- Draft courses are protected - only accessible to admins and course instructors\n' +
+        '- Course meetings require enrollment (PAID status) or instructor/admin access\n' +
+        '- Registration forces student role - role escalation prevented\n' +
+        '- Soft-deleted users cannot authenticate\n' +
+        '- Pagination supports `limit=-1` and `limit=0` for full-fetch\n\n' +
         '**All responses follow a consistent envelope:**\n\n' +
         '```json\n// Success\n{ "success": true, "data": {}, "meta": {} }\n\n// Error\n{ "success": false, "error": { "code": "...", "message": "..." } }\n```\n\n' +
         '**Authentication:** Use the `POST /auth/login` endpoint to get a JWT token, ' +
@@ -48,10 +54,13 @@ const options = {
             meta: {
               type: 'object',
               properties: {
-                total:      { type: 'integer', example: 100 },
-                page:       { type: 'integer', example: 1 },
-                limit:      { type: 'integer', example: 20 },
-                totalPages: { type: 'integer', example: 5 },
+                total:       { type: 'integer', example: 100 },
+                totalItems:  { type: 'integer', example: 100 },
+                page:        { type: 'integer', example: 1 },
+                limit:       { type: 'integer', example: 20 },
+                totalPages:  { type: 'integer', example: 5 },
+                hasNextPage: { type: 'boolean', example: true },
+                hasPrevPage: { type: 'boolean', example: false },
               },
             },
           },
@@ -80,7 +89,6 @@ const options = {
             lastName:  { type: 'string', example: 'Alaoui' },
             email:     { type: 'string', format: 'email', example: 'mohamed@212learning.ma' },
             password:  { type: 'string', format: 'password', minLength: 8, example: 'SecurePass123!' },
-            role:      { type: 'string', enum: ['student', 'instructor', 'admin'], default: 'student', description: 'Defaults to student if omitted' },
           },
         },
         LoginInput: {
