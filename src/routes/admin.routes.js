@@ -4,6 +4,11 @@ import {
   verifyInstructor,
   refundPayment,
   getAuditLogs,
+  getGroups,
+  createGroup,
+  assignGroupFormateur,
+  addStudentsToGroup,
+  removeStudentFromGroup,
 } from '../controllers/admin.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
 
@@ -123,6 +128,142 @@ router.patch('/admin/payments/:paymentId/refund', refundPayment);
  *       200:
  *         description: Paginated audit logs list
  */
+
+/**
+ * @swagger
+ * /admin/groups:
+ *   get:
+ *     summary: List training groups (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 20 }
+ *       - in: query
+ *         name: courseId
+ *         schema: { type: string, format: uuid }
+ *       - in: query
+ *         name: formateurId
+ *         schema: { type: string, format: uuid }
+ *       - in: query
+ *         name: search
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Paginated group list
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/PaginatedResponse'
+ *   post:
+ *     summary: Create a group and assign it to a formateur (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CreateGroupInput'
+ *     responses:
+ *       201:
+ *         description: Group created
+ *       400:
+ *         description: Validation error
+ *       404:
+ *         description: Course or formateur not found
+ */
+router.get('/admin/groups', getGroups);
+router.post('/admin/groups', createGroup);
+
+/**
+ * @swagger
+ * /admin/groups/{groupId}/formateur:
+ *   patch:
+ *     summary: Assign or change a group's formateur (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: groupId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/AssignGroupFormateurInput'
+ *     responses:
+ *       200:
+ *         description: Formateur assigned
+ *       400:
+ *         description: Invalid formateur
+ *       404:
+ *         description: Group or formateur not found
+ */
+router.patch('/admin/groups/:groupId/formateur', assignGroupFormateur);
+
+/**
+ * @swagger
+ * /admin/groups/{groupId}/students:
+ *   post:
+ *     summary: Add students to a group (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: groupId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/AddGroupStudentsInput'
+ *     responses:
+ *       200:
+ *         description: Students added to group
+ *       400:
+ *         description: Invalid student ids
+ *       404:
+ *         description: Group not found
+ */
+router.post('/admin/groups/:groupId/students', addStudentsToGroup);
+
+/**
+ * @swagger
+ * /admin/groups/{groupId}/students/{studentId}:
+ *   delete:
+ *     summary: Remove a student from a group (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: groupId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *       - in: path
+ *         name: studentId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       204:
+ *         description: Student removed from group
+ *       404:
+ *         description: Membership not found
+ */
+router.delete('/admin/groups/:groupId/students/:studentId', removeStudentFromGroup);
 router.get('/admin/audit-logs', getAuditLogs);
 
 export default router;

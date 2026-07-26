@@ -1,6 +1,7 @@
 import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
+import { ensureCourseManager } from '../utils/authorization.js';
 
 // ─── POST /sections/:sectionId/lessons ───────────────────────────────────────
 export const createLesson = async (req, res, next) => {
@@ -18,6 +19,8 @@ export const createLesson = async (req, res, next) => {
     if (!section) {
       return next(new AppError('Section not found.', 404, 'NOT_FOUND'));
     }
+
+    await ensureCourseManager(req.user, section.courseId);
 
     // Auto-assign position: last lesson in section + 1
     const lastLesson = await prisma.lesson.findFirst({
@@ -47,11 +50,14 @@ export const updateLesson = async (req, res, next) => {
 
     const lesson = await prisma.lesson.findUnique({
       where: { id: req.params.id },
+      include: { section: true },
     });
 
     if (!lesson) {
       return next(new AppError('Lesson not found.', 404, 'NOT_FOUND'));
     }
+
+    await ensureCourseManager(req.user, lesson.section.courseId);
 
     const updated = await prisma.lesson.update({
       where: { id: req.params.id },
@@ -73,11 +79,14 @@ export const deleteLesson = async (req, res, next) => {
   try {
     const lesson = await prisma.lesson.findUnique({
       where: { id: req.params.id },
+      include: { section: true },
     });
 
     if (!lesson) {
       return next(new AppError('Lesson not found.', 404, 'NOT_FOUND'));
     }
+
+    await ensureCourseManager(req.user, lesson.section.courseId);
 
     await prisma.lesson.delete({ where: { id: req.params.id } });
 

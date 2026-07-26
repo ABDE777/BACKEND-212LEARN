@@ -1,6 +1,7 @@
 import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
+import { ensureCourseManager } from '../utils/authorization.js';
 
 // ─── GET /courses/:courseId/curriculum ───────────────────────────────────────
 // Returns the full section → lesson tree for a course.
@@ -97,6 +98,8 @@ export const createSection = async (req, res, next) => {
       return next(new AppError('Course not found.', 404, 'NOT_FOUND'));
     }
 
+    await ensureCourseManager(req.user, req.params.courseId);
+
     // Auto-assign position: last section + 1
     const lastSection = await prisma.section.findFirst({
       where: { courseId: req.params.courseId },
@@ -131,6 +134,8 @@ export const updateSection = async (req, res, next) => {
       return next(new AppError('Section not found.', 404, 'NOT_FOUND'));
     }
 
+    await ensureCourseManager(req.user, section.courseId);
+
     const updated = await prisma.section.update({
       where: { id: req.params.id },
       data: {
@@ -156,6 +161,8 @@ export const deleteSection = async (req, res, next) => {
     if (!section) {
       return next(new AppError('Section not found.', 404, 'NOT_FOUND'));
     }
+
+    await ensureCourseManager(req.user, section.courseId);
 
     await prisma.section.delete({ where: { id: req.params.id } });
 

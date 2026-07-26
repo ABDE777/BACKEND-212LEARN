@@ -36,6 +36,9 @@ model User {
   badges            UserBadge[]
   certificates      Certificate[]
   auditLogs         AuditLog[]
+  groupsTaught      Group[]        @relation("GroupFormateur")
+  groupsCreated     Group[]        @relation("GroupCreator")
+  groupMemberships  GroupStudent[]
 
   @@map("users")
 }
@@ -85,6 +88,7 @@ model Course {
   meetings    Meeting[]
   reviews     Review[]
   certificates Certificate[]
+  groups       Group[]
 
   @@map("courses")
 }
@@ -425,4 +429,38 @@ model AuditLog {
 
   @@map("audit_logs")
 }
+// ─── Module 10: Groupes de Formation (Group) ────────────────────────────────
 
+model Group {
+  id          String    @id @default(uuid()) @db.Uuid
+  name        String    @db.VarChar(150)
+  description String?   @db.Text
+  courseId    String?   @db.Uuid
+  formateurId String    @db.Uuid
+  createdById String?   @db.Uuid
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  // Relations
+  course    Course?        @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  formateur User           @relation("GroupFormateur", fields: [formateurId], references: [id], onDelete: Restrict)
+  createdBy User?          @relation("GroupCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  students  GroupStudent[]
+
+  @@map("groups")
+}
+
+model GroupStudent {
+  id        String   @id @default(uuid()) @db.Uuid
+  groupId   String   @db.Uuid
+  userId    String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  // Relations
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@map("group_students")
+}

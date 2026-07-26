@@ -29,7 +29,7 @@ const sendTokenResponse = (user, statusCode, res) => {
 // POST /api/v1/auth/register
 export const register = async (req, res, next) => {
   try {
-    const { firstName, lastName, email, password, role } = req.body;
+    const { firstName, lastName, email, password } = req.body;
 
     if (!firstName || !lastName || !email || !password) {
       return next(new AppError(
@@ -43,7 +43,7 @@ export const register = async (req, res, next) => {
     const user = await prisma.user.create({
       data: {
         firstName, lastName, email, passwordHash,
-        role: role || 'student',
+        role: 'student',
         isVerified: false,
       },
       select: { ...USER_PUBLIC_FIELDS, passwordHash: true, deletedAt: true },

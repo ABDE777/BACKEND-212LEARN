@@ -93,6 +93,8 @@ async function main() {
   // 1. Clean up existing data in reverse order of dependencies
   console.log('🧹 Clearing existing data...');
   await prisma.auditLog.deleteMany({});
+  await prisma.groupStudent.deleteMany({});
+  await prisma.group.deleteMany({});
   await prisma.meeting.deleteMany({});
   await prisma.certificate.deleteMany({});
   await prisma.userBadge.deleteMany({});
@@ -661,7 +663,61 @@ async function main() {
     }
   }
 
-  // 21. Create Audit Logs
+  // 21. Create Training Groups
+  console.log('👥 Seeding Groups...');
+  const groupNames = [
+    'Groupe Web A1',
+    'Groupe Data B2',
+    'Groupe Mobile C1',
+    'Groupe Design D1',
+    'Groupe DevOps E2',
+    'Groupe Backend F1',
+    'Groupe Frontend G2',
+    'Groupe Cybersecurity H1'
+  ];
+
+  for (let i = 0; i < groupNames.length; i++) {
+    const course = publishedCourses.length > 0 ? publishedCourses[i % publishedCourses.length] : courses[i % courses.length];
+    const formateur = instructors[i % instructors.length];
+
+    const existingInstructorLink = await prisma.courseInstructor.findFirst({
+      where: { courseId: course.id, userId: formateur.id },
+    });
+
+    if (!existingInstructorLink) {
+      await prisma.courseInstructor.create({
+        data: {
+          courseId: course.id,
+          userId: formateur.id,
+          role: 'group_formateur',
+        },
+      });
+    }
+
+    const paidStudentIds = allEnrollments
+      .filter((enrollment) => enrollment.courseId === course.id)
+      .map((enrollment) => enrollment.userId);
+
+    const groupStudentPool = paidStudentIds.length > 0
+      ? students.filter((student) => paidStudentIds.includes(student.id))
+      : students;
+
+    const selectedStudents = getRandomItems(groupStudentPool, Math.min(getRandomInt(5, 12), groupStudentPool.length));
+
+    await prisma.group.create({
+      data: {
+        name: groupNames[i],
+        description: `Training group assigned to ${formateur.firstName} ${formateur.lastName}.`,
+        courseId: course.id,
+        formateurId: formateur.id,
+        createdById: admin.id,
+        students: selectedStudents.length > 0
+          ? { create: selectedStudents.map((student) => ({ userId: student.id })) }
+          : undefined,
+      },
+    });
+  }
+  // 22. Create Audit Logs
   console.log('📋 Seeding Audit Logs...');
   const actions = ['LOGIN', 'LOGOUT', 'COURSE_VIEW', 'ENROLLMENT', 'PAYMENT', 'QUIZ_ATTEMPT', 'SUBMISSION', 'REVIEW', 'CERTIFICATE_ISSUED', 'BADGE_EARNED'];
   const resources = ['USER', 'COURSE', 'LESSON', 'QUIZ', 'ASSIGNMENT', 'PAYMENT', 'CERTIFICATE', 'BADGE'];

@@ -1,6 +1,7 @@
 import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse, parsePagination, paginationMeta } from '../utils/response.js';
+import { ensureCourseManager } from '../utils/authorization.js';
 
 // ─── POST /lessons/:lessonId/assignments ─────────────────────────────────────
 export const createAssignment = async (req, res, next) => {
@@ -13,11 +14,14 @@ export const createAssignment = async (req, res, next) => {
 
     const lesson = await prisma.lesson.findUnique({
       where: { id: req.params.lessonId },
+      include: { section: true },
     });
 
     if (!lesson) {
       return next(new AppError('Lesson not found.', 404, 'NOT_FOUND'));
     }
+
+    await ensureCourseManager(req.user, lesson.section.courseId);
 
     const assignment = await prisma.assignment.create({
       data: {
@@ -39,6 +43,7 @@ export const getAssignments = async (req, res, next) => {
   try {
     const lesson = await prisma.lesson.findUnique({
       where: { id: req.params.lessonId },
+      include: { section: true },
     });
 
     if (!lesson) {
@@ -63,6 +68,7 @@ export const submitWork = async (req, res, next) => {
   try {
     const assignment = await prisma.assignment.findUnique({
       where: { id: req.params.assignmentId },
+      include: { lesson: { include: { section: true } } },
     });
 
     if (!assignment) {
@@ -112,11 +118,14 @@ export const getSubmissions = async (req, res, next) => {
   try {
     const assignment = await prisma.assignment.findUnique({
       where: { id: req.params.assignmentId },
+      include: { lesson: { include: { section: true } } },
     });
 
     if (!assignment) {
       return next(new AppError('Assignment not found.', 404, 'NOT_FOUND'));
     }
+
+    await ensureCourseManager(req.user, assignment.lesson.section.courseId);
 
     const { page, limit, skip } = parsePagination(req.query);
 
@@ -154,11 +163,14 @@ export const gradeSubmission = async (req, res, next) => {
 
     const submission = await prisma.submission.findUnique({
       where: { id: req.params.id },
+      include: { assignment: { include: { lesson: { include: { section: true } } } } },
     });
 
     if (!submission) {
       return next(new AppError('Submission not found.', 404, 'NOT_FOUND'));
     }
+
+    await ensureCourseManager(req.user, submission.assignment.lesson.section.courseId);
 
     const updated = await prisma.submission.update({
       where: { id: req.params.id },

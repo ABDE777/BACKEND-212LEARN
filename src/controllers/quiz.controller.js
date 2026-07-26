@@ -2,6 +2,7 @@ import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { checkAndAwardBadges } from '../utils/gamification.js';
+import { ensureCourseManager } from '../utils/authorization.js';
 
 // ─── POST /api/v1/lessons/:lessonId/quizzes ───────────────────────────────────
 // Instructor creates a new quiz manually for a lesson.
@@ -22,12 +23,7 @@ export const createQuiz = async (req, res, next) => {
     if (!lesson) {
       return next(new AppError('Lesson not found.', 404, 'NOT_FOUND'));
     }
-
-    // Only the course instructor or admin can create quizzes
-    const course = lesson.section.course;
-    if (req.user.role !== 'admin' && course.instructorId !== req.user.id) {
-      return next(new AppError('Only the course instructor can create quizzes.', 403, 'FORBIDDEN'));
-    }
+    await ensureCourseManager(req.user, lesson.section.courseId);
 
     const quiz = await prisma.quiz.create({
       data: {
@@ -68,12 +64,7 @@ export const addQuestion = async (req, res, next) => {
     if (!quiz) {
       return next(new AppError('Quiz not found.', 404, 'NOT_FOUND'));
     }
-
-    // Only the course instructor or admin can add questions
-    const course = quiz.lesson.section.course;
-    if (req.user.role !== 'admin' && course.instructorId !== req.user.id) {
-      return next(new AppError('Only the course instructor can add questions.', 403, 'FORBIDDEN'));
-    }
+    await ensureCourseManager(req.user, quiz.lesson.section.courseId);
 
     const question = await prisma.question.create({
       data: {
@@ -110,11 +101,7 @@ export const generateAIQuiz = async (req, res, next) => {
     });
 
     if (!lesson) return next(new AppError('Lesson not found.', 404, 'NOT_FOUND'));
-
-    const course = lesson.section.course;
-    if (req.user.role !== 'admin' && course.instructorId !== req.user.id) {
-      return next(new AppError('Only the course instructor can generate quizzes.', 403, 'FORBIDDEN'));
-    }
+    await ensureCourseManager(req.user, lesson.section.courseId);
 
     // ── Call Gemini API ─────────────────────────────────────────────────────────
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -294,11 +281,7 @@ export const updateQuiz = async (req, res, next) => {
     });
 
     if (!quiz) return next(new AppError('Quiz not found.', 404, 'NOT_FOUND'));
-
-    const course = quiz.lesson.section.course;
-    if (req.user.role !== 'admin' && course.instructorId !== req.user.id) {
-      return next(new AppError('Only the course instructor can update this quiz.', 403, 'FORBIDDEN'));
-    }
+    await ensureCourseManager(req.user, quiz.lesson.section.courseId);
 
     const allowedStatuses = ['draft', 'approved', 'rejected'];
     if (validationStatus && !allowedStatuses.includes(validationStatus)) {

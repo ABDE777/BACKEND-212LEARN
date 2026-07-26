@@ -2,6 +2,7 @@ import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { cloudinary } from '../config/cloudinary.js';
+import { ensureCourseManager } from '../utils/authorization.js';
 
 const ALLOWED_TYPES = ['video', 'pdf', 'zip', 'image', 'link'];
 
@@ -13,11 +14,14 @@ export const addResource = async (req, res, next) => {
   try {
     const lesson = await prisma.lesson.findUnique({
       where: { id: req.params.lessonId },
+      include: { section: true },
     });
 
     if (!lesson) {
       return next(new AppError('Lesson not found.', 404, 'NOT_FOUND'));
     }
+
+    await ensureCourseManager(req.user, lesson.section.courseId);
 
     let { type, url } = req.body;
 
@@ -63,11 +67,14 @@ export const deleteResource = async (req, res, next) => {
   try {
     const resource = await prisma.resource.findUnique({
       where: { id: req.params.id },
+      include: { lesson: { include: { section: true } } },
     });
 
     if (!resource) {
       return next(new AppError('Resource not found.', 404, 'NOT_FOUND'));
     }
+
+    await ensureCourseManager(req.user, resource.lesson.section.courseId);
 
     // If URL is from Cloudinary, delete from Cloudinary too
     if (resource.type !== 'link' && resource.url.includes('cloudinary.com')) {

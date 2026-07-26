@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse, paginationMeta, parsePagination, parseSort } from '../utils/response.js';
+import { ensureCourseManager } from '../utils/authorization.js';
 
 const SORTABLE_FIELDS = ['createdAt', 'title', 'price', 'duration'];
 
@@ -158,6 +159,8 @@ export const updateCourse = async (req, res, next) => {
   try {
     const { title, description, price, level, language, duration, status, categoryId } = req.body;
 
+    await ensureCourseManager(req.user, req.params.id);
+
     const course = await prisma.course.update({
       where: { id: req.params.id },
       data: {
@@ -181,6 +184,8 @@ export const updateCourse = async (req, res, next) => {
 // DELETE /api/v1/courses/:id  →  soft-delete, 204 No Content
 export const deleteCourse = async (req, res, next) => {
   try {
+    await ensureCourseManager(req.user, req.params.id);
+
     await prisma.course.update({
       where: { id: req.params.id },
       data: { deletedAt: new Date() },

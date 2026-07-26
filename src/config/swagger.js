@@ -318,6 +318,48 @@ const options = {
             feedback: { type: 'string', example: 'Good work! Clean code and well-structured.' },
           },
         },
+
+        // ─── Admin Groups ─────────────────────────────────────────────────────
+        Group: {
+          type: 'object',
+          description: 'Training group assigned to a formateur, optionally linked to a course',
+          properties: {
+            id:          { type: 'string', format: 'uuid' },
+            name:        { type: 'string', example: 'Groupe Web A1' },
+            description: { type: 'string', nullable: true, example: 'Morning web development group.' },
+            courseId:    { type: 'string', format: 'uuid', nullable: true },
+            formateurId: { type: 'string', format: 'uuid' },
+            createdById: { type: 'string', format: 'uuid', nullable: true },
+            createdAt:   { type: 'string', format: 'date-time' },
+            updatedAt:   { type: 'string', format: 'date-time' },
+            deletedAt:   { type: 'string', format: 'date-time', nullable: true },
+          },
+        },
+        CreateGroupInput: {
+          type: 'object',
+          required: ['name', 'formateurId'],
+          properties: {
+            name:        { type: 'string', example: 'Groupe Web A1' },
+            description: { type: 'string', example: 'Morning web development group.' },
+            courseId:    { type: 'string', format: 'uuid', nullable: true, description: 'Optional course assigned to the group' },
+            formateurId: { type: 'string', format: 'uuid', description: 'Instructor/formateur user id' },
+            studentIds:  { type: 'array', items: { type: 'string', format: 'uuid' }, example: ['11111111-1111-1111-1111-111111111111'] },
+          },
+        },
+        AssignGroupFormateurInput: {
+          type: 'object',
+          required: ['formateurId'],
+          properties: {
+            formateurId: { type: 'string', format: 'uuid', description: 'Instructor/formateur user id' },
+          },
+        },
+        AddGroupStudentsInput: {
+          type: 'object',
+          required: ['studentIds'],
+          properties: {
+            studentIds: { type: 'array', items: { type: 'string', format: 'uuid' }, example: ['11111111-1111-1111-1111-111111111111'] },
+          },
+        },
       },
     },
     tags: [
