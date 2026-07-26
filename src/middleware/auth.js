@@ -27,6 +27,10 @@ export const protect = async (req, res, next) => {
       return next(new AppError('The user belonging to this token no longer exists.', 401));
     }
 
+    if (currentUser.deletedAt) {
+      return next(new AppError('This account has been deactivated.', 401, 'ACCOUNT_DEACTIVATED'));
+    }
+
     // 4) Grant access to protected route (mount user on request)
     req.user = currentUser;
     next();

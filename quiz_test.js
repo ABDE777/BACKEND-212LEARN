@@ -1,6 +1,10 @@
 import http from 'http';
 
 const BASE = 'http://localhost:5000/api/v1';
+const DEMO_USERS = {
+  admin: 'admin1@212learn.com',
+  student: 'student1@212learn.com',
+};
 
 function request(method, path, body = null, headers = {}) {
   return new Promise((resolve, reject) => {
@@ -42,7 +46,7 @@ async function runTests() {
 
   // ── SETUP: Login Admin / Instructor ─────────────────────────
   const adminLogin = await request('POST', '/auth/login', {
-    email: 'admin@212learn.com',
+    email: DEMO_USERS.admin,
     password: 'password123',
   });
   const adminToken = adminLogin.body?.token;
@@ -50,7 +54,7 @@ async function runTests() {
 
   // ── SETUP: Login Student ─────────────────────────────────────
   const studentLogin = await request('POST', '/auth/login', {
-    email: 'student@212learn.com',
+    email: DEMO_USERS.student,
     password: 'password123',
   });
   const studentToken = studentLogin.body?.token;

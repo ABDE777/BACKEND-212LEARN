@@ -31,7 +31,7 @@ export const getAllUsers = async (req, res, next) => {
 
     const [total, users] = await Promise.all([
       prisma.user.count({ where }),
-      prisma.user.findMany({ where, select: USER_SELECT, orderBy, skip, take: limit }),
+      prisma.user.findMany({ where, select: USER_SELECT, orderBy, ...(skip !== undefined && { skip }), ...(limit !== null && { take: limit }) }),
     ]);
 
     res.status(200).json(successResponse({ users }, paginationMeta(total, page, limit)));

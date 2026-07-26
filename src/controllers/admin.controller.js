@@ -30,8 +30,8 @@ export const getPendingKyc = async (req, res, next) => {
           createdAt: true,
         },
         orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
+        ...(skip !== undefined && { skip }),
+        ...(limit !== null && { take: limit }),
       }),
     ]);
 
@@ -162,8 +162,8 @@ export const getAuditLogs = async (req, res, next) => {
       prisma.auditLog.count(),
       prisma.auditLog.findMany({
         orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
+        ...(skip !== undefined && { skip }),
+        ...(limit !== null && { take: limit }),
         include: {
           user: {
             select: { id: true, firstName: true, lastName: true, email: true, role: true },
@@ -264,8 +264,8 @@ export const getGroups = async (req, res, next) => {
         where,
         include: GROUP_INCLUDE,
         orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
+        ...(skip !== undefined && { skip }),
+        ...(limit !== null && { take: limit }),
       }),
     ]);
 

@@ -1,35 +1,83 @@
 import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
-import { successResponse, paginationMeta, parsePagination, parseSort } from '../utils/response.js';
+import {
+  successResponse,
+  paginationMeta,
+  parsePagination,
+  parseSort,
+} from '../utils/response.js';
 import { ensureCourseManager } from '../utils/authorization.js';
 
 const SORTABLE_FIELDS = ['createdAt', 'title', 'price', 'duration'];
 
+const resolveSoftAuthUser = async (req) => {
+  if (
+    !req.headers.authorization ||
+    !req.headers.authorization.startsWith('Bearer')
+  ) {
+    return null;
+  }
+
+  try {
+    const token = req.headers.authorization.split(' ')[1];
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET || 'dev-secret-key-212learn'
+    );
+    const user = await prisma.user.findUnique({ where: { id: decoded.id } });
+    return user && !user.deletedAt ? user : null;
+  } catch {
+    return null;
+  }
+};
+
+const canViewUnpublishedCourse = async (user, courseId) => {
+  if (!user) {
+    return false;
+  }
+
+  if (user.role === 'admin') {
+    return true;
+  }
+
+  if (user.role !== 'instructor') {
+    return false;
+  }
+
+  const instructor = await prisma.courseInstructor.findFirst({
+    where: {
+      courseId,
+      userId: user.id,
+    },
+    select: { id: true },
+  });
+
+  return !!instructor;
+};
+
 // GET /api/v1/courses?page=1&limit=20&categoryId=...&level=...&language=...&sort=price&order=asc&search=react
 export const getAllCourses = async (req, res, next) => {
   try {
-    const { page, limit, skip } = parsePagination(req.query);
+    const { page, limit, skip, isUnlimited } = parsePagination(req.query);
     const orderBy = parseSort(req.query, SORTABLE_FIELDS);
-    const { categoryId, level, language, status, search, instructorId } = req.query;
+    const { categoryId, level, language, status, search, instructorId } =
+      req.query;
 
     // ── Soft authentication for catalog filters ─────────────────────────────
-    let currentUser = null;
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-      try {
-        const token = req.headers.authorization.split(' ')[1];
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret-key-212learn');
-        currentUser = await prisma.user.findUnique({ where: { id: decoded.id } });
-      } catch (err) {
-        // Soft auth: silent fail if token is invalid or expired
-      }
-    }
+    const currentUser = await resolveSoftAuthUser(req);
 
     // Resolve 'me' instructor alias
     let targetInstructorId = instructorId;
     if (instructorId === 'me') {
       if (!currentUser) {
-        return next(new AppError('Authentication required to use instructorId=me.', 401, 'UNAUTHORIZED'));
+        return next(
+          new AppError(
+            'Authentication required to use instructorId=me.',
+            401,
+            'UNAUTHORIZED'
+          )
+        );
       }
       targetInstructorId = currentUser.id;
     }
@@ -42,10 +90,17 @@ export const getAllCourses = async (req, res, next) => {
         const isAuthorized =
           currentUser &&
           (currentUser.role === 'admin' ||
-            (targetInstructorId === currentUser.id && currentUser.role === 'instructor'));
+            (targetInstructorId === currentUser.id &&
+              currentUser.role === 'instructor'));
 
         if (!isAuthorized) {
-          return next(new AppError('You do not have permission to view non-published courses.', 403, 'FORBIDDEN'));
+          return next(
+            new AppError(
+              'You do not have permission to view non-published courses.',
+              403,
+              'FORBIDDEN'
+            )
+          );
         }
         targetStatus = status;
       } else {
@@ -77,18 +132,34 @@ export const getAllCourses = async (req, res, next) => {
           category: { select: { id: true, name: true } },
           instructors: {
             include: {
-              user: { select: { id: true, firstName: true, lastName: true, avatar: true } },
+              user: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  avatar: true,
+                },
+              },
             },
           },
-          _count: { select: { enrollments: true, reviews: true, sections: true } },
+          _count: {
+            select: { enrollments: true, reviews: true, sections: true },
+          },
         },
         orderBy,
-        skip,
-        take: limit,
+        ...(skip !== undefined && { skip }),
+        ...(limit !== null && { take: limit }),
       }),
     ]);
 
-    res.status(200).json(successResponse({ courses }, paginationMeta(total, page, limit)));
+    res
+      .status(200)
+      .json(
+        successResponse(
+          { courses },
+          paginationMeta(total, page, limit, isUnlimited)
+        )
+      );
   } catch (error) {
     next(error);
   }
@@ -97,31 +168,59 @@ export const getAllCourses = async (req, res, next) => {
 // GET /api/v1/courses/:id
 export const getCourse = async (req, res, next) => {
   try {
+    const currentUser = await resolveSoftAuthUser(req);
+    
+    // Determine if user can view unpublished content
+    const canViewUnpublished = await canViewUnpublishedCourse(currentUser, req.params.id);
+    
+    const includeDetails = canViewUnpublished;
+    
     const course = await prisma.course.findUnique({
       where: { id: req.params.id },
       include: {
         category: true,
         instructors: {
           include: {
-            user: { select: { id: true, firstName: true, lastName: true, avatar: true, bio: true } },
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                avatar: true,
+                ...(includeDetails && { bio: true }),
+              },
+            },
           },
         },
-        sections: {
-          orderBy: { position: 'asc' },
-          include: { lessons: { orderBy: { position: 'asc' } } },
-        },
+        ...(includeDetails && {
+          sections: {
+            orderBy: { position: 'asc' },
+            include: { lessons: { orderBy: { position: 'asc' } } },
+          },
+        }),
         reviews: {
           take: 10,
           orderBy: { reviewDate: 'desc' },
           include: {
-            user: { select: { id: true, firstName: true, lastName: true, avatar: true } },
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                avatar: true,
+              },
+            },
           },
         },
-        _count: { select: { enrollments: true, reviews: true } },
+        _count: { select: { enrollments: true, reviews: true, ...(includeDetails && { sections: true }) } },
       },
     });
 
     if (!course || course.deletedAt) {
+      return next(new AppError('Course not found.', 404, 'NOT_FOUND'));
+    }
+
+    if (course.status !== 'published' && !canViewUnpublished) {
       return next(new AppError('Course not found.', 404, 'NOT_FOUND'));
     }
 
@@ -134,17 +233,40 @@ export const getCourse = async (req, res, next) => {
 // POST /api/v1/courses
 export const createCourse = async (req, res, next) => {
   try {
-    const { title, description, categoryId, price, level, language, duration, status } = req.body;
+    const {
+      title,
+      description,
+      categoryId,
+      price,
+      level,
+      language,
+      duration,
+      status,
+    } = req.body;
 
     if (!title || !categoryId || price === undefined) {
-      return next(new AppError('title, categoryId and price are required.', 400, 'VALIDATION_ERROR'));
+      return next(
+        new AppError(
+          'title, categoryId and price are required.',
+          400,
+          'VALIDATION_ERROR'
+        )
+      );
     }
 
     const course = await prisma.course.create({
       data: {
-        title, description, categoryId, price, level, language, duration,
+        title,
+        description,
+        categoryId,
+        price,
+        level,
+        language,
+        duration,
         status: status || 'draft',
-        instructors: { create: { userId: req.user.id, role: 'owner' } },
+        instructors: {
+          create: { userId: req.user.id, role: 'lead_instructor' },
+        },
       },
     });
 
@@ -157,21 +279,30 @@ export const createCourse = async (req, res, next) => {
 // PATCH /api/v1/courses/:id
 export const updateCourse = async (req, res, next) => {
   try {
-    const { title, description, price, level, language, duration, status, categoryId } = req.body;
+    const {
+      title,
+      description,
+      price,
+      level,
+      language,
+      duration,
+      status,
+      categoryId,
+    } = req.body;
 
     await ensureCourseManager(req.user, req.params.id);
 
     const course = await prisma.course.update({
       where: { id: req.params.id },
       data: {
-        ...(title       && { title }),
+        ...(title && { title }),
         ...(description && { description }),
         ...(price !== undefined && { price }),
-        ...(level       && { level }),
-        ...(language    && { language }),
+        ...(level && { level }),
+        ...(language && { language }),
         ...(duration !== undefined && { duration }),
-        ...(status      && { status }),
-        ...(categoryId  && { categoryId }),
+        ...(status && { status }),
+        ...(categoryId && { categoryId }),
       },
     });
 
@@ -203,16 +334,22 @@ export const searchCourses = async (req, res, next) => {
     const { q } = req.query;
 
     if (!q || q.trim().length < 2) {
-      return next(new AppError('Search query must be at least 2 characters.', 400, 'VALIDATION_ERROR'));
+      return next(
+        new AppError(
+          'Search query must be at least 2 characters.',
+          400,
+          'VALIDATION_ERROR'
+        )
+      );
     }
 
-    const { page, limit, skip } = parsePagination(req.query);
+    const { page, limit, skip, isUnlimited } = parsePagination(req.query);
 
     const where = {
       deletedAt: null,
       status: 'published',
       OR: [
-        { title:       { contains: q, mode: 'insensitive' } },
+        { title: { contains: q, mode: 'insensitive' } },
         { description: { contains: q, mode: 'insensitive' } },
       ],
     };
@@ -225,12 +362,19 @@ export const searchCourses = async (req, res, next) => {
           category: { select: { id: true, name: true } },
           _count: { select: { enrollments: true, reviews: true } },
         },
-        skip,
-        take: limit,
+        ...(skip !== undefined && { skip }),
+        ...(limit !== null && { take: limit }),
       }),
     ]);
 
-    res.status(200).json(successResponse({ courses }, paginationMeta(total, page, limit)));
+    res
+      .status(200)
+      .json(
+        successResponse(
+          { courses },
+          paginationMeta(total, page, limit, isUnlimited)
+        )
+      );
   } catch (error) {
     next(error);
   }
@@ -248,7 +392,9 @@ export const publishCourse = async (req, res, next) => {
     }
 
     if (course.status === 'published') {
-      return next(new AppError('Course is already published.', 409, 'CONFLICT'));
+      return next(
+        new AppError('Course is already published.', 409, 'CONFLICT')
+      );
     }
 
     const updated = await prisma.course.update({
@@ -261,4 +407,3 @@ export const publishCourse = async (req, res, next) => {
     next(error);
   }
 };
-

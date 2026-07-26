@@ -26,7 +26,7 @@ export const optionalProtect = async (req, res, next) => {
       where: { id: decoded.id },
     });
 
-    if (currentUser) {
+    if (currentUser && !currentUser.deletedAt) {
       req.user = currentUser;
     }
     

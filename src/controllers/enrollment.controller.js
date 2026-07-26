@@ -22,8 +22,8 @@ export const getMyCourses = async (req, res, next) => {
           },
         },
         orderBy: { enrolledAt: 'desc' },
-        skip,
-        take: limit,
+        ...(skip !== undefined && { skip }),
+        ...(limit !== null && { take: limit }),
       }),
     ]);
 

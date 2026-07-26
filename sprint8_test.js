@@ -1,6 +1,11 @@
 import http from 'http';
 
 const BASE = 'http://localhost:5000/api/v1';
+const DEMO_USERS = {
+  admin: 'admin1@212learn.com',
+  instructor: 'instructor1@212learn.com',
+  student: 'student1@212learn.com',
+};
 
 function request(method, path, body = null, headers = {}) {
   return new Promise((resolve, reject) => {
@@ -42,9 +47,18 @@ async function runTests() {
   console.log('🚀 Starting Sprint 8: Admin Moderation, KYC, Refunds & Auditing Tests...\n');
 
   // ── SETUP: Logins ──────────────────────────────────────────────────────────
-  const adminLogin      = await request('POST', '/auth/login', { email: 'admin@212learn.com',      password: 'password123' });
-  const instructorLogin = await request('POST', '/auth/login', { email: 'instructor@212learn.com', password: 'password123' });
-  const studentLogin    = await request('POST', '/auth/login', { email: 'student@212learn.com',    password: 'password123' });
+  const adminLogin = await request('POST', '/auth/login', {
+    email: DEMO_USERS.admin,
+    password: 'password123',
+  });
+  const instructorLogin = await request('POST', '/auth/login', {
+    email: DEMO_USERS.instructor,
+    password: 'password123',
+  });
+  const studentLogin = await request('POST', '/auth/login', {
+    email: DEMO_USERS.student,
+    password: 'password123',
+  });
 
   if (!adminLogin.body?.token || !instructorLogin.body?.token || !studentLogin.body?.token) {
     console.error('\n❌ Login failed. Run the seeder first: npx prisma db seed');

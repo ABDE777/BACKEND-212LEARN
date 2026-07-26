@@ -1,6 +1,11 @@
 import http from 'http';
 
 const BASE = 'http://localhost:5000/api/v1';
+const DEMO_USERS = {
+  admin: 'admin1@212learn.com',
+  instructor: 'instructor1@212learn.com',
+  student: 'student1@212learn.com',
+};
 
 function request(method, path, body = null, headers = {}) {
   return new Promise((resolve, reject) => {
@@ -38,13 +43,42 @@ function log(name, status, expected, details) {
   console.log(`   Details:`, safeDetails);
 }
 
+async function findInstructorCourse(instructorToken) {
+  const statuses = ['published', 'draft', 'archived'];
+
+  for (const status of statuses) {
+    const response = await request(
+      'GET',
+      `/courses?instructorId=me&status=${status}`,
+      null,
+      { Authorization: `Bearer ${instructorToken}` }
+    );
+
+    const course = response.body?.data?.courses?.[0];
+    if (response.status === 200 && course) {
+      return { course, status };
+    }
+  }
+
+  return null;
+}
+
 async function runTests() {
   console.log('🚀 Starting Sprint 7: Analytics & Meetings Tests...\n');
 
   // ── SETUP: Logins ──────────────────────────────────────────────────────────
-  const adminLogin      = await request('POST', '/auth/login', { email: 'admin@212learn.com',      password: 'password123' });
-  const instructorLogin = await request('POST', '/auth/login', { email: 'instructor@212learn.com', password: 'password123' });
-  const studentLogin    = await request('POST', '/auth/login', { email: 'student@212learn.com',    password: 'password123' });
+  const adminLogin = await request('POST', '/auth/login', {
+    email: DEMO_USERS.admin,
+    password: 'password123',
+  });
+  const instructorLogin = await request('POST', '/auth/login', {
+    email: DEMO_USERS.instructor,
+    password: 'password123',
+  });
+  const studentLogin = await request('POST', '/auth/login', {
+    email: DEMO_USERS.student,
+    password: 'password123',
+  });
 
   if (!adminLogin.body?.token || !instructorLogin.body?.token || !studentLogin.body?.token) {
     console.error('\n❌ Login failed. Run the seeder first: npx prisma db seed');
@@ -60,9 +94,30 @@ async function runTests() {
   console.log('📌 Instructor Token:', `${instructorToken.substring(0, 20)}...`);
   console.log('📌 Student Token:',    `${studentToken.substring(0, 20)}...`);
 
-  // Get a course ID
-  const coursesRes = await request('GET', '/courses');
-  const courseId   = coursesRes.body?.data?.courses?.[0]?.id;
+  // Get a course owned by the instructor and publish it if needed for student enrollment tests
+  const instructorCourseResult = await findInstructorCourse(instructorToken);
+  const courseId = instructorCourseResult?.course?.id;
+
+  if (!courseId) {
+    console.error('\n❌ No course found for the seeded instructor account.');
+    process.exit(1);
+  }
+
+  if (instructorCourseResult.status !== 'published') {
+    const publishRes = await request(
+      'POST',
+      `/courses/${courseId}/publish`,
+      null,
+      { Authorization: `Bearer ${adminToken}` }
+    );
+
+    if (publishRes.status !== 200) {
+      console.error('\n❌ Could not publish the instructor course for meeting tests.');
+      console.error(JSON.stringify(publishRes.body).substring(0, 300));
+      process.exit(1);
+    }
+  }
+
   console.log('📌 Course ID:', courseId);
 
   // ── TEST 1: Revenue Analytics — Instructor ──────────────────────────────────
@@ -168,6 +223,38 @@ async function runTests() {
       notified: t7.body?.data?.notified,
     }
   );
+
+  // Ensure the student has PAID access before reading the meetings list
+  const myCoursesRes = await request('GET', '/enrollments', null, { Authorization: `Bearer ${studentToken}` });
+  const existingEnrollment = myCoursesRes.body?.data?.enrollments?.find((e) => e.courseId === courseId);
+  if (existingEnrollment) {
+    await request('DELETE', `/enrollments/${existingEnrollment.id}`, null, {
+      Authorization: `Bearer ${studentToken}`,
+    });
+  }
+
+  const paymentReq = await request(
+    'POST',
+    '/payments/wafacash/request',
+    { courseId },
+    { Authorization: `Bearer ${studentToken}` }
+  );
+  const paymentId = paymentReq.body?.data?.paymentId;
+  const paymentReference = paymentReq.body?.data?.paymentReference;
+  if (paymentId && paymentReference) {
+    await request(
+      'POST',
+      '/payments/wafacash/submit',
+      { paymentReference, mtcn: '7777777777' },
+      { Authorization: `Bearer ${studentToken}` }
+    );
+    await request(
+      'PATCH',
+      '/payments/wafacash/verify',
+      { paymentId, action: 'approve' },
+      { Authorization: `Bearer ${adminToken}` }
+    );
+  }
 
   // ── TEST 8: Verify meeting appears in upcoming list ─────────────────────────
   const t8 = await request(

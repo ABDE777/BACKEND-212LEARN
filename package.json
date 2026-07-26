@@ -10,7 +10,12 @@
     "build": "prisma generate",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "test": "node sprint6_test.js && node sprint7_test.js && node sprint8_test.js",
+    "test:sprint6": "node sprint6_test.js",
+    "test:sprint7": "node sprint7_test.js",
+    "test:sprint8": "node sprint8_test.js",
+    "test:security": "node security_regression_tests.js"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

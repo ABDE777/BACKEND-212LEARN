@@ -1,6 +1,9 @@
 import http from 'http';
 
 const BASE = 'http://localhost:5000/api/v1';
+const DEMO_USERS = {
+  admin: 'admin1@212learn.com',
+};
 
 function request(method, path, body = null, headers = {}) {
   return new Promise((resolve, reject) => {
@@ -140,7 +143,7 @@ async function runTests() {
 
   // ── TEST 7: Admin retrieves Wafacash pending queue ──────────
   const adminLogin = await request('POST', '/auth/login', {
-    email: 'admin@212learn.com',
+    email: DEMO_USERS.admin,
     password: 'password123',
   });
   const adminToken = adminLogin.body?.token;

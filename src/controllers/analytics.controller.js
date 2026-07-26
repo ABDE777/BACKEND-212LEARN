@@ -11,6 +11,38 @@ const getInstructorCourseIds = async (userId) => {
   return links.map((l) => l.courseId);
 };
 
+const canAccessCourseMeetings = async (user, courseId) => {
+  if (!user) {
+    return false;
+  }
+
+  if (user.role === 'admin') {
+    return true;
+  }
+
+  if (user.role === 'instructor') {
+    const instructorLink = await prisma.courseInstructor.findFirst({
+      where: { courseId, userId: user.id },
+      select: { id: true },
+    });
+    return !!instructorLink;
+  }
+
+  if (user.role === 'student') {
+    const enrollment = await prisma.enrollment.findFirst({
+      where: {
+        courseId,
+        userId: user.id,
+        payment: { status: 'PAID' },
+      },
+      select: { id: true },
+    });
+    return !!enrollment;
+  }
+
+  return false;
+};
+
 // ─── GET /api/v1/instructor/analytics/revenue ─────────────────────────────────
 // Monthly revenue trend for an instructor's courses (last 12 months).
 // Admin sees global revenue when accessing this endpoint.
@@ -320,6 +352,11 @@ export const getCourseMeetings = async (req, res, next) => {
     const course = await prisma.course.findUnique({ where: { id: courseId } });
     if (!course || course.deletedAt) {
       return next(new AppError('Course not found.', 404, 'NOT_FOUND'));
+    }
+
+    const hasAccess = await canAccessCourseMeetings(req.user, courseId);
+    if (!hasAccess) {
+      return next(new AppError('You do not have permission to view meetings for this course.', 403, 'FORBIDDEN'));
     }
 
     const meetings = await prisma.meeting.findMany({

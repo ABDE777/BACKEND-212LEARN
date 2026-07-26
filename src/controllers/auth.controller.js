@@ -1,4 +1,4 @@
-  import bcrypt from 'bcryptjs';
+import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
@@ -71,6 +71,10 @@ export const login = async (req, res, next) => {
 
     if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
       return next(new AppError('Incorrect email or password.', 401, 'INVALID_CREDENTIALS'));
+    }
+
+    if (user.deletedAt) {
+      return next(new AppError('This account has been deactivated.', 401, 'ACCOUNT_DEACTIVATED'));
     }
 
     // Update lastLogin without blocking the response

@@ -62,6 +62,14 @@ RESTful API backend for the **212LEARN** (EduTrack) online learning management p
 - **Refund System**: Admin can refund a payment (`REFUNDED`), which revokes student course access instantly.
 - **Audit Logging**: All admin actions are tracked in a dedicated `AuditLog` table.
 
+### 🔒 Security Hardening & Improvements
+- **Draft Course Protection**: Anonymous users and non-enrolled students cannot access draft course content. Draft courses expose limited details (no sections/lessons) even to authorized users.
+- **Meetings Access Control**: Course meetings are only accessible to enrolled students (PAID status), course instructors, and admins.
+- **Role Escalation Prevention**: Public registration is forced to create student accounts only - users cannot self-assign admin/instructor roles.
+- **Soft-Delete Auth Enforcement**: Soft-deleted users are rejected during login and in auth middleware, preventing account reuse.
+- **Full-Fetch Contract**: Pagination supports `limit=-1` and `limit=0` to return all records without pagination.
+- **Deterministic Progress**: Lesson progress entries have unique constraints on `(userId, lessonId)` to prevent duplicates.
+
 ---
 
 ## 🚀 Environment Variables (`.env`)
@@ -132,26 +140,37 @@ Once the server is running, explore and test the endpoints directly via the Swag
 
 ---
 
-## 🧪 E2E Verification Testing
+## 🧪 Testing
 
-A series of package-level integration test scripts are available in the codebase to run full E2E validation against all implemented APIs from Sprints 4 to 8.
+### Automated Test Suites
+The project includes comprehensive test scripts for validating functionality and security:
 
-To run them:
-1. Make sure the local server is running (`npm run dev`).
-2. Run any of the test suites:
-   ```bash
-   # Wafacash Checkout & Middleware Paywall
-   node wafacash_test.js
+```bash
+# Run all sprint tests
+npm test
 
-   # Quiz Engine & AI Generation (Gemini)
-   node quiz_test.js
+# Run individual sprint tests
+npm run test:sprint6  # Gamification, Reviews & Notifications
+npm run test:sprint7  # Analytics & Meetings
+npm run test:sprint8  # Admin Moderation, KYC, Refunds & Auditing
 
-   # Gamification & Badges Engine
-   node sprint6_test.js
+# Run security regression tests
+npm run test:security
+```
 
-   # Live Meetings & Analytics
-   node sprint7_test.js
+### Legacy Test Scripts
+For direct execution of individual test files:
+```bash
+# Wafacash Checkout & Middleware Paywall
+node wafacash_test.js
 
-   # Admin Moderation, Refunds & Auditing
-   node sprint8_test.js
-   ```
+# Quiz Engine & AI Generation (Gemini)
+node quiz_test.js
+
+# Sprint tests (also available via npm scripts)
+node sprint6_test.js
+node sprint7_test.js
+node sprint8_test.js
+```
+
+**Note**: Ensure the server is running (`npm run dev`) before executing tests.
