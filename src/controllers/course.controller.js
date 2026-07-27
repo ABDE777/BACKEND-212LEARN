@@ -309,22 +309,61 @@ export const updateCourse = async (req, res, next) => {
       duration,
       status,
       categoryId,
+      instructorId,
     } = req.body;
 
     await ensureCourseManager(req.user, req.params.id);
 
+    const updateData = {
+      ...(title && { title }),
+      ...(description && { description }),
+      ...(price !== undefined && { price }),
+      ...(level && { level }),
+      ...(language && { language }),
+      ...(duration !== undefined && { duration }),
+      ...(status && { status }),
+      ...(categoryId && { categoryId }),
+    };
+
+    // Handle instructor change if provided
+    if (instructorId) {
+      // Validate that the target instructor exists and has instructor role
+      if (instructorId !== req.user.id && req.user.role !== 'admin') {
+        const targetUser = await prisma.user.findUnique({
+          where: { id: instructorId },
+        });
+
+        if (!targetUser || targetUser.deletedAt) {
+          return next(new AppError('Instructor not found.', 404, 'NOT_FOUND'));
+        }
+
+        if (targetUser.role !== 'instructor') {
+          return next(
+            new AppError('The specified user must have the instructor role.', 400, 'BAD_REQUEST')
+          );
+        }
+      }
+
+      // Remove existing lead instructor and add new one
+      await prisma.courseInstructor.deleteMany({
+        where: {
+          courseId: req.params.id,
+          role: 'lead_instructor',
+        },
+      });
+
+      await prisma.courseInstructor.create({
+        data: {
+          courseId: req.params.id,
+          userId: instructorId,
+          role: 'lead_instructor',
+        },
+      });
+    }
+
     const course = await prisma.course.update({
       where: { id: req.params.id },
-      data: {
-        ...(title && { title }),
-        ...(description && { description }),
-        ...(price !== undefined && { price }),
-        ...(level && { level }),
-        ...(language && { language }),
-        ...(duration !== undefined && { duration }),
-        ...(status && { status }),
-        ...(categoryId && { categoryId }),
-      },
+      data: updateData,
     });
 
     res.status(200).json(successResponse({ course }));
