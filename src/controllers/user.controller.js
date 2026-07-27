@@ -1,6 +1,7 @@
 import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse, paginationMeta, parsePagination, parseSort } from '../utils/response.js';
+import { cloudinary } from '../config/cloudinary.js';
 
 const USER_SELECT = {
   id: true, firstName: true, lastName: true, email: true,
@@ -84,6 +85,43 @@ export const deleteMe = async (req, res, next) => {
 
     // 204 must NOT have a body
     res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+};
+
+// POST /api/v1/users/me/avatar  →  upload avatar image
+export const uploadAvatar = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return next(new AppError('No file uploaded.', 400, 'VALIDATION_ERROR'));
+    }
+
+    // Delete old avatar if exists
+    const currentUser = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { avatar: true },
+    });
+
+    if (currentUser.avatar) {
+      try {
+        // Extract public ID from Cloudinary URL
+        const publicId = currentUser.avatar.split('/').pop().split('.')[0];
+        await cloudinary.uploader.destroy(`212learn/images/${publicId}`);
+      } catch (err) {
+        // Ignore deletion errors
+        console.warn('Failed to delete old avatar:', err.message);
+      }
+    }
+
+    // Update user with new avatar URL
+    const user = await prisma.user.update({
+      where: { id: req.user.id },
+      data: { avatar: req.file.path },
+      select: USER_SELECT,
+    });
+
+    res.status(200).json(successResponse({ user }));
   } catch (error) {
     next(error);
   }

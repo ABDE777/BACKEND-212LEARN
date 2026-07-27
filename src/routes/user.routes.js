@@ -1,6 +1,7 @@
 import { Router } from 'express';
-import { getAllUsers, getUser, updateMe, deleteMe } from '../controllers/user.controller.js';
+import { getAllUsers, getUser, updateMe, deleteMe, uploadAvatar } from '../controllers/user.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
+import { upload } from '../config/cloudinary.js';
 
 const router = Router();
 
@@ -66,6 +67,34 @@ router.patch('/me', updateMe);
  *         description: Unauthorized
  */
 router.delete('/me', deleteMe);
+
+/**
+ * @swagger
+ * /users/me/avatar:
+ *   post:
+ *     summary: Upload avatar image (multipart/form-data)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               avatar:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Avatar uploaded successfully
+ *       400:
+ *         description: No file uploaded or invalid file type
+ *       401:
+ *         description: Unauthorized
+ */
+router.post('/me/avatar', upload.single('avatar'), uploadAvatar);
 
 /**
  * @swagger
