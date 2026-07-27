@@ -90,6 +90,53 @@ export const verifyInstructor = async (req, res, next) => {
   }
 };
 
+// ─── PATCH /api/v1/admin/users/:userId/verify-student ─────────────────────────
+// Verify or unverify a student's account status.
+export const verifyStudent = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const { isVerified, notes } = req.body;
+
+    if (typeof isVerified !== 'boolean') {
+      return next(new AppError('isVerified must be a boolean.', 400, 'VALIDATION_ERROR'));
+    }
+
+    const targetUser = await prisma.user.findUnique({ where: { id: userId } });
+    if (!targetUser || targetUser.deletedAt) {
+      return next(new AppError('User not found.', 404, 'NOT_FOUND'));
+    }
+
+    if (targetUser.role !== 'student') {
+      return next(new AppError('Only users with the student role can be verified.', 400, 'BAD_REQUEST'));
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: { isVerified },
+      select: { id: true, firstName: true, lastName: true, email: true, role: true, isVerified: true },
+    });
+
+    // Write audit log
+    await logAuditEvent(
+      req.user.id,
+      isVerified ? 'VERIFY_STUDENT' : 'UNVERIFY_STUDENT',
+      'User',
+      userId,
+      { notes, email: targetUser.email }
+    );
+
+    // Notify the student
+    const message = isVerified
+      ? '✅ Votre compte a été vérifié avec succès par l\'administration.'
+      : '⚠️ Votre statut de vérification a été révoqué par l\'administration.';
+    await createNotification(userId, message);
+
+    res.status(200).json(successResponse({ user: updatedUser, message: 'Student verification updated.' }));
+  } catch (error) {
+    next(error);
+  }
+};
+
 // ─── PATCH /api/v1/admin/payments/:paymentId/refund ─────────────────────────
 // Refund a payment. Changes status to 'REFUNDED', removing access from student.
 export const refundPayment = async (req, res, next) => {
