@@ -7,6 +7,7 @@ import {
   getAuditLogs,
   getGroups,
   createGroup,
+  updateGroup,
   assignGroupFormateur,
   addStudentsToGroup,
   removeStudentFromGroup,
@@ -218,6 +219,40 @@ router.patch('/admin/payments/:paymentId/refund', refundPayment);
  */
 router.get('/admin/groups', getGroups);
 router.post('/admin/groups', createGroup);
+
+/**
+ * @swagger
+ * /admin/groups/{groupId}:
+ *   patch:
+ *     summary: Update a group (name, description, course) (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: groupId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               courseId:
+ *                 type: string
+ *                 format: uuid
+ *     responses:
+ *       200:
+ *         description: Group updated
+ *       404:
+ *         description: Group not found
+ */
+router.patch('/admin/groups/:groupId', updateGroup);
 
 /**
  * @swagger

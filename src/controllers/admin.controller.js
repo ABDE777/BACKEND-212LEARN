@@ -369,6 +369,43 @@ export const createGroup = async (req, res, next) => {
   }
 };
 
+// ─── PATCH /api/v1/admin/groups/:groupId ───────────────────────────────────────
+// Admin updates group details (name, description, course).
+export const updateGroup = async (req, res, next) => {
+  try {
+    const { groupId } = req.params;
+    const { name, description, courseId } = req.body;
+
+    const existingGroup = await prisma.group.findUnique({ where: { id: groupId } });
+    if (!existingGroup || existingGroup.deletedAt) {
+      return next(new AppError('Group not found.', 404, 'NOT_FOUND'));
+    }
+
+    if (courseId) {
+      await ensureCourseExists(courseId);
+    }
+
+    const group = await prisma.group.update({
+      where: { id: groupId },
+      data: {
+        ...(name && { name: name.trim() }),
+        ...(description !== undefined && { description: description?.trim() || null }),
+        ...(courseId !== undefined && { courseId: courseId || null }),
+      },
+      include: GROUP_INCLUDE,
+    });
+
+    await logAuditEvent(req.user.id, 'UPDATE_GROUP', 'Group', groupId, {
+      name: group.name,
+      courseId: group.courseId,
+    });
+
+    res.status(200).json(successResponse({ group }));
+  } catch (error) {
+    next(error);
+  }
+};
+
 // ─── PATCH /api/v1/admin/groups/:groupId/formateur ──────────────────────────
 // Admin changes the formateur assigned to a group.
 export const assignGroupFormateur = async (req, res, next) => {
