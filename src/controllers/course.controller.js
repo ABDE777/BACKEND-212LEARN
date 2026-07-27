@@ -242,6 +242,7 @@ export const createCourse = async (req, res, next) => {
       language,
       duration,
       status,
+      instructorId,
     } = req.body;
 
     if (!title || !categoryId || price === undefined) {
@@ -252,6 +253,26 @@ export const createCourse = async (req, res, next) => {
           'VALIDATION_ERROR'
         )
       );
+    }
+
+    // Determine instructor ID: use provided instructorId or default to current user
+    const targetInstructorId = instructorId || req.user.id;
+
+    // Validate that the target instructor exists and has instructor role
+    if (targetInstructorId !== req.user.id && req.user.role !== 'admin') {
+      const targetUser = await prisma.user.findUnique({
+        where: { id: targetInstructorId },
+      });
+
+      if (!targetUser || targetUser.deletedAt) {
+        return next(new AppError('Instructor not found.', 404, 'NOT_FOUND'));
+      }
+
+      if (targetUser.role !== 'instructor') {
+        return next(
+          new AppError('The specified user must have the instructor role.', 400, 'BAD_REQUEST')
+        );
+      }
     }
 
     const course = await prisma.course.create({
@@ -265,7 +286,7 @@ export const createCourse = async (req, res, next) => {
         duration,
         status: status || 'draft',
         instructors: {
-          create: { userId: req.user.id, role: 'lead_instructor' },
+          create: { userId: targetInstructorId, role: 'lead_instructor' },
         },
       },
     });
