@@ -45,15 +45,12 @@ const storage = new CloudinaryStorage({
       resource_type: resourceType,
       use_filename:  true,
       unique_filename: true,
-      // Prevent Cloudinary from processing PDFs and other raw files
-      ...(resourceType === 'raw' && {
-        format: 'auto',
-        pages: false,
-        transformation: [],
-      }),
     };
   },
 });
+
+// ─── Memory storage for PDFs and documents (to prevent Cloudinary processing) ───
+const memoryStorage = multer.memoryStorage();
 
 // ─── File filter ──────────────────────────────────────────────────────────────
 const fileFilter = (_req, file, cb) => {
@@ -75,6 +72,13 @@ const fileFilter = (_req, file, cb) => {
 // ─── Multer upload instance ───────────────────────────────────────────────────
 export const upload = multer({
   storage,
+  fileFilter,
+  limits: { fileSize: 200 * 1024 * 1024 }, // 200 MB
+});
+
+// ─── Multer upload instance for PDFs/documents (uses memory storage) ───────────
+export const uploadRaw = multer({
+  storage: memoryStorage,
   fileFilter,
   limits: { fileSize: 200 * 1024 * 1024 }, // 200 MB
 });

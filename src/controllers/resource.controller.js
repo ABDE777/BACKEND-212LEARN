@@ -27,7 +27,68 @@ export const addResource = async (req, res, next) => {
 
     // ── File upload path ──────────────────────────────────────────────────────
     if (req.file) {
-      url  = req.file.path;   // Cloudinary secure URL injected by multer storage
+      // Upload all files manually with Cloudinary API to have full control
+      let folder = '212learn/misc';
+      let resourceType = 'auto';
+      let uploadOptions = {
+        use_filename: true,
+        unique_filename: true,
+      };
+
+      if (req.file.mimetype.startsWith('video/')) {
+        folder = '212learn/videos';
+        resourceType = 'video';
+      } else if (req.file.mimetype === 'application/pdf') {
+        folder = '212learn/pdfs';
+        resourceType = 'raw';
+        uploadOptions = {
+          ...uploadOptions,
+          resource_type: 'raw',
+          format: 'pdf',
+          pages: false,
+          transformation: [],
+          flags: 'no_transform',
+        };
+      } else if (
+        req.file.mimetype === 'application/zip' ||
+        req.file.mimetype === 'application/x-zip-compressed'
+      ) {
+        folder = '212learn/zips';
+        resourceType = 'raw';
+        uploadOptions.resource_type = 'raw';
+      } else if (
+        req.file.mimetype === 'application/msword' ||
+        req.file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      ) {
+        folder = '212learn/documents';
+        resourceType = 'raw';
+        uploadOptions = {
+          ...uploadOptions,
+          resource_type: 'raw',
+          pages: false,
+          transformation: [],
+          flags: 'no_transform',
+        };
+      } else if (req.file.mimetype.startsWith('image/')) {
+        folder = '212learn/images';
+        resourceType = 'image';
+      }
+
+      uploadOptions.folder = folder;
+      if (resourceType !== 'auto') {
+        uploadOptions.resource_type = resourceType;
+      }
+
+      const result = await new Promise((resolve, reject) => {
+        cloudinary.uploader.upload_stream(
+          uploadOptions,
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        ).end(req.file.buffer);
+      });
+      url = result.secure_url;
 
       // Derive type from mimetype if not provided
       if (!type) {
