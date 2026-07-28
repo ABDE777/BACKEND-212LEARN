@@ -47,7 +47,6 @@ export const addResource = async (req, res, next) => {
           format: 'pdf',
           pages: false,
           transformation: [],
-          flags: 'no_transform',
         };
       } else if (
         req.file.mimetype === 'application/zip' ||
@@ -67,7 +66,6 @@ export const addResource = async (req, res, next) => {
           resource_type: 'raw',
           pages: false,
           transformation: [],
-          flags: 'no_transform',
         };
       } else if (req.file.mimetype.startsWith('image/')) {
         folder = '212learn/images';
