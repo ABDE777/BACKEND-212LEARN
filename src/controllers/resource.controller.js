@@ -4,7 +4,7 @@ import { successResponse } from '../utils/response.js';
 import { cloudinary } from '../config/cloudinary.js';
 import { ensureCourseManager } from '../utils/authorization.js';
 
-const ALLOWED_TYPES = ['video', 'pdf', 'zip', 'image', 'link'];
+const ALLOWED_TYPES = ['video', 'pdf', 'zip', 'document', 'image', 'link'];
 
 // ─── POST /lessons/:lessonId/resources ───────────────────────────────────────
 // Accepts either:
@@ -34,6 +34,10 @@ export const addResource = async (req, res, next) => {
         if (req.file.mimetype.startsWith('video/'))        type = 'video';
         else if (req.file.mimetype === 'application/pdf')  type = 'pdf';
         else if (req.file.mimetype.includes('zip'))        type = 'zip';
+        else if (
+          req.file.mimetype === 'application/msword' ||
+          req.file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )                                                   type = 'document';
         else if (req.file.mimetype.startsWith('image/'))   type = 'image';
         else                                               type = 'misc';
       }

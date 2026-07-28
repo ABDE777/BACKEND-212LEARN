@@ -29,6 +29,12 @@ const storage = new CloudinaryStorage({
     ) {
       folder       = '212learn/zips';
       resourceType = 'raw';
+    } else if (
+      file.mimetype === 'application/msword' ||
+      file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ) {
+      folder       = '212learn/documents';
+      resourceType = 'raw';
     } else if (file.mimetype.startsWith('image/')) {
       folder       = '212learn/images';
       resourceType = 'image';
@@ -39,6 +45,12 @@ const storage = new CloudinaryStorage({
       resource_type: resourceType,
       use_filename:  true,
       unique_filename: true,
+      // Prevent Cloudinary from processing PDFs and other raw files
+      ...(resourceType === 'raw' && {
+        format: 'auto',
+        pages: false,
+        transformation: [],
+      }),
     };
   },
 });
@@ -49,6 +61,8 @@ const fileFilter = (_req, file, cb) => {
     'video/mp4', 'video/webm', 'video/quicktime',
     'application/pdf',
     'application/zip', 'application/x-zip-compressed',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'image/jpeg', 'image/png', 'image/gif', 'image/webp',
   ];
   if (allowed.includes(file.mimetype)) {
