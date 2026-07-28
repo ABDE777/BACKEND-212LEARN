@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { addResource, deleteResource } from '../controllers/resource.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
-import { upload } from '../config/cloudinary.js';
+import { upload, uploadRaw } from '../config/cloudinary.js';
 
 const router = Router();
 
@@ -64,7 +64,7 @@ router.post(
   '/lessons/:lessonId/resources',
   protect,
   restrictTo('instructor', 'admin'),
-  upload.single('file'),
+  uploadRaw.single('file'),
   addResource
 );
 

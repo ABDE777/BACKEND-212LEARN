@@ -40,12 +40,23 @@ const storage = new CloudinaryStorage({
       resourceType = 'image';
     }
 
-    return {
+    const params = {
       folder,
       resource_type: resourceType,
       use_filename:  true,
       unique_filename: true,
     };
+
+    // For raw files (PDFs, ZIPs, documents), add options to prevent processing
+    if (resourceType === 'raw') {
+      params.format = null;
+      params.pages = false;
+      params.transformation = [];
+      params.async = false;
+      params.eager = [];
+    }
+
+    return params;
   },
 });
 

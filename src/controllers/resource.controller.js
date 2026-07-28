@@ -27,7 +27,57 @@ export const addResource = async (req, res, next) => {
 
     // ── File upload path ──────────────────────────────────────────────────────
     if (req.file) {
-      url = req.file.path;   // Cloudinary secure URL injected by multer storage
+      // For PDFs and documents, upload manually to prevent Cloudinary auto-processing
+      if (req.file.mimetype === 'application/pdf' ||
+          req.file.mimetype === 'application/msword' ||
+          req.file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+          req.file.mimetype === 'application/zip' ||
+          req.file.mimetype === 'application/x-zip-compressed') {
+
+        const folder = req.file.mimetype === 'application/pdf' ? '212learn/pdfs' :
+                      req.file.mimetype === 'application/zip' || req.file.mimetype === 'application/x-zip-compressed' ? '212learn/zips' :
+                      '212learn/documents';
+
+        // Upload using upload_stream with buffer
+        const result = await new Promise((resolve, reject) => {
+          cloudinary.uploader.upload_stream({
+            folder,
+            resource_type: 'raw',
+            use_filename: true,
+            unique_filename: true,
+            format: null,
+            pages: false,
+            transformation: [],
+            async: false,
+            eager: [],
+            overwrite: true,
+          }, (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }).end(req.file.buffer);
+        });
+
+        url = result.secure_url;
+      } else {
+        // For other files, upload manually as well since we're using memory storage
+        const folder = req.file.mimetype.startsWith('video/') ? '212learn/videos' :
+                      req.file.mimetype.startsWith('image/') ? '212learn/images' : '212learn/misc';
+
+        const result = await new Promise((resolve, reject) => {
+          cloudinary.uploader.upload_stream({
+            folder,
+            resource_type: req.file.mimetype.startsWith('video/') ? 'video' :
+                          req.file.mimetype.startsWith('image/') ? 'image' : 'auto',
+            use_filename: true,
+            unique_filename: true,
+          }, (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }).end(req.file.buffer);
+        });
+
+        url = result.secure_url;
+      }
 
       // Derive type from mimetype if not provided
       if (!type) {
