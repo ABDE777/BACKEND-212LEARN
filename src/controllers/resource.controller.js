@@ -86,45 +86,44 @@ export const addResource = async (req, res, next) => {
         uploadOptions.resource_type = resourceType;
       }
 
-      const result = await new Promise((resolve, reject) => {
-        cloudinary.uploader.upload_stream(
-          uploadOptions,
-          (error, result) => {
-            if (error) {
-              console.error('Cloudinary upload error:', error);
-              reject(error);
-            } else {
-              console.log('Cloudinary upload success:', result);
-              resolve(result);
-            }
-          }
-        ).end(req.file.buffer);
-      });
-
-      // For PDFs and documents, construct the raw URL explicitly to ensure original file delivery
-      // Cloudinary secure_url format: https://res.cloudinary.com/cloud_name/raw/upload/v1234/folder/public_id.pdf
-      // We need to ensure it uses the correct resource_type path
+      let result;
+      // For PDFs and documents, use upload_large which automatically sets resource_type to raw
       if (req.file.mimetype === 'application/pdf' ||
           req.file.mimetype === 'application/msword' ||
-          req.file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-        // The secure_url should already be correct for raw files, but let's verify
-        // If it doesn't contain /raw/, we need to construct it properly
-        if (!result.secure_url.includes('/raw/')) {
-          // Extract parts and construct raw URL
-          const urlParts = result.secure_url.split('/');
-          const uploadIdx = urlParts.indexOf('upload');
-          if (uploadIdx !== -1) {
-            urlParts.splice(uploadIdx + 1, 0, 'raw');
-            url = urlParts.join('/');
-          } else {
-            url = result.secure_url;
-          }
-        } else {
-          url = result.secure_url;
-        }
+          req.file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+          req.file.mimetype === 'application/zip' ||
+          req.file.mimetype === 'application/x-zip-compressed') {
+        // Write buffer to temp file for upload_large
+        const fs = await import('fs');
+        const path = await import('path');
+        const os = await import('os');
+        const tempDir = os.tmpdir();
+        const tempFilePath = path.join(tempDir, `temp_${Date.now()}_${req.file.originalname}`);
+        fs.writeFileSync(tempFilePath, req.file.buffer);
+
+        result = await cloudinary.uploader.upload_large(tempFilePath, uploadOptions);
+
+        // Clean up temp file
+        fs.unlinkSync(tempFilePath);
       } else {
-        url = result.secure_url;
+        // For other files, use upload_stream
+        result = await new Promise((resolve, reject) => {
+          cloudinary.uploader.upload_stream(
+            uploadOptions,
+            (error, result) => {
+              if (error) {
+                console.error('Cloudinary upload error:', error);
+                reject(error);
+              } else {
+                console.log('Cloudinary upload success:', result);
+                resolve(result);
+              }
+            }
+          ).end(req.file.buffer);
+        });
       }
+
+      url = result.secure_url;
 
       // Derive type from mimetype if not provided
       if (!type) {
