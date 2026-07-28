@@ -477,7 +477,6 @@ export const getCourseStudents = async (req, res, next) => {
 
     const where = {
       courseId: req.params.id,
-      deletedAt: null,
     };
 
     const [total, enrollments] = await Promise.all([
