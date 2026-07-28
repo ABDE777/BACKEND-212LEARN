@@ -7,6 +7,7 @@ import {
   deleteCourse,
   searchCourses,
   publishCourse,
+  getCourseStudents,
 } from '../controllers/course.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
 import { getCourseReviews, submitReview } from '../controllers/review.controller.js';
@@ -269,5 +270,38 @@ router.post('/:id/publish', restrictTo('admin'), publishCourse);
  *         description: Not enrolled with a PAID payment
  */
 router.post('/:id/reviews', submitReview);
+
+/**
+ * @swagger
+ * /courses/{id}/students:
+ *   get:
+ *     summary: List all students enrolled in a course (instructor / admin)
+ *     tags: [Courses]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 20 }
+ *     responses:
+ *       200:
+ *         description: Paginated list of enrolled students
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/PaginatedResponse'
+ *       403:
+ *         description: Forbidden — instructor or admin required
+ *       404:
+ *         description: Course not found
+ */
+router.get('/:id/students', restrictTo('instructor', 'admin'), getCourseStudents);
 
 export default router;

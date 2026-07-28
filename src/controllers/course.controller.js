@@ -467,3 +467,70 @@ export const publishCourse = async (req, res, next) => {
     next(error);
   }
 };
+
+// GET /api/v1/courses/:id/students  (Instructor / Admin)
+export const getCourseStudents = async (req, res, next) => {
+  try {
+    await ensureCourseManager(req.user, req.params.id);
+
+    const { page, limit, skip, isUnlimited } = parsePagination(req.query);
+
+    const where = {
+      courseId: req.params.id,
+      deletedAt: null,
+    };
+
+    const [total, enrollments] = await Promise.all([
+      prisma.enrollment.count({ where }),
+      prisma.enrollment.findMany({
+        where,
+        include: {
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              avatar: true,
+              isVerified: true,
+            },
+          },
+          payment: {
+            select: {
+              status: true,
+              amount: true,
+              paidAt: true,
+            },
+          },
+        },
+        orderBy: { enrolledAt: 'desc' },
+        ...(skip !== undefined && { skip }),
+        ...(limit !== null && { take: limit }),
+      }),
+    ]);
+
+    const students = enrollments.map((enrollment) => ({
+      id: enrollment.user.id,
+      firstName: enrollment.user.firstName,
+      lastName: enrollment.user.lastName,
+      email: enrollment.user.email,
+      avatar: enrollment.user.avatar,
+      isVerified: enrollment.user.isVerified,
+      enrolledAt: enrollment.enrolledAt,
+      paymentStatus: enrollment.payment?.status,
+      paymentAmount: enrollment.payment?.amount,
+      paidAt: enrollment.payment?.paidAt,
+    }));
+
+    res
+      .status(200)
+      .json(
+        successResponse(
+          { students },
+          paginationMeta(total, page, limit, isUnlimited)
+        )
+      );
+  } catch (error) {
+    next(error);
+  }
+};

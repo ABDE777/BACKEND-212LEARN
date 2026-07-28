@@ -51,6 +51,7 @@ export const addResource = async (req, res, next) => {
             async: false,
             eager: [],
             overwrite: true,
+            upload_preset: process.env.CLOUDINARY_UPLOAD_PRESET || undefined, // Use custom preset if defined
           }, (error, result) => {
             if (error) reject(error);
             else resolve(result);
