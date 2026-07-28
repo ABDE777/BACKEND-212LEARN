@@ -86,7 +86,31 @@ export const addResource = async (req, res, next) => {
           }
         ).end(req.file.buffer);
       });
-      url = result.secure_url;
+
+      // For PDFs and documents, construct the raw URL explicitly to ensure original file delivery
+      // Cloudinary secure_url format: https://res.cloudinary.com/cloud_name/raw/upload/v1234/folder/public_id.pdf
+      // We need to ensure it uses the correct resource_type path
+      if (req.file.mimetype === 'application/pdf' ||
+          req.file.mimetype === 'application/msword' ||
+          req.file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+        // The secure_url should already be correct for raw files, but let's verify
+        // If it doesn't contain /raw/, we need to construct it properly
+        if (!result.secure_url.includes('/raw/')) {
+          // Extract parts and construct raw URL
+          const urlParts = result.secure_url.split('/');
+          const uploadIdx = urlParts.indexOf('upload');
+          if (uploadIdx !== -1) {
+            urlParts.splice(uploadIdx + 1, 0, 'raw');
+            url = urlParts.join('/');
+          } else {
+            url = result.secure_url;
+          }
+        } else {
+          url = result.secure_url;
+        }
+      } else {
+        url = result.secure_url;
+      }
 
       // Derive type from mimetype if not provided
       if (!type) {
