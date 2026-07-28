@@ -47,6 +47,8 @@ export const addResource = async (req, res, next) => {
           format: 'pdf',
           pages: false,
           transformation: [],
+          access_mode: 'public',
+          type: 'upload',
         };
       } else if (
         req.file.mimetype === 'application/zip' ||
@@ -54,7 +56,12 @@ export const addResource = async (req, res, next) => {
       ) {
         folder = '212learn/zips';
         resourceType = 'raw';
-        uploadOptions.resource_type = 'raw';
+        uploadOptions = {
+          ...uploadOptions,
+          resource_type: 'raw',
+          access_mode: 'public',
+          type: 'upload',
+        };
       } else if (
         req.file.mimetype === 'application/msword' ||
         req.file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
@@ -66,6 +73,8 @@ export const addResource = async (req, res, next) => {
           resource_type: 'raw',
           pages: false,
           transformation: [],
+          access_mode: 'public',
+          type: 'upload',
         };
       } else if (req.file.mimetype.startsWith('image/')) {
         folder = '212learn/images';
@@ -81,8 +90,13 @@ export const addResource = async (req, res, next) => {
         cloudinary.uploader.upload_stream(
           uploadOptions,
           (error, result) => {
-            if (error) reject(error);
-            else resolve(result);
+            if (error) {
+              console.error('Cloudinary upload error:', error);
+              reject(error);
+            } else {
+              console.log('Cloudinary upload success:', result);
+              resolve(result);
+            }
           }
         ).end(req.file.buffer);
       });
