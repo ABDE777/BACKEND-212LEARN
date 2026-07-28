@@ -3,6 +3,7 @@ import { AppError } from '../middleware/error.js';
 import { successResponse, paginationMeta, parsePagination } from '../utils/response.js';
 import { logAuditEvent } from '../utils/audit.js';
 import { createNotification } from '../utils/gamification.js';
+import bcrypt from 'bcryptjs';
 
 // ─── GET /api/v1/admin/users/pending-kyc ─────────────────────────────────────
 // Retrieve all instructors awaiting KYC verification.
@@ -494,6 +495,171 @@ export const removeStudentFromGroup = async (req, res, next) => {
     await prisma.groupStudent.delete({ where: { id: membership.id } });
 
     await logAuditEvent(req.user.id, 'REMOVE_GROUP_STUDENT', 'Group', groupId, { studentId });
+
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ─── POST /api/v1/admin/users ─────────────────────────────────────────────────
+// Admin creates a new user.
+export const createUser = async (req, res, next) => {
+  try {
+    const {
+      firstName,
+      lastName,
+      email,
+      password,
+      role,
+      isVerified,
+    } = req.body;
+
+    if (!firstName || !lastName || !email || !password || !role) {
+      return next(
+        new AppError('firstName, lastName, email, password and role are required.', 400, 'VALIDATION_ERROR')
+      );
+    }
+
+    if (!['student', 'instructor', 'admin'].includes(role)) {
+      return next(new AppError('role must be student, instructor or admin.', 400, 'VALIDATION_ERROR'));
+    }
+
+    // Check if email already exists
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return next(new AppError('Email already exists.', 400, 'VALIDATION_ERROR'));
+    }
+
+    // Hash password
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    const user = await prisma.user.create({
+      data: {
+        firstName,
+        lastName,
+        email,
+        passwordHash,
+        role,
+        isVerified: isVerified !== undefined ? isVerified : false,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        role: true,
+        isVerified: true,
+        avatar: true,
+        bio: true,
+        createdAt: true,
+      },
+    });
+
+    await logAuditEvent(req.user.id, 'CREATE_USER', 'User', user.id, {
+      email: user.email,
+      role: user.role,
+    });
+
+    res.status(201).json(successResponse({ user }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ─── PATCH /api/v1/admin/users/:userId ────────────────────────────────────────
+// Admin updates a user.
+export const updateUser = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const {
+      firstName,
+      lastName,
+      email,
+      role,
+      isVerified,
+      bio,
+    } = req.body;
+
+    const targetUser = await prisma.user.findUnique({ where: { id: userId } });
+    if (!targetUser || targetUser.deletedAt) {
+      return next(new AppError('User not found.', 404, 'NOT_FOUND'));
+    }
+
+    // Check email uniqueness if changing email
+    if (email && email !== targetUser.email) {
+      const existingUser = await prisma.user.findUnique({ where: { email } });
+      if (existingUser) {
+        return next(new AppError('Email already exists.', 400, 'VALIDATION_ERROR'));
+      }
+    }
+
+    // Validate role if provided
+    if (role && !['student', 'instructor', 'admin'].includes(role)) {
+      return next(new AppError('role must be student, instructor or admin.', 400, 'VALIDATION_ERROR'));
+    }
+
+    const updateData = {
+      ...(firstName && { firstName }),
+      ...(lastName && { lastName }),
+      ...(email && { email }),
+      ...(role && { role }),
+      ...(isVerified !== undefined && { isVerified }),
+      ...(bio !== undefined && { bio }),
+    };
+
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        role: true,
+        isVerified: true,
+        avatar: true,
+        bio: true,
+        createdAt: true,
+      },
+    });
+
+    await logAuditEvent(req.user.id, 'UPDATE_USER', 'User', userId, {
+      email: user.email,
+      role: user.role,
+    });
+
+    res.status(200).json(successResponse({ user }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ─── DELETE /api/v1/admin/users/:userId ────────────────────────────────────────
+// Admin deletes (soft-delete) a user.
+export const deleteUser = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+
+    const targetUser = await prisma.user.findUnique({ where: { id: userId } });
+    if (!targetUser || targetUser.deletedAt) {
+      return next(new AppError('User not found.', 404, 'NOT_FOUND'));
+    }
+
+    // Prevent admin from deleting themselves
+    if (userId === req.user.id) {
+      return next(new AppError('You cannot delete your own account.', 400, 'BAD_REQUEST'));
+    }
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { deletedAt: new Date() },
+    });
+
+    await logAuditEvent(req.user.id, 'DELETE_USER', 'User', userId, {
+      email: targetUser.email,
+      role: targetUser.role,
+    });
 
     res.status(204).send();
   } catch (error) {

@@ -11,6 +11,9 @@ import {
   assignGroupFormateur,
   addStudentsToGroup,
   removeStudentFromGroup,
+  createUser,
+  updateUser,
+  deleteUser,
 } from '../controllers/admin.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
 
@@ -114,6 +117,111 @@ router.patch('/admin/users/:userId/verify', verifyInstructor);
  *         description: User not found
  */
 router.patch('/admin/users/:userId/verify-student', verifyStudent);
+
+/**
+ * @swagger
+ * /admin/users:
+ *   post:
+ *     summary: Create a new user (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [firstName, lastName, email, password, role]
+ *             properties:
+ *               firstName:
+ *                 type: string
+ *               lastName:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               password:
+ *                 type: string
+ *                 format: password
+ *               role:
+ *                 type: string
+ *                 enum: [student, instructor, admin]
+ *               isVerified:
+ *                 type: boolean
+ *     responses:
+ *       201:
+ *         description: User created successfully
+ *       400:
+ *         description: Validation error or email already exists
+ */
+router.post('/admin/users', createUser);
+
+/**
+ * @swagger
+ * /admin/users/{userId}:
+ *   patch:
+ *     summary: Update a user (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               firstName:
+ *                 type: string
+ *               lastName:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               role:
+ *                 type: string
+ *                 enum: [student, instructor, admin]
+ *               isVerified:
+ *                 type: boolean
+ *               bio:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: User updated successfully
+ *       400:
+ *         description: Validation error or email already exists
+ *       404:
+ *         description: User not found
+ */
+router.patch('/admin/users/:userId', updateUser);
+
+/**
+ * @swagger
+ * /admin/users/{userId}:
+ *   delete:
+ *     summary: Delete a user (soft-delete, admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       204:
+ *         description: User deleted successfully
+ *       400:
+ *         description: Cannot delete your own account
+ *       404:
+ *         description: User not found
+ */
+router.delete('/admin/users/:userId', deleteUser);
 
 /**
  * @swagger
