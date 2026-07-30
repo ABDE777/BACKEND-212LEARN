@@ -1,6 +1,7 @@
 import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
+import { validateUUID } from '../utils/validation.js';
 
 // ── Helper: Get instructor's course IDs ─────────────────────────────────────
 const getInstructorCourseIds = async (userId) => {

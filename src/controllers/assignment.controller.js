@@ -2,15 +2,15 @@ import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse, parsePagination, paginationMeta } from '../utils/response.js';
 import { ensureCourseManager } from '../utils/authorization.js';
+import { validateUUID, validateRequired, validateNumberRange, validateDate } from '../utils/validation.js';
 
 // ─── POST /lessons/:lessonId/assignments ─────────────────────────────────────
 export const createAssignment = async (req, res, next) => {
   try {
-    const { title, description, dueDate } = req.body;
+    validateUUID(req.params.lessonId, 'lessonId');
+    validateRequired(req.body, ['title']);
 
-    if (!title || !title.trim()) {
-      return next(new AppError('Assignment title is required.', 400, 'VALIDATION_ERROR'));
-    }
+    const { title, description, dueDate } = req.body;
 
     const lesson = await prisma.lesson.findUnique({
       where: { id: req.params.lessonId },
@@ -22,6 +22,10 @@ export const createAssignment = async (req, res, next) => {
     }
 
     await ensureCourseManager(req.user, lesson.section.courseId);
+
+    if (dueDate) {
+      validateDate(dueDate, 'dueDate');
+    }
 
     const assignment = await prisma.assignment.create({
       data: {
@@ -41,6 +45,8 @@ export const createAssignment = async (req, res, next) => {
 // ─── GET /lessons/:lessonId/assignments ──────────────────────────────────────
 export const getAssignments = async (req, res, next) => {
   try {
+    validateUUID(req.params.lessonId, 'lessonId');
+
     const lesson = await prisma.lesson.findUnique({
       where: { id: req.params.lessonId },
       include: { section: true },
@@ -66,6 +72,8 @@ export const getAssignments = async (req, res, next) => {
 // Student submits their work (file upload via Cloudinary or a URL)
 export const submitWork = async (req, res, next) => {
   try {
+    validateUUID(req.params.assignmentId, 'assignmentId');
+
     const assignment = await prisma.assignment.findUnique({
       where: { id: req.params.assignmentId },
       include: { lesson: { include: { section: true } } },
@@ -116,6 +124,8 @@ export const submitWork = async (req, res, next) => {
 // Instructor / admin only: list all submissions for an assignment
 export const getSubmissions = async (req, res, next) => {
   try {
+    validateUUID(req.params.assignmentId, 'assignmentId');
+
     const assignment = await prisma.assignment.findUnique({
       where: { id: req.params.assignmentId },
       include: { lesson: { include: { section: true } } },
@@ -150,16 +160,12 @@ export const getSubmissions = async (req, res, next) => {
 // Instructor / admin grades a submission
 export const gradeSubmission = async (req, res, next) => {
   try {
+    validateUUID(req.params.id, 'submissionId');
+
     const { grade, feedback } = req.body;
 
-    if (grade === undefined || grade === null) {
-      return next(new AppError('grade is required.', 400, 'VALIDATION_ERROR'));
-    }
-
-    const numGrade = Number(grade);
-    if (isNaN(numGrade) || numGrade < 0 || numGrade > 100) {
-      return next(new AppError('grade must be a number between 0 and 100.', 400, 'VALIDATION_ERROR'));
-    }
+    validateRequired(req.body, ['grade']);
+    validateNumberRange(Number(grade), { min: 0, max: 100 }, 'grade');
 
     const submission = await prisma.submission.findUnique({
       where: { id: req.params.id },
@@ -175,7 +181,7 @@ export const gradeSubmission = async (req, res, next) => {
     const updated = await prisma.submission.update({
       where: { id: req.params.id },
       data: {
-        grade:    numGrade,
+        grade: Number(grade),
         feedback: feedback?.trim() || null,
       },
       include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } },

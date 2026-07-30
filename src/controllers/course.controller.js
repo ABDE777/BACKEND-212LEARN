@@ -8,6 +8,7 @@ import {
   parseSort,
 } from '../utils/response.js';
 import { ensureCourseManager } from '../utils/authorization.js';
+import { validateUUID, validateRequired, validateEnum } from '../utils/validation.js';
 
 const SORTABLE_FIELDS = ['createdAt', 'title', 'price', 'duration'];
 
@@ -168,6 +169,8 @@ export const getAllCourses = async (req, res, next) => {
 // GET /api/v1/courses/:id
 export const getCourse = async (req, res, next) => {
   try {
+    validateUUID(req.params.id, 'courseId');
+
     const currentUser = await resolveSoftAuthUser(req);
     
     // Determine if user can view unpublished content
@@ -245,14 +248,19 @@ export const createCourse = async (req, res, next) => {
       instructorId,
     } = req.body;
 
-    if (!title || !categoryId || price === undefined) {
-      return next(
-        new AppError(
-          'title, categoryId and price are required.',
-          400,
-          'VALIDATION_ERROR'
-        )
-      );
+    validateRequired(req.body, ['title', 'categoryId']);
+    validateUUID(categoryId, 'categoryId');
+    
+    if (instructorId) {
+      validateUUID(instructorId, 'instructorId');
+    }
+    
+    if (status) {
+      validateEnum(status, ['draft', 'published', 'archived'], 'status');
+    }
+    
+    if (level) {
+      validateEnum(level, ['beginner', 'intermediate', 'advanced'], 'level');
     }
 
     // Determine instructor ID: use provided instructorId or default to current user
@@ -300,6 +308,8 @@ export const createCourse = async (req, res, next) => {
 // PATCH /api/v1/courses/:id
 export const updateCourse = async (req, res, next) => {
   try {
+    validateUUID(req.params.id, 'courseId');
+
     const {
       title,
       description,
@@ -311,6 +321,22 @@ export const updateCourse = async (req, res, next) => {
       categoryId,
       instructorId,
     } = req.body;
+
+    if (categoryId) {
+      validateUUID(categoryId, 'categoryId');
+    }
+    
+    if (instructorId) {
+      validateUUID(instructorId, 'instructorId');
+    }
+    
+    if (status) {
+      validateEnum(status, ['draft', 'published', 'archived'], 'status');
+    }
+    
+    if (level) {
+      validateEnum(level, ['beginner', 'intermediate', 'advanced'], 'level');
+    }
 
     await ensureCourseManager(req.user, req.params.id);
 
@@ -375,6 +401,8 @@ export const updateCourse = async (req, res, next) => {
 // DELETE /api/v1/courses/:id  →  soft-delete, 204 No Content
 export const deleteCourse = async (req, res, next) => {
   try {
+    validateUUID(req.params.id, 'courseId');
+
     await ensureCourseManager(req.user, req.params.id);
 
     await prisma.course.update({
@@ -443,6 +471,8 @@ export const searchCourses = async (req, res, next) => {
 // POST /api/v1/courses/:id/publish  (Admin only)
 export const publishCourse = async (req, res, next) => {
   try {
+    validateUUID(req.params.id, 'courseId');
+
     const course = await prisma.course.findUnique({
       where: { id: req.params.id },
     });
@@ -471,6 +501,8 @@ export const publishCourse = async (req, res, next) => {
 // GET /api/v1/courses/:id/students  (Instructor / Admin)
 export const getCourseStudents = async (req, res, next) => {
   try {
+    validateUUID(req.params.id, 'courseId');
+
     await ensureCourseManager(req.user, req.params.id);
 
     const { page, limit, skip, isUnlimited } = parsePagination(req.query);

@@ -1,6 +1,7 @@
 import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse, paginationMeta, parsePagination } from '../utils/response.js';
+import { validateUUID, validateRequired } from '../utils/validation.js';
 
 // GET /api/v1/enrollments?page=1&limit=20
 export const getMyCourses = async (req, res, next) => {
@@ -38,9 +39,8 @@ export const enrollInCourse = async (req, res, next) => {
   try {
     const { courseId } = req.body;
 
-    if (!courseId) {
-      return next(new AppError('courseId is required.', 400, 'VALIDATION_ERROR'));
-    }
+    validateRequired(req.body, ['courseId']);
+    validateUUID(courseId, 'courseId');
 
     // Verify course exists and is published
     const course = await prisma.course.findUnique({
@@ -76,6 +76,8 @@ export const enrollInCourse = async (req, res, next) => {
 // DELETE /api/v1/enrollments/:id  → unenroll, 204
 export const unenroll = async (req, res, next) => {
   try {
+    validateUUID(req.params.id, 'enrollmentId');
+
     const enrollment = await prisma.enrollment.findUnique({
       where: { id: req.params.id },
     });

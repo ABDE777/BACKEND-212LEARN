@@ -2,19 +2,19 @@ import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { createNotification } from '../utils/gamification.js';
+import { validateUUID, validateRequired, validateNumberRange } from '../utils/validation.js';
 
 // ─── POST /api/v1/courses/:courseId/reviews ───────────────────────────────────
 // Student submits a star rating and optional comment for a course they enrolled in.
 export const submitReview = async (req, res, next) => {
   try {
-    const courseId = req.params.courseId || req.params.id; // supports both /:courseId and /:id param names
+    const courseId = req.params.courseId || req.params.id;
+    validateUUID(courseId, 'courseId');
+    validateRequired(req.body, ['rating']);
+    validateNumberRange(req.body.rating, { min: 1, max: 5 }, 'rating');
+
     const { rating, comment } = req.body;
     const userId = req.user.id;
-
-    // Validate rating
-    if (!rating || typeof rating !== 'number' || rating < 1 || rating > 5) {
-      return next(new AppError('rating must be an integer between 1 and 5.', 400, 'VALIDATION_ERROR'));
-    }
 
     // Course must exist
     const course = await prisma.course.findUnique({ where: { id: courseId } });
@@ -83,7 +83,9 @@ export const submitReview = async (req, res, next) => {
 // List all reviews for a course (public).
 export const getCourseReviews = async (req, res, next) => {
   try {
-    const courseId = req.params.courseId || req.params.id; // supports both /:courseId and /:id param names
+    const courseId = req.params.courseId || req.params.id;
+    validateUUID(courseId, 'courseId');
+
     const page  = Math.max(1, parseInt(req.query.page, 10)  || 1);
     const limit = Math.min(50, parseInt(req.query.limit, 10) || 10);
 
@@ -136,6 +138,7 @@ export const getCourseReviews = async (req, res, next) => {
 export const getNotifications = async (req, res, next) => {
   try {
     const { userId } = req.params;
+    validateUUID(userId, 'userId');
 
     // Only the owner or admin can view their own notifications
     if (req.user.id !== userId && req.user.role !== 'admin') {
@@ -165,6 +168,7 @@ export const getNotifications = async (req, res, next) => {
 export const markAllNotificationsRead = async (req, res, next) => {
   try {
     const { userId } = req.params;
+    validateUUID(userId, 'userId');
 
     if (req.user.id !== userId && req.user.role !== 'admin') {
       return next(new AppError('Forbidden.', 403, 'FORBIDDEN'));

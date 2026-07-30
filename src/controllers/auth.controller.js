@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
+import { validateRequired, validateEmail } from '../utils/validation.js';
 
 const signToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET || 'dev-secret-key-212learn', {
@@ -31,12 +32,8 @@ export const register = async (req, res, next) => {
   try {
     const { firstName, lastName, email, password } = req.body;
 
-    if (!firstName || !lastName || !email || !password) {
-      return next(new AppError(
-        'firstName, lastName, email and password are required.',
-        400, 'VALIDATION_ERROR'
-      ));
-    }
+    validateRequired(req.body, ['firstName', 'lastName', 'email', 'password']);
+    validateEmail(email);
 
     const passwordHash = await bcrypt.hash(password, 12);
 
@@ -60,9 +57,8 @@ export const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
-      return next(new AppError('email and password are required.', 400, 'VALIDATION_ERROR'));
-    }
+    validateRequired(req.body, ['email', 'password']);
+    validateEmail(email);
 
     const user = await prisma.user.findUnique({
       where: { email },

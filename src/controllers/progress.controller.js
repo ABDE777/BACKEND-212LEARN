@@ -2,12 +2,15 @@ import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { checkAndAwardBadges } from '../utils/gamification.js';
+import { validateUUID } from '../utils/validation.js';
 
 // ─── GET /api/v1/courses/:courseId/quizzes ────────────────────────────────────
 // List all quizzes for a course (via its lessons → sections).
 // Used by the frontend Quiz Player page: /learn/:courseId/quiz/:quizId
 export const getQuizzesByCourse = async (req, res, next) => {
   try {
+    validateUUID(req.params.courseId, 'courseId');
+
     const course = await prisma.course.findUnique({
       where: { id: req.params.courseId },
     });
@@ -70,6 +73,8 @@ export const getQuizzesByCourse = async (req, res, next) => {
 // Used by the frontend Classroom Player page: /learn/:courseId/lesson/:lessonId
 export const logProgress = async (req, res, next) => {
   try {
+    validateUUID(req.params.lessonId, 'lessonId');
+
     const { completed, videoPosition, timeSpent } = req.body;
     const { lessonId } = req.params;
     const userId = req.user.id;

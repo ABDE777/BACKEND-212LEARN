@@ -2,15 +2,15 @@ import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { ensureCourseManager } from '../utils/authorization.js';
+import { validateUUID, validateRequired } from '../utils/validation.js';
 
 // ─── POST /sections/:sectionId/lessons ───────────────────────────────────────
 export const createLesson = async (req, res, next) => {
   try {
-    const { title } = req.body;
+    validateUUID(req.params.sectionId, 'sectionId');
+    validateRequired(req.body, ['title']);
 
-    if (!title || !title.trim()) {
-      return next(new AppError('Lesson title is required.', 400, 'VALIDATION_ERROR'));
-    }
+    const { title } = req.body;
 
     const section = await prisma.section.findUnique({
       where: { id: req.params.sectionId },
@@ -46,6 +46,8 @@ export const createLesson = async (req, res, next) => {
 // ─── PATCH /lessons/:id ───────────────────────────────────────────────────────
 export const updateLesson = async (req, res, next) => {
   try {
+    validateUUID(req.params.id, 'lessonId');
+
     const { title, position } = req.body;
 
     const lesson = await prisma.lesson.findUnique({
@@ -77,6 +79,8 @@ export const updateLesson = async (req, res, next) => {
 // Cascades to resources, assignments, quizzes, lessonProgress (via Prisma schema)
 export const deleteLesson = async (req, res, next) => {
   try {
+    validateUUID(req.params.id, 'lessonId');
+
     const lesson = await prisma.lesson.findUnique({
       where: { id: req.params.id },
       include: { section: true },

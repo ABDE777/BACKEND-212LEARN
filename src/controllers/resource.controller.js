@@ -3,6 +3,7 @@ import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { cloudinary } from '../config/cloudinary.js';
 import { ensureCourseManager } from '../utils/authorization.js';
+import { validateUUID, validateEnum, validateURL } from '../utils/validation.js';
 
 const ALLOWED_TYPES = ['video', 'pdf', 'zip', 'document', 'image', 'link'];
 
@@ -12,6 +13,8 @@ const ALLOWED_TYPES = ['video', 'pdf', 'zip', 'document', 'image', 'link'];
 //   - A plain URL   (application/json)     → type must be 'link'
 export const addResource = async (req, res, next) => {
   try {
+    validateUUID(req.params.lessonId, 'lessonId');
+
     const lesson = await prisma.lesson.findUnique({
       where: { id: req.params.lessonId },
       include: { section: true },
@@ -103,8 +106,8 @@ export const addResource = async (req, res, next) => {
     if (!url || !url.trim()) {
       return next(new AppError('url is required (upload a file or provide a link URL).', 400, 'VALIDATION_ERROR'));
     }
-    if (type === 'link' && !/^https?:\/\/.+/.test(url)) {
-      return next(new AppError('link type requires a valid http/https URL.', 400, 'VALIDATION_ERROR'));
+    if (type === 'link') {
+      validateURL(url, 'link URL');
     }
 
     const resource = await prisma.resource.create({
@@ -120,6 +123,8 @@ export const addResource = async (req, res, next) => {
 // ─── DELETE /resources/:id ────────────────────────────────────────────────────
 export const deleteResource = async (req, res, next) => {
   try {
+    validateUUID(req.params.id, 'resourceId');
+
     const resource = await prisma.resource.findUnique({
       where: { id: req.params.id },
       include: { lesson: { include: { section: true } } },

@@ -2,6 +2,7 @@ import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse, paginationMeta, parsePagination, parseSort } from '../utils/response.js';
 import { cloudinary } from '../config/cloudinary.js';
+import { validateUUID } from '../utils/validation.js';
 
 const USER_SELECT = {
   id: true, firstName: true, lastName: true, email: true,
@@ -44,6 +45,8 @@ export const getAllUsers = async (req, res, next) => {
 // GET /api/v1/users/:id
 export const getUser = async (req, res, next) => {
   try {
+    validateUUID(req.params.id, 'userId');
+
     const user = await prisma.user.findUnique({
       where: { id: req.params.id },
       select: USER_SELECT,

@@ -3,17 +3,17 @@ import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { checkAndAwardBadges } from '../utils/gamification.js';
 import { ensureCourseManager } from '../utils/authorization.js';
+import { validateUUID, validateRequired, validateNumberRange, validateEnum } from '../utils/validation.js';
 
 // ─── POST /api/v1/lessons/:lessonId/quizzes ───────────────────────────────────
 // Instructor creates a new quiz manually for a lesson.
 export const createQuiz = async (req, res, next) => {
   try {
+    validateUUID(req.params.lessonId, 'lessonId');
+    validateRequired(req.body, ['title']);
+
     const { lessonId } = req.params;
     const { title } = req.body;
-
-    if (!title) {
-      return next(new AppError('Quiz title is required.', 400, 'VALIDATION_ERROR'));
-    }
 
     const lesson = await prisma.lesson.findUnique({
       where: { id: lessonId },
@@ -43,15 +43,16 @@ export const createQuiz = async (req, res, next) => {
 // Instructor adds a single MCQ question (with options) to a quiz.
 export const addQuestion = async (req, res, next) => {
   try {
+    validateUUID(req.params.quizId, 'quizId');
+    validateRequired(req.body, ['statement', 'options', 'correctAnswer']);
+
     const { quizId } = req.params;
     const { statement, options, correctAnswer } = req.body;
 
-    // Validate required fields
-    if (!statement) return next(new AppError('Question statement is required.', 400, 'VALIDATION_ERROR'));
-    if (!options || !Array.isArray(options) || options.length < 2) {
+    // Validate options array
+    if (!Array.isArray(options) || options.length < 2) {
       return next(new AppError('At least 2 answer options are required.', 400, 'VALIDATION_ERROR'));
     }
-    if (!correctAnswer) return next(new AppError('correctAnswer is required.', 400, 'VALIDATION_ERROR'));
     if (!options.includes(correctAnswer)) {
       return next(new AppError('correctAnswer must exactly match one of the provided options.', 400, 'VALIDATION_ERROR'));
     }
@@ -86,14 +87,13 @@ export const addQuestion = async (req, res, next) => {
 // Uses Google Gemini Flash free API (no cost).
 export const generateAIQuiz = async (req, res, next) => {
   try {
+    validateUUID(req.params.lessonId, 'lessonId');
+    validateRequired(req.body, ['title', 'prompt']);
+
     const { lessonId } = req.params;
     const { title, prompt, questionCount = 5 } = req.body;
 
-    if (!title) return next(new AppError('Quiz title is required.', 400, 'VALIDATION_ERROR'));
-    if (!prompt) return next(new AppError('A topic or text prompt is required to generate the quiz.', 400, 'VALIDATION_ERROR'));
-    if (questionCount < 1 || questionCount > 20) {
-      return next(new AppError('questionCount must be between 1 and 20.', 400, 'VALIDATION_ERROR'));
-    }
+    validateNumberRange(questionCount, { min: 1, max: 20 }, 'questionCount');
 
     const lesson = await prisma.lesson.findUnique({
       where: { id: lessonId },
@@ -235,6 +235,8 @@ Rules:
 // Get a single quiz with its questions (for the Quiz Player).
 export const getQuiz = async (req, res, next) => {
   try {
+    validateUUID(req.params.quizId, 'quizId');
+
     const { quizId } = req.params;
 
     const quiz = await prisma.quiz.findUnique({
@@ -272,6 +274,8 @@ export const getQuiz = async (req, res, next) => {
 // Instructor publishes (approves) or updates a quiz.
 export const updateQuiz = async (req, res, next) => {
   try {
+    validateUUID(req.params.quizId, 'quizId');
+
     const { quizId } = req.params;
     const { title, validationStatus } = req.body;
 
@@ -284,8 +288,8 @@ export const updateQuiz = async (req, res, next) => {
     await ensureCourseManager(req.user, quiz.lesson.section.courseId);
 
     const allowedStatuses = ['draft', 'approved', 'rejected'];
-    if (validationStatus && !allowedStatuses.includes(validationStatus)) {
-      return next(new AppError(`validationStatus must be one of: ${allowedStatuses.join(', ')}`, 400, 'VALIDATION_ERROR'));
+    if (validationStatus) {
+      validateEnum(validationStatus, allowedStatuses, 'validationStatus');
     }
 
     const updated = await prisma.quiz.update({
@@ -306,6 +310,9 @@ export const updateQuiz = async (req, res, next) => {
 // Student submits answers → score is calculated server-side.
 export const submitAttempt = async (req, res, next) => {
   try {
+    validateUUID(req.params.quizId, 'quizId');
+    validateRequired(req.body, ['answers']);
+
     const { quizId } = req.params;
     const { answers, duration } = req.body;
     // answers: [{ questionId: "uuid", selectedAnswer: "Option B" }, ...]

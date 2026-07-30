@@ -4,6 +4,7 @@ import { successResponse, paginationMeta, parsePagination } from '../utils/respo
 import { logAuditEvent } from '../utils/audit.js';
 import { createNotification } from '../utils/gamification.js';
 import bcrypt from 'bcryptjs';
+import { validateUUID, validateRequired, validateEmail, validateEnum } from '../utils/validation.js';
 
 // ─── GET /api/v1/admin/users/pending-kyc ─────────────────────────────────────
 // Retrieve all instructors awaiting KYC verification.
@@ -49,11 +50,10 @@ export const getPendingKyc = async (req, res, next) => {
 export const verifyInstructor = async (req, res, next) => {
   try {
     const { userId } = req.params;
-    const { isVerified, notes } = req.body;
+    validateUUID(userId, 'userId');
+    validateRequired(req.body, ['isVerified']);
 
-    if (typeof isVerified !== 'boolean') {
-      return next(new AppError('isVerified must be a boolean.', 400, 'VALIDATION_ERROR'));
-    }
+    const { isVerified, notes } = req.body;
 
     const targetUser = await prisma.user.findUnique({ where: { id: userId } });
     if (!targetUser || targetUser.deletedAt) {
@@ -96,6 +96,9 @@ export const verifyInstructor = async (req, res, next) => {
 export const verifyStudent = async (req, res, next) => {
   try {
     const { userId } = req.params;
+    validateUUID(userId, 'userId');
+    validateRequired(req.body, ['isVerified']);
+
     const { isVerified, notes } = req.body;
 
     if (typeof isVerified !== 'boolean') {

@@ -1,6 +1,7 @@
 import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
+import { validateUUID, validateRequired } from '../utils/validation.js';
 
 // Helper to generate a unique Wafacash Reference
 const generateWafacashReference = () => {
@@ -18,11 +19,10 @@ const generateWafacashReference = () => {
 export const requestWafacashPayment = async (req, res, next) => {
   try {
     const { courseId, couponCode } = req.body;
-    const userId = req.user.id;
+    validateRequired(req.body, ['courseId']);
+    validateUUID(courseId, 'courseId');
 
-    if (!courseId) {
-      return next(new AppError('courseId is required.', 400, 'VALIDATION_ERROR'));
-    }
+    const userId = req.user.id;
 
     // Verify course exists
     const course = await prisma.course.findUnique({
@@ -132,9 +132,7 @@ export const submitWafacashTransfer = async (req, res, next) => {
     const { paymentReference, mtcn } = req.body;
     const { demo } = req.query;
 
-    if (!paymentReference || !mtcn) {
-      return next(new AppError('paymentReference and mtcn are required.', 400, 'VALIDATION_ERROR'));
-    }
+    validateRequired(req.body, ['paymentReference', 'mtcn']);
 
     const cleanMtcn = String(mtcn).trim();
     if (!/^\d{10}$/.test(cleanMtcn)) {

@@ -2,11 +2,7 @@ import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { ensureCourseManager } from '../utils/authorization.js';
-
-const isValidUUID = (uuid) => {
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  return uuidRegex.test(uuid);
-};
+import { validateUUID, validateRequired } from '../utils/validation.js';
 
 // ─── GET /courses/:courseId/curriculum ───────────────────────────────────────
 // Returns the full section → lesson tree for a course.
@@ -14,9 +10,7 @@ const isValidUUID = (uuid) => {
 // Full access: admins, instructors, and enrolled students see everything.
 export const getCurriculum = async (req, res, next) => {
   try {
-    if (!isValidUUID(req.params.courseId)) {
-      return next(new AppError('Invalid course ID format. UUID required.', 400, 'VALIDATION_ERROR'));
-    }
+    validateUUID(req.params.courseId, 'courseId');
 
     const course = await prisma.course.findUnique({
       where: { id: req.params.courseId },
@@ -93,11 +87,10 @@ export const getCurriculum = async (req, res, next) => {
 // ─── POST /courses/:courseId/sections ────────────────────────────────────────
 export const createSection = async (req, res, next) => {
   try {
-    const { title } = req.body;
+    validateUUID(req.params.courseId, 'courseId');
+    validateRequired(req.body, ['title']);
 
-    if (!title || !title.trim()) {
-      return next(new AppError('Section title is required.', 400, 'VALIDATION_ERROR'));
-    }
+    const { title } = req.body;
 
     const course = await prisma.course.findUnique({
       where: { id: req.params.courseId },
@@ -133,6 +126,8 @@ export const createSection = async (req, res, next) => {
 // ─── PATCH /sections/:id ──────────────────────────────────────────────────────
 export const updateSection = async (req, res, next) => {
   try {
+    validateUUID(req.params.id, 'sectionId');
+
     const { title, position } = req.body;
 
     const section = await prisma.section.findUnique({
@@ -163,6 +158,8 @@ export const updateSection = async (req, res, next) => {
 // Cascades to lessons → resources (handled by Prisma schema onDelete: Cascade)
 export const deleteSection = async (req, res, next) => {
   try {
+    validateUUID(req.params.id, 'sectionId');
+
     const section = await prisma.section.findUnique({
       where: { id: req.params.id },
     });
