@@ -3,12 +3,21 @@ import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { ensureCourseManager } from '../utils/authorization.js';
 
+const isValidUUID = (uuid) => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
+};
+
 // ─── GET /courses/:courseId/curriculum ───────────────────────────────────────
 // Returns the full section → lesson tree for a course.
 // Public preview: resource URLs are REDACTED for unenrolled users.
 // Full access: admins, instructors, and enrolled students see everything.
 export const getCurriculum = async (req, res, next) => {
   try {
+    if (!isValidUUID(req.params.courseId)) {
+      return next(new AppError('Invalid course ID format. UUID required.', 400, 'VALIDATION_ERROR'));
+    }
+
     const course = await prisma.course.findUnique({
       where: { id: req.params.courseId },
     });
