@@ -232,12 +232,14 @@ Rules:
 };
 
 // ─── GET /api/v1/quizzes/:quizId ──────────────────────────────────────────────
-// Get a single quiz with its questions (for the Quiz Player).
+// Get a single quiz with its questions.
+// Instructors & admins get `correctAnswer` for editing; students only get questions & options.
 export const getQuiz = async (req, res, next) => {
   try {
     validateUUID(req.params.quizId, 'quizId');
 
     const { quizId } = req.params;
+    const isTeacherOrAdmin = req.user && ['instructor', 'admin'].includes(req.user.role);
 
     const quiz = await prisma.quiz.findUnique({
       where: { id: quizId },
@@ -247,7 +249,7 @@ export const getQuiz = async (req, res, next) => {
             id: true,
             statement: true,
             options: true,
-            // correctAnswer is NOT returned here — only after submission
+            ...(isTeacherOrAdmin && { correctAnswer: true }),
           },
         },
         lesson: {
@@ -305,6 +307,95 @@ export const updateQuiz = async (req, res, next) => {
     next(error);
   }
 };
+
+// ─── DELETE /api/v1/quizzes/:quizId ───────────────────────────────────────────
+// Instructor or admin deletes a quiz.
+export const deleteQuiz = async (req, res, next) => {
+  try {
+    validateUUID(req.params.quizId, 'quizId');
+    const { quizId } = req.params;
+
+    const quiz = await prisma.quiz.findUnique({
+      where: { id: quizId },
+      include: { lesson: { include: { section: { include: { course: true } } } } },
+    });
+
+    if (!quiz) return next(new AppError('Quiz not found.', 404, 'NOT_FOUND'));
+    await ensureCourseManager(req.user, quiz.lesson.section.courseId);
+
+    await prisma.quiz.delete({ where: { id: quizId } });
+
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ─── PATCH /api/v1/questions/:questionId ──────────────────────────────────────
+// Instructor updates a specific question's statement, options, or correctAnswer.
+export const updateQuestion = async (req, res, next) => {
+  try {
+    validateUUID(req.params.questionId, 'questionId');
+    const { questionId } = req.params;
+    const { statement, options, correctAnswer } = req.body;
+
+    const question = await prisma.question.findUnique({
+      where: { id: questionId },
+      include: { quiz: { include: { lesson: { include: { section: { include: { course: true } } } } } } },
+    });
+
+    if (!question) return next(new AppError('Question not found.', 404, 'NOT_FOUND'));
+    await ensureCourseManager(req.user, question.quiz.lesson.section.courseId);
+
+    const newOptions = options || question.options;
+    const newCorrect = correctAnswer || question.correctAnswer;
+
+    if (options && (!Array.isArray(options) || options.length < 2)) {
+      return next(new AppError('At least 2 answer options are required.', 400, 'VALIDATION_ERROR'));
+    }
+
+    if (!newOptions.includes(newCorrect)) {
+      return next(new AppError('correctAnswer must match one of the options.', 400, 'VALIDATION_ERROR'));
+    }
+
+    const updated = await prisma.question.update({
+      where: { id: questionId },
+      data: {
+        ...(statement && { statement }),
+        ...(options && { options }),
+        ...(correctAnswer && { correctAnswer }),
+      },
+    });
+
+    res.status(200).json(successResponse(updated));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ─── DELETE /api/v1/questions/:questionId ─────────────────────────────────────
+// Instructor deletes a single question from a quiz.
+export const deleteQuestion = async (req, res, next) => {
+  try {
+    validateUUID(req.params.questionId, 'questionId');
+    const { questionId } = req.params;
+
+    const question = await prisma.question.findUnique({
+      where: { id: questionId },
+      include: { quiz: { include: { lesson: { include: { section: { include: { course: true } } } } } } },
+    });
+
+    if (!question) return next(new AppError('Question not found.', 404, 'NOT_FOUND'));
+    await ensureCourseManager(req.user, question.quiz.lesson.section.courseId);
+
+    await prisma.question.delete({ where: { id: questionId } });
+
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 // ─── POST /api/v1/quizzes/:quizId/attempts ────────────────────────────────────
 // Student submits answers → score is calculated server-side.

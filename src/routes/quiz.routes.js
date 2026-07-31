@@ -5,6 +5,9 @@ import {
   generateAIQuiz,
   getQuiz,
   updateQuiz,
+  deleteQuiz,
+  updateQuestion,
+  deleteQuestion,
   submitAttempt,
 } from '../controllers/quiz.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
@@ -171,6 +174,47 @@ router.post('/quizzes/:quizId/questions', protect, restrictTo('instructor', 'adm
  */
 router.get('/quizzes/:quizId', protect, getQuiz);
 router.patch('/quizzes/:quizId', protect, restrictTo('instructor', 'admin'), updateQuiz);
+router.delete('/quizzes/:quizId', protect, restrictTo('instructor', 'admin'), deleteQuiz);
+
+/**
+ * @swagger
+ * /questions/{questionId}:
+ *   patch:
+ *     summary: Update a question's statement, options, or correctAnswer (instructor only)
+ *     tags: [Quizzes]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: questionId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               statement: { type: string }
+ *               options: { type: array, items: { type: string } }
+ *               correctAnswer: { type: string }
+ *     responses:
+ *       200: { description: Question updated }
+ *   delete:
+ *     summary: Delete a question (instructor only)
+ *     tags: [Quizzes]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: questionId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       204: { description: Question deleted }
+ */
+router.patch('/questions/:questionId', protect, restrictTo('instructor', 'admin'), updateQuestion);
+router.delete('/questions/:questionId', protect, restrictTo('instructor', 'admin'), deleteQuestion);
 
 // ─── Student: Submit Attempt ──────────────────────────────────────────────────
 
