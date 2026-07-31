@@ -167,7 +167,7 @@ router.post('/quizzes/:quizId/questions', protect, restrictTo('instructor', 'adm
  *                 type: string
  *               validationStatus:
  *                 type: string
- *                 enum: [draft, approved, rejected]
+ *                 enum: [draft, pending, approved, rejected]
  *     responses:
  *       200:
  *         description: Quiz updated

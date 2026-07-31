@@ -289,7 +289,7 @@ export const updateQuiz = async (req, res, next) => {
     if (!quiz) return next(new AppError('Quiz not found.', 404, 'NOT_FOUND'));
     await ensureCourseManager(req.user, quiz.lesson.section.courseId);
 
-    const allowedStatuses = ['draft', 'approved', 'rejected'];
+    const allowedStatuses = ['draft', 'pending', 'approved', 'rejected'];
     if (validationStatus) {
       validateEnum(validationStatus, allowedStatuses, 'validationStatus');
     }
