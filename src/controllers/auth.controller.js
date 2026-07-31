@@ -138,7 +138,7 @@ export const forgotPassword = async (req, res, next) => {
 
     const user = await prisma.user.findUnique({
       where: { email },
-      select: { id: true, firstName: true, email: true, deletedAt: true },
+      select: { id: true, firstName: true, email: true, passwordHash: true, deletedAt: true },
     });
 
     // Always respond 200 — never reveal whether the email exists
