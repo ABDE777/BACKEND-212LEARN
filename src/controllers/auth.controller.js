@@ -98,15 +98,9 @@ export const changePassword = async (req, res, next) => {
     validateRequired(req.body, ['currentPassword', 'newPassword']);
     const { currentPassword, newPassword } = req.body;
 
-    if (newPassword.length < 8) {
-      return next(new AppError('New password must be at least 8 characters.', 400, 'VALIDATION_ERROR'));
+    if (currentPassword === newPassword) {
+      return next(new AppError('New password cannot be the same as your old password.', 400, 'VALIDATION_ERROR'));
     }
-
-    // Fetch fresh user row including the hash (req.user may not have it)
-    const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      select: { id: true, passwordHash: true },
-    });
 
     const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
     if (!isMatch) {
@@ -214,6 +208,12 @@ export const resetPassword = async (req, res, next) => {
         ? 'Reset link has expired. Please request a new one.'
         : 'Invalid reset token.';
       return next(new AppError(message, 400, 'INVALID_TOKEN'));
+    }
+
+    // Check if new password is identical to current password
+    const isSamePassword = await bcrypt.compare(newPassword, user.passwordHash);
+    if (isSamePassword) {
+      return next(new AppError('New password cannot be the same as your old password.', 400, 'VALIDATION_ERROR'));
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 12);
