@@ -98,8 +98,22 @@ export const changePassword = async (req, res, next) => {
     validateRequired(req.body, ['currentPassword', 'newPassword']);
     const { currentPassword, newPassword } = req.body;
 
+    if (newPassword.length < 8) {
+      return next(new AppError('New password must be at least 8 characters.', 400, 'VALIDATION_ERROR'));
+    }
+
     if (currentPassword === newPassword) {
       return next(new AppError('New password cannot be the same as your old password.', 400, 'VALIDATION_ERROR'));
+    }
+
+    // Fetch fresh user row including passwordHash
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { id: true, passwordHash: true },
+    });
+
+    if (!user) {
+      return next(new AppError('User not found.', 404, 'NOT_FOUND'));
     }
 
     const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
