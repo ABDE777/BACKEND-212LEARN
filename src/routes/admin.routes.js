@@ -14,6 +14,7 @@ import {
   createUser,
   updateUser,
   deleteUser,
+  resetUserPassword,
 } from '../controllers/admin.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
 
@@ -445,5 +446,40 @@ router.post('/admin/groups/:groupId/students', addStudentsToGroup);
  */
 router.delete('/admin/groups/:groupId/students/:studentId', removeStudentFromGroup);
 router.get('/admin/audit-logs', getAuditLogs);
+
+/**
+ * @swagger
+ * /admin/users/{userId}/reset-password:
+ *   patch:
+ *     summary: Admin resets a user's password directly (no email required)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [newPassword]
+ *             properties:
+ *               newPassword:
+ *                 type: string
+ *                 format: password
+ *                 minLength: 8
+ *     responses:
+ *       200:
+ *         description: Password reset successfully
+ *       400:
+ *         description: Password too short
+ *       404:
+ *         description: User not found
+ */
+router.patch('/admin/users/:userId/reset-password', resetUserPassword);
 
 export default router;

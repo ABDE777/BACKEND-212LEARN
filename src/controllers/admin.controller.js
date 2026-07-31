@@ -669,3 +669,38 @@ export const deleteUser = async (req, res, next) => {
     next(error);
   }
 };
+
+// ─── PATCH /api/v1/admin/users/:userId/reset-password ────────────────────────
+// Admin forcefully resets any user's password (no email flow, no old password required).
+export const resetUserPassword = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    validateUUID(userId, 'userId');
+    validateRequired(req.body, ['newPassword']);
+
+    const { newPassword } = req.body;
+
+    if (newPassword.length < 8) {
+      return next(new AppError('New password must be at least 8 characters.', 400, 'VALIDATION_ERROR'));
+    }
+
+    const targetUser = await prisma.user.findUnique({ where: { id: userId } });
+    if (!targetUser || targetUser.deletedAt) {
+      return next(new AppError('User not found.', 404, 'NOT_FOUND'));
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+
+    await logAuditEvent(req.user.id, 'ADMIN_RESET_PASSWORD', 'User', userId, {
+      email: targetUser.email,
+    });
+
+    res.status(200).json(successResponse({ message: `Password for ${targetUser.email} has been reset successfully.` }));
+  } catch (error) {
+    next(error);
+  }
+};

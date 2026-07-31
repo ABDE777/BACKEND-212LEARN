@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { getAllUsers, getUser, updateMe, deleteMe, uploadAvatar } from '../controllers/user.controller.js';
+import { changePassword } from '../controllers/auth.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
 import { upload } from '../config/cloudinary.js';
 
@@ -51,6 +52,37 @@ router.get('/me', (req, res) => {
  *         description: Unauthorized
  */
 router.patch('/me', updateMe);
+
+/**
+ * @swagger
+ * /users/me/password:
+ *   patch:
+ *     summary: Change my own password (requires current password)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [currentPassword, newPassword]
+ *             properties:
+ *               currentPassword:
+ *                 type: string
+ *                 format: password
+ *               newPassword:
+ *                 type: string
+ *                 format: password
+ *                 minLength: 8
+ *     responses:
+ *       200:
+ *         description: Password updated successfully
+ *       401:
+ *         description: Current password is incorrect
+ */
+router.patch('/me/password', changePassword);
 
 /**
  * @swagger

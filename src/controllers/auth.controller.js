@@ -4,6 +4,7 @@ import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { validateRequired, validateEmail } from '../utils/validation.js';
+import { sendPasswordResetEmail } from '../utils/email.js';
 
 const signToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET || 'dev-secret-key-212learn', {
@@ -86,4 +87,143 @@ export const login = async (req, res, next) => {
 export const getMe = (req, res) => {
   const { passwordHash, deletedAt, ...safeUser } = req.user;
   res.status(200).json(successResponse({ user: safeUser }));
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PATCH /api/v1/users/me/password
+// Logged-in user changes their own password (requires current password).
+// ─────────────────────────────────────────────────────────────────────────────
+export const changePassword = async (req, res, next) => {
+  try {
+    validateRequired(req.body, ['currentPassword', 'newPassword']);
+    const { currentPassword, newPassword } = req.body;
+
+    if (newPassword.length < 8) {
+      return next(new AppError('New password must be at least 8 characters.', 400, 'VALIDATION_ERROR'));
+    }
+
+    // Fetch fresh user row including the hash (req.user may not have it)
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { id: true, passwordHash: true },
+    });
+
+    const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isMatch) {
+      return next(new AppError('Current password is incorrect.', 401, 'INVALID_CREDENTIALS'));
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash },
+    });
+
+    res.status(200).json(successResponse({ message: 'Password updated successfully.' }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/auth/forgot-password
+// Public: receives an email, sends a 15-min reset link if the account exists.
+// Always returns 200 to prevent email enumeration attacks.
+// ─────────────────────────────────────────────────────────────────────────────
+export const forgotPassword = async (req, res, next) => {
+  try {
+    validateRequired(req.body, ['email']);
+    validateEmail(req.body.email);
+    const { email } = req.body;
+
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true, firstName: true, email: true, deletedAt: true },
+    });
+
+    // Always respond 200 — never reveal whether the email exists
+    if (!user || user.deletedAt) {
+      return res.status(200).json(
+        successResponse({ message: 'If that email is registered, a reset link has been sent.' })
+      );
+    }
+
+    // Create a short-lived reset token (15 min) signed with a dedicated secret
+    const resetSecret = (process.env.JWT_SECRET || 'dev-secret-key-212learn') + user.passwordHash;
+    const resetToken = jwt.sign({ id: user.id }, resetSecret, { expiresIn: '15m' });
+
+    const frontendUrl = process.env.FRONTEND_URL || 'https://212-learn.vercel.app';
+    const resetLink = `${frontendUrl}/reset-password/${resetToken}`;
+
+    await sendPasswordResetEmail(user.email, user.firstName, resetLink);
+
+    res.status(200).json(
+      successResponse({ message: 'If that email is registered, a reset link has been sent.' })
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/auth/reset-password/:token
+// Public: validates the reset token and sets the new password.
+// ─────────────────────────────────────────────────────────────────────────────
+export const resetPassword = async (req, res, next) => {
+  try {
+    validateRequired(req.body, ['newPassword']);
+    const { newPassword } = req.body;
+    const { token } = req.params;
+
+    if (!token) {
+      return next(new AppError('Reset token is required.', 400, 'VALIDATION_ERROR'));
+    }
+
+    if (newPassword.length < 8) {
+      return next(new AppError('New password must be at least 8 characters.', 400, 'VALIDATION_ERROR'));
+    }
+
+    // Decode the token without verifying yet to get the user id
+    let decoded;
+    try {
+      decoded = jwt.decode(token);
+    } catch {
+      return next(new AppError('Invalid reset token.', 400, 'INVALID_TOKEN'));
+    }
+
+    if (!decoded || !decoded.id) {
+      return next(new AppError('Invalid reset token.', 400, 'INVALID_TOKEN'));
+    }
+
+    // Fetch the user to rebuild the signing secret (which includes the current hash)
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      select: { id: true, passwordHash: true, deletedAt: true },
+    });
+
+    if (!user || user.deletedAt) {
+      return next(new AppError('Invalid reset token.', 400, 'INVALID_TOKEN'));
+    }
+
+    // Now fully verify using the hash-based secret (token auto-invalidates after password change)
+    const resetSecret = (process.env.JWT_SECRET || 'dev-secret-key-212learn') + user.passwordHash;
+    try {
+      jwt.verify(token, resetSecret);
+    } catch (err) {
+      const message = err.name === 'TokenExpiredError'
+        ? 'Reset link has expired. Please request a new one.'
+        : 'Invalid reset token.';
+      return next(new AppError(message, 400, 'INVALID_TOKEN'));
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash },
+    });
+
+    res.status(200).json(successResponse({ message: 'Password reset successfully. You can now log in.' }));
+  } catch (error) {
+    next(error);
+  }
 };
