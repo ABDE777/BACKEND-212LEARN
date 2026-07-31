@@ -451,7 +451,11 @@ router.get('/admin/audit-logs', getAuditLogs);
  * @swagger
  * /admin/users/{userId}/reset-password:
  *   patch:
- *     summary: Admin resets a user's password directly (no email required)
+ *     summary: Admin resets a user's password directly
+ *     description: |
+ *       Admin forcefully resets any user's password **without requiring the current password**.
+ *       This action is **logged in the audit trail** automatically.
+ *       Minimum 8 characters required for the new password.
  *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
@@ -459,26 +463,37 @@ router.get('/admin/audit-logs', getAuditLogs);
  *       - in: path
  *         name: userId
  *         required: true
- *         schema: { type: string, format: uuid }
+ *         description: UUID of the user whose password will be reset
+ *         schema:
+ *           type: string
+ *           format: uuid
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required: [newPassword]
- *             properties:
- *               newPassword:
- *                 type: string
- *                 format: password
- *                 minLength: 8
+ *             $ref: '#/components/schemas/AdminResetPasswordInput'
  *     responses:
  *       200:
  *         description: Password reset successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessResponse'
  *       400:
- *         description: Password too short
+ *         description: Password too short or missing
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       404:
  *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       403:
+ *         description: Forbidden — admin only
  */
 router.patch('/admin/users/:userId/reset-password', resetUserPassword);
 

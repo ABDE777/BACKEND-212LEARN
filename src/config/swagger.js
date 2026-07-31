@@ -17,8 +17,13 @@ const options = {
         '**All responses follow a consistent envelope:**\n\n' +
         '```json\n// Success\n{ "success": true, "data": {}, "meta": {} }\n\n// Error\n{ "success": false, "error": { "code": "...", "message": "..." } }\n```\n\n' +
         '**Authentication:** Use the `POST /auth/login` endpoint to get a JWT token, ' +
-        'then click the **Authorize** button above and enter: `Bearer <your_token>`',
-      contact: { name: '212Learning Team', email: 'support@212learning.ma' },
+        'then click the **Authorize** button above and enter: `Bearer <your_token>`\n\n' +
+        '**Password Management:**\n' +
+        '- `POST /auth/forgot-password` — public, sends a 15-min reset link by email\n' +
+        '- `POST /auth/reset-password/:token` — public, sets new password using the emailed token\n' +
+        '- `PATCH /users/me/password` — logged-in user changes their own password (requires current password)\n' +
+        '- `PATCH /admin/users/:userId/reset-password` — admin forcefully resets any user password',
+      contact: { name: '212Learn Support', email: '212learn.support@gmail.com' },
       license: { name: 'MIT' },
     },
     servers: [
@@ -109,6 +114,41 @@ const options = {
               type: 'object',
               properties: { user: { $ref: '#/components/schemas/User' } },
             },
+          },
+        },
+
+        // ─── Password Management ─────────────────────────────────────────────
+        ForgotPasswordInput: {
+          type: 'object',
+          required: ['email'],
+          description: 'Step 1 of the forgot-password flow — request a reset link by email',
+          properties: {
+            email: { type: 'string', format: 'email', example: 'user@example.com' },
+          },
+        },
+        ResetPasswordInput: {
+          type: 'object',
+          required: ['newPassword'],
+          description: 'Step 2 of the forgot-password flow — submit a new password using the token from the email link',
+          properties: {
+            newPassword: { type: 'string', format: 'password', minLength: 8, example: 'MyNewSecurePass123!' },
+          },
+        },
+        ChangePasswordInput: {
+          type: 'object',
+          required: ['currentPassword', 'newPassword'],
+          description: 'Logged-in user changes their own password — current password required',
+          properties: {
+            currentPassword: { type: 'string', format: 'password', example: 'OldPassword123' },
+            newPassword:     { type: 'string', format: 'password', minLength: 8, example: 'NewSecurePass456!' },
+          },
+        },
+        AdminResetPasswordInput: {
+          type: 'object',
+          required: ['newPassword'],
+          description: 'Admin forcefully resets a user password — no current password required',
+          properties: {
+            newPassword: { type: 'string', format: 'password', minLength: 8, example: 'TempPassword789!' },
           },
         },
 
@@ -371,8 +411,9 @@ const options = {
       },
     },
     tags: [
-      { name: 'Auth',        description: 'Register, login, token refresh' },
-      { name: 'Users',       description: 'User profile management (own profile + admin)' },
+      { name: 'Auth',        description: 'Register, login, forgot password, reset password' },
+      { name: 'Users',       description: 'User profile management — own profile + change password + admin operations' },
+      { name: 'Admin',       description: 'Admin-only operations — user management, KYC, groups, audit logs, password reset' },
       { name: 'Categories',  description: 'Course category tree management' },
       { name: 'Courses',     description: 'Course catalogue — public browsing and instructor management' },
       { name: 'Enrollments', description: 'Enroll / unenroll from published courses' },

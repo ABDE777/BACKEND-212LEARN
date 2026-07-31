@@ -57,7 +57,11 @@ router.patch('/me', updateMe);
  * @swagger
  * /users/me/password:
  *   patch:
- *     summary: Change my own password (requires current password)
+ *     summary: Change my own password
+ *     description: |
+ *       Logged-in user changes their own password.
+ *       Requires the **current password** for verification before the change is applied.
+ *       Minimum 8 characters for the new password.
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -66,21 +70,26 @@ router.patch('/me', updateMe);
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required: [currentPassword, newPassword]
- *             properties:
- *               currentPassword:
- *                 type: string
- *                 format: password
- *               newPassword:
- *                 type: string
- *                 format: password
- *                 minLength: 8
+ *             $ref: '#/components/schemas/ChangePasswordInput'
  *     responses:
  *       200:
  *         description: Password updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessResponse'
  *       401:
  *         description: Current password is incorrect
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       400:
+ *         description: New password too short or missing fields
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.patch('/me/password', changePassword);
 
