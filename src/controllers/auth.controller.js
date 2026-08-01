@@ -156,9 +156,9 @@ export const forgotPassword = async (req, res, next) => {
       );
     }
 
-    // Create a short-lived reset token (15 min) signed with a dedicated secret
+    // Create a short-lived reset token (5 min) signed with a dedicated secret
     const resetSecret = (process.env.JWT_SECRET || 'dev-secret-key-212learn') + user.passwordHash;
-    const resetToken = jwt.sign({ id: user.id }, resetSecret, { expiresIn: '15m' });
+    const resetToken = jwt.sign({ id: user.id }, resetSecret, { expiresIn: '5m' });
 
     const frontendUrl = process.env.FRONTEND_URL || 'https://212-learn.vercel.app';
     const resetLink = `${frontendUrl}/reset-password/${resetToken}`;

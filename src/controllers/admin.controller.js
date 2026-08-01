@@ -4,7 +4,9 @@ import { successResponse, paginationMeta, parsePagination } from '../utils/respo
 import { logAuditEvent } from '../utils/audit.js';
 import { createNotification } from '../utils/gamification.js';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { validateUUID, validateRequired, validateEmail, validateEnum } from '../utils/validation.js';
+import { sendPasswordResetEmail } from '../utils/email.js';
 
 // ─── GET /api/v1/admin/users/pending-kyc ─────────────────────────────────────
 // Retrieve all instructors awaiting KYC verification.
@@ -670,36 +672,38 @@ export const deleteUser = async (req, res, next) => {
   }
 };
 
-// ─── PATCH /api/v1/admin/users/:userId/reset-password ────────────────────────
-// Admin forcefully resets any user's password (no email flow, no old password required).
+// ─── POST /api/v1/admin/users/:userId/reset-password ────────────────────────
+// Admin triggers sending a 5-min password reset email link to the specified user.
 export const resetUserPassword = async (req, res, next) => {
   try {
     const { userId } = req.params;
     validateUUID(userId, 'userId');
-    validateRequired(req.body, ['newPassword']);
 
-    const { newPassword } = req.body;
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, firstName: true, email: true, passwordHash: true, deletedAt: true },
+    });
 
-    if (newPassword.length < 8) {
-      return next(new AppError('New password must be at least 8 characters.', 400, 'VALIDATION_ERROR'));
-    }
-
-    const targetUser = await prisma.user.findUnique({ where: { id: userId } });
     if (!targetUser || targetUser.deletedAt) {
       return next(new AppError('User not found.', 404, 'NOT_FOUND'));
     }
 
-    const passwordHash = await bcrypt.hash(newPassword, 12);
-    await prisma.user.update({
-      where: { id: userId },
-      data: { passwordHash },
-    });
+    // Create a 5-minute reset token
+    const resetSecret = (process.env.JWT_SECRET || 'dev-secret-key-212learn') + targetUser.passwordHash;
+    const resetToken = jwt.sign({ id: targetUser.id }, resetSecret, { expiresIn: '5m' });
 
-    await logAuditEvent(req.user.id, 'ADMIN_RESET_PASSWORD', 'User', userId, {
+    const frontendUrl = process.env.FRONTEND_URL || 'https://212-learn.vercel.app';
+    const resetLink = `${frontendUrl}/reset-password/${resetToken}`;
+
+    await sendPasswordResetEmail(targetUser.email, targetUser.firstName, resetLink);
+
+    await logAuditEvent(req.user.id, 'ADMIN_SEND_RESET_EMAIL', 'User', userId, {
       email: targetUser.email,
     });
 
-    res.status(200).json(successResponse({ message: `Password for ${targetUser.email} has been reset successfully.` }));
+    res.status(200).json(successResponse({
+      message: `Password reset email has been sent to ${targetUser.email} (link valid for 5 minutes).`
+    }));
   } catch (error) {
     next(error);
   }

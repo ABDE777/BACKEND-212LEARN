@@ -450,12 +450,12 @@ router.get('/admin/audit-logs', getAuditLogs);
 /**
  * @swagger
  * /admin/users/{userId}/reset-password:
- *   patch:
- *     summary: Admin resets a user's password directly
+ *   post:
+ *     summary: Send password reset email link to a user (admin trigger)
  *     description: |
- *       Admin forcefully resets any user's password **without requiring the current password**.
- *       This action is **logged in the audit trail** automatically.
- *       Minimum 8 characters required for the new password.
+ *       Admin triggers sending a **5-minute password reset link** to the user's registered email address.
+ *       The admin does NOT type the password manually — the user receives an email to set their password safely.
+ *       This action is **logged in the audit trail** (`ADMIN_SEND_RESET_EMAIL`).
  *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
@@ -463,29 +463,17 @@ router.get('/admin/audit-logs', getAuditLogs);
  *       - in: path
  *         name: userId
  *         required: true
- *         description: UUID of the user whose password will be reset
+ *         description: UUID of the user to receive the password reset email
  *         schema:
  *           type: string
  *           format: uuid
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/AdminResetPasswordInput'
  *     responses:
  *       200:
- *         description: Password reset successfully
+ *         description: Reset email sent successfully (valid for 5 minutes)
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/SuccessResponse'
- *       400:
- *         description: Password too short or missing
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  *       404:
  *         description: User not found
  *         content:
@@ -495,6 +483,7 @@ router.get('/admin/audit-logs', getAuditLogs);
  *       403:
  *         description: Forbidden — admin only
  */
+router.post('/admin/users/:userId/reset-password', resetUserPassword);
 router.patch('/admin/users/:userId/reset-password', resetUserPassword);
 
 export default router;

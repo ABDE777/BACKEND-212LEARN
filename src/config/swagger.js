@@ -19,10 +19,10 @@ const options = {
         '**Authentication:** Use the `POST /auth/login` endpoint to get a JWT token, ' +
         'then click the **Authorize** button above and enter: `Bearer <your_token>`\n\n' +
         '**Password Management:**\n' +
-        '- `POST /auth/forgot-password` — public, sends a 15-min reset link by email\n' +
-        '- `POST /auth/reset-password/:token` — public, sets new password using the emailed token\n' +
+        '- `POST /auth/forgot-password` — public, sends a 5-min reset link by email\n' +
+        '- `POST /auth/reset-password/:token` — public, sets new password using the emailed link token\n' +
         '- `PATCH /users/me/password` — logged-in user changes their own password (requires current password)\n' +
-        '- `PATCH /admin/users/:userId/reset-password` — admin forcefully resets any user password',
+        '- `POST /admin/users/:userId/reset-password` — admin triggers sending a 5-min reset link email to any user',
       contact: { name: '212Learn Support', email: '212learn.support@gmail.com' },
       license: { name: 'MIT' },
     },

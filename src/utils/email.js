@@ -65,14 +65,14 @@ export const sendEmail = async ({ to, subject, text, html }) => {
 export const sendPasswordResetEmail = async (to, firstName, resetLink) => {
   const subject = '🔑 Réinitialisation de votre mot de passe — 212Learn';
 
-  const text = `Bonjour ${firstName},\n\nNous avons reçu une demande de réinitialisation de votre mot de passe.\n\nCliquez sur le lien ci-dessous (valable 15 minutes) :\n${resetLink}\n\nSi vous n'avez pas fait cette demande, ignorez cet email.\n\n— L'équipe 212Learn`;
+  const text = `Bonjour ${firstName},\n\nNous avons reçu une demande de réinitialisation de votre mot de passe.\n\nCliquez sur le lien ci-dessous (valable 5 minutes) :\n${resetLink}\n\nSi vous n'avez pas fait cette demande, ignorez cet email.\n\n— L'équipe 212Learn`;
 
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2 style="color: #1a1a2e;">Réinitialisation du mot de passe</h2>
       <p>Bonjour <strong>${firstName}</strong>,</p>
       <p>Nous avons reçu une demande de réinitialisation de votre mot de passe.</p>
-      <p>Cliquez sur le bouton ci-dessous (le lien est valable <strong>15 minutes</strong>) :</p>
+      <p>Cliquez sur le bouton ci-dessous (le lien est valable <strong>5 minutes</strong>) :</p>
       <a href="${resetLink}"
          style="display:inline-block;padding:12px 24px;background-color:#6c63ff;color:#fff;
                 text-decoration:none;border-radius:6px;font-weight:bold;margin:16px 0;">
@@ -80,7 +80,7 @@ export const sendPasswordResetEmail = async (to, firstName, resetLink) => {
       </a>
       <p style="color:#666;font-size:13px;">
         Si vous n'avez pas fait cette demande, ignorez simplement cet email.<br>
-        Ce lien expirera dans 15 minutes.
+        Ce lien expirera dans 5 minutes.
       </p>
       <hr style="border:none;border-top:1px solid #eee;margin:24px 0;">
       <p style="color:#999;font-size:12px;">© 212Learn — Plateforme d'apprentissage en ligne</p>
