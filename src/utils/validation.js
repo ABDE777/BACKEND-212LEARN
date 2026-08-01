@@ -21,7 +21,10 @@ export const validateUUID = (uuid, fieldName = 'ID') => {
  * @throws {AppError} If any required field is missing
  */
 export const validateRequired = (body, fields) => {
-  const missing = fields.filter(field => !body[field] || (typeof body[field] === 'string' && !body[field].trim()));
+  const missing = fields.filter(field => {
+    const val = body[field];
+    return val === undefined || val === null || (typeof val === 'string' && !val.trim());
+  });
   if (missing.length > 0) {
     throw new AppError(`Missing required fields: ${missing.join(', ')}.`, 400, 'VALIDATION_ERROR');
   }
