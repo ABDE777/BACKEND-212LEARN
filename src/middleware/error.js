@@ -39,6 +39,16 @@ export const errorHandler = (err, req, res, next) => {
     return res.status(401).json(errorResponse('Token expired.', 'TOKEN_EXPIRED'));
   }
 
+  // ── Multer / upload size errors ───────────────────────────────────────────
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json(
+      errorResponse('File too large for Cloudinary limits.', 'VALIDATION_ERROR')
+    );
+  }
+  if (err.message && /File too large|Unsupported file type/i.test(err.message)) {
+    return res.status(400).json(errorResponse(err.message, 'VALIDATION_ERROR'));
+  }
+
   // ── Operational errors (thrown by AppError) ───────────────────────────────
   const body = errorResponse(err.message || 'Internal Server Error', err.code || 'INTERNAL_ERROR');
 

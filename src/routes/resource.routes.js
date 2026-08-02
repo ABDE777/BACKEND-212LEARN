@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { addResource, deleteResource } from '../controllers/resource.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
-import { upload, uploadRaw } from '../config/cloudinary.js';
+import { uploadRaw, enforceCloudinarySizeLimit } from '../config/cloudinary.js';
 
 const router = Router();
 
@@ -28,7 +28,9 @@ const router = Router();
  *               file:
  *                 type: string
  *                 format: binary
- *                 description: Video, PDF, ZIP, or image file (max 200 MB)
+ *                 description: >
+ *                   Video (max 4 GB), image/PDF/ZIP/DOC (max 40 MB) — Cloudinary Advanced limits.
+ *                   Videos over 100 MB use chunked upload.
  *               type:
  *                 type: string
  *                 enum: [video, pdf, zip, image, link]
@@ -65,6 +67,7 @@ router.post(
   protect,
   restrictTo('instructor', 'admin'),
   uploadRaw.single('file'),
+  enforceCloudinarySizeLimit,
   addResource
 );
 
