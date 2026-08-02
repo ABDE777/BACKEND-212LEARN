@@ -1,11 +1,29 @@
 import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
-import { cloudinary } from '../config/cloudinary.js';
+import {
+  cloudinary,
+  uploadBufferToCloudinary,
+  publicIdFromCloudinaryUrl,
+} from '../config/cloudinary.js';
 import { ensureCourseManager } from '../utils/authorization.js';
-import { validateUUID, validateEnum, validateURL } from '../utils/validation.js';
+import { validateUUID, validateURL } from '../utils/validation.js';
 
 const ALLOWED_TYPES = ['video', 'pdf', 'zip', 'document', 'image', 'link'];
+
+function typeFromMimetype(mimetype) {
+  if (mimetype.startsWith('video/')) return 'video';
+  if (mimetype === 'application/pdf') return 'pdf';
+  if (mimetype.includes('zip')) return 'zip';
+  if (
+    mimetype === 'application/msword' ||
+    mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  ) {
+    return 'document';
+  }
+  if (mimetype.startsWith('image/')) return 'image';
+  return null;
+}
 
 // ─── POST /lessons/:lessonId/resources ───────────────────────────────────────
 // Accepts either:
@@ -30,70 +48,11 @@ export const addResource = async (req, res, next) => {
 
     // ── File upload path ──────────────────────────────────────────────────────
     if (req.file) {
-      // For PDFs and documents, upload manually to prevent Cloudinary auto-processing
-      if (req.file.mimetype === 'application/pdf' ||
-          req.file.mimetype === 'application/msword' ||
-          req.file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-          req.file.mimetype === 'application/zip' ||
-          req.file.mimetype === 'application/x-zip-compressed') {
+      const result = await uploadBufferToCloudinary(req.file);
+      url = result.secure_url;
 
-        const folder = req.file.mimetype === 'application/pdf' ? '212learn/pdfs' :
-                      req.file.mimetype === 'application/zip' || req.file.mimetype === 'application/x-zip-compressed' ? '212learn/zips' :
-                      '212learn/documents';
-
-        // Upload using upload_stream with buffer
-        const result = await new Promise((resolve, reject) => {
-          cloudinary.uploader.upload_stream({
-            folder,
-            resource_type: 'raw',
-            use_filename: true,
-            unique_filename: true,
-            format: null,
-            pages: false,
-            transformation: [],
-            async: false,
-            eager: [],
-            overwrite: true,
-            upload_preset: process.env.CLOUDINARY_UPLOAD_PRESET || undefined, // Use custom preset if defined
-          }, (error, result) => {
-            if (error) reject(error);
-            else resolve(result);
-          }).end(req.file.buffer);
-        });
-
-        url = result.secure_url;
-      } else {
-        // For other files, upload manually as well since we're using memory storage
-        const folder = req.file.mimetype.startsWith('video/') ? '212learn/videos' :
-                      req.file.mimetype.startsWith('image/') ? '212learn/images' : '212learn/misc';
-
-        const result = await new Promise((resolve, reject) => {
-          cloudinary.uploader.upload_stream({
-            folder,
-            resource_type: req.file.mimetype.startsWith('video/') ? 'video' :
-                          req.file.mimetype.startsWith('image/') ? 'image' : 'auto',
-            use_filename: true,
-            unique_filename: true,
-          }, (error, result) => {
-            if (error) reject(error);
-            else resolve(result);
-          }).end(req.file.buffer);
-        });
-
-        url = result.secure_url;
-      }
-
-      // Derive type from mimetype if not provided
       if (!type) {
-        if (req.file.mimetype.startsWith('video/'))        type = 'video';
-        else if (req.file.mimetype === 'application/pdf')  type = 'pdf';
-        else if (req.file.mimetype.includes('zip'))        type = 'zip';
-        else if (
-          req.file.mimetype === 'application/msword' ||
-          req.file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        )                                                   type = 'document';
-        else if (req.file.mimetype.startsWith('image/'))   type = 'image';
-        else                                               type = 'misc';
+        type = typeFromMimetype(req.file.mimetype);
       }
     }
 
@@ -139,19 +98,16 @@ export const deleteResource = async (req, res, next) => {
     // If URL is from Cloudinary, delete from Cloudinary too
     if (resource.type !== 'link' && resource.url.includes('cloudinary.com')) {
       try {
-        // Extract public_id from Cloudinary URL
-        // URL format: https://res.cloudinary.com/<cloud>/<type>/upload/v<ver>/<folder>/<public_id>.<ext>
-        const urlParts  = resource.url.split('/');
-        const uploadIdx = urlParts.indexOf('upload');
-        if (uploadIdx !== -1) {
-          // Everything after "upload/v<version>/" is the public_id (with extension)
-          const publicIdWithExt = urlParts.slice(uploadIdx + 2).join('/');
-          const publicId        = publicIdWithExt.replace(/\.[^.]+$/, ''); // strip extension
+        const resourceType =
+          resource.type === 'video' ? 'video' :
+          resource.type === 'image' ? 'image' : 'raw';
 
-          const resourceType =
-            resource.type === 'video' ? 'video' :
-            resource.type === 'image' ? 'image' : 'raw';
+        // Raw public_ids include the extension — do not strip it
+        const publicId = publicIdFromCloudinaryUrl(resource.url, {
+          keepExtension: resourceType === 'raw',
+        });
 
+        if (publicId) {
           await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
         }
       } catch {
