@@ -239,6 +239,7 @@ model CartItem {
   cart   Cart   @relation(fields: [cartId], references: [id], onDelete: Cascade)
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
+  @@unique([cartId, courseId])
   @@map("cart_items")
 }
 
@@ -251,6 +252,7 @@ model Wishlist {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, courseId])
   @@map("wishlists")
 }
 

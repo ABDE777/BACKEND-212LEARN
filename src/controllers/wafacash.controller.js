@@ -2,6 +2,7 @@ import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { validateUUID, validateRequired } from '../utils/validation.js';
+import { resolveValidCoupon, applyCouponDiscount } from '../utils/coupon.js';
 
 // Helper to generate a unique Wafacash Reference
 const generateWafacashReference = () => {
@@ -61,19 +62,13 @@ export const requestWafacashPayment = async (req, res, next) => {
       }
     }
 
-    // Resolve coupon discount
+    // Resolve coupon discount (shared helper — codes are case-insensitive)
     let discountedPrice = Number(course.price);
     let coupon = null;
 
     if (couponCode) {
-      coupon = await prisma.coupon.findUnique({ where: { code: couponCode } });
-      if (!coupon) {
-        return next(new AppError(`Coupon code "${couponCode}" is invalid.`, 400, 'VALIDATION_ERROR'));
-      }
-      if (new Date(coupon.expirationDate) < new Date()) {
-        return next(new AppError(`Coupon code "${couponCode}" has expired.`, 400, 'VALIDATION_ERROR'));
-      }
-      discountedPrice = discountedPrice * (1 - Number(coupon.discount) / 100);
+      coupon = await resolveValidCoupon(couponCode);
+      discountedPrice = applyCouponDiscount(course.price, coupon.discount);
     }
 
     const reference = generateWafacashReference();

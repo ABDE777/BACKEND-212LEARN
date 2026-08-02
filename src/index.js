@@ -24,6 +24,9 @@ import quizRoutes     from './routes/quiz.routes.js';
 import reviewRoutes    from './routes/review.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
 import adminRoutes     from './routes/admin.routes.js';
+import cartRoutes      from './routes/cart.routes.js';
+import wishlistRoutes  from './routes/wishlist.routes.js';
+import couponRoutes    from './routes/coupon.routes.js';
 import { xssSanitizer, preventParameterPollution, rateLimiter } from './middleware/security.js';
 
 dotenv.config();
@@ -124,6 +127,9 @@ app.use(`${V1}/courses`,     courseRoutes);
 app.use(`${V1}/enrollments`, enrollmentRoutes);
 app.use(`${V1}/categories`,  categoryRoutes);
 app.use(`${V1}/payments/wafacash`, wafacashRoutes);
+app.use(`${V1}/cart`,        cartRoutes);
+app.use(`${V1}/wishlist`,    wishlistRoutes);
+app.use(`${V1}/coupons`,     couponRoutes);
 app.use(`${V1}`,             progressRoutes); // /courses/:id/quizzes, /lessons/:id/progress, /users/:id/achievements
 app.use(`${V1}`,             quizRoutes);     // /lessons/:id/quizzes, /quizzes/:id, /quizzes/:id/attempts
 app.use(`${V1}`,             reviewRoutes);   // /courses/:id/reviews, /users/:id/notifications

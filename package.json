@@ -11,11 +11,15 @@
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "test": "node sprint6_test.js && node sprint7_test.js && node sprint8_test.js",
+    "test": "npm run test:unit",
+    "test:unit": "node --test tests/unit/**/*.test.js",
+    "test:integration": "node tests/integration/run.js",
     "test:sprint6": "node sprint6_test.js",
     "test:sprint7": "node sprint7_test.js",
     "test:sprint8": "node sprint8_test.js",
-    "test:security": "node security_regression_tests.js"
+    "test:security": "node security_regression_tests.js",
+    "test:quiz": "node quiz_test.js",
+    "test:commerce": "node tests/integration/commerce.test.js"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
@@ -32,7 +36,6 @@
     "multer-storage-cloudinary": "^4.0.0",
     "nodemailer": "^9.0.3",
     "pg": "^8.11.5",
-    "stripe": "^22.3.1",
     "swagger-jsdoc": "^6.3.0",
     "swagger-ui-express": "^5.0.1"
   },

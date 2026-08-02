@@ -11,9 +11,11 @@ RESTful API backend for the **212LEARN** (EduTrack) online learning management p
 - **Database**: PostgreSQL (Neon Database Cloud or local PostgreSQL instance)
 - **ORM**: Prisma Client v7
 - **Media Hosting**: Cloudinary (for curriculum PDFs, ZIP archives, images, and video assets)
-- **AI Integration**: Google Gemini API (`gemini-2.0-flash` with dynamic local fallback)
+- **AI Integration**: Groq API (`llama-3.3-70b-versatile`) for quiz generation, with local mock fallback
 - **Documentation**: Swagger UI & OpenAPI Specification v3
 - **Deployment**: Serverless Functions on Vercel
+- **Payments**: Wafacash Moroccan cash flow (no Stripe)
+- **Commerce**: Cart, Wishlist, and Coupon APIs
 
 ---
 
@@ -44,7 +46,7 @@ RESTful API backend for the **212LEARN** (EduTrack) online learning management p
 - **Curriculum URL Redaction**: Redacts resource links to guest/unpaid users, returning `"ENROLLMENT_REQUIRED"`.
 
 ### 🧠 Sprint 5: Quiz Engine & AI Generation
-- **MCQ Quizzes**: Support for manually created quizzes and AI-generated quizzes leveraging Google Gemini API (`gemini-2.0-flash`) with dynamic local fallback.
+- **MCQ Quizzes**: Support for manually created quizzes and AI-generated quizzes via Groq (`llama-3.3-70b-versatile`) with local fallback.
 - **Quiz Evaluations**: safe submission handling that validates student responses and dynamically calculates passing scores.
 
 ### 🏆 Sprint 6: Gamification, Reviews & Notifications
@@ -101,8 +103,8 @@ FRONTEND_URL=http://localhost:5173
 # Wafacash Simulation (For academic presentation / soutenance)
 WAFACASH_AUTO_APPROVE=false # Set to false to require manual validation by default (demo=true parameter still works in dev)
 
-# Google Gemini API Key
-GEMINI_API_KEY=your-api-key
+# Groq API Key (AI quiz generation)
+GROQ_API_KEY=your-groq-api-key
 ```
 
 ---
@@ -142,35 +144,29 @@ Once the server is running, explore and test the endpoints directly via the Swag
 
 ## 🧪 Testing
 
-### Automated Test Suites
-The project includes comprehensive test scripts for validating functionality and security:
+### CI-friendly unit tests (default)
+No live server required — safe for GitHub Actions:
 
 ```bash
-# Run all sprint tests
 npm test
-
-# Run individual sprint tests
-npm run test:sprint6  # Gamification, Reviews & Notifications
-npm run test:sprint7  # Analytics & Meetings
-npm run test:sprint8  # Admin Moderation, KYC, Refunds & Auditing
-
-# Run security regression tests
-npm run test:security
+# same as:
+npm run test:unit
 ```
 
-### Legacy Test Scripts
-For direct execution of individual test files:
+### Integration tests (server must be running)
 ```bash
-# Wafacash Checkout & Middleware Paywall
-node wafacash_test.js
-
-# Quiz Engine & AI Generation (Gemini)
-node quiz_test.js
-
-# Sprint tests (also available via npm scripts)
-node sprint6_test.js
-node sprint7_test.js
-node sprint8_test.js
+npm run dev   # separate terminal
+npm run test:integration   # Cart / Wishlist / Coupon (skips if server down)
+npm run test:commerce      # commerce only
+npm run test:quiz          # quiz + AI generation
+npm run test:security      # security regression
 ```
 
-**Note**: Ensure the server is running (`npm run dev`) before executing tests.
+### Legacy sprint scripts
+```bash
+npm run test:sprint6
+npm run test:sprint7
+npm run test:sprint8
+```
+
+**Note**: Integration / sprint scripts expect the server on `http://localhost:5000` (override with `API_BASE_URL`).
