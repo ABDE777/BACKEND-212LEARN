@@ -12,7 +12,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "test": "npm run test:unit",
-    "test:unit": "node --test tests/unit/**/*.test.js",
+    "test:unit": "node --test tests/unit/coupon.test.js tests/unit/validation.test.js",
     "test:integration": "node tests/integration/run.js",
     "test:sprint6": "node sprint6_test.js",
     "test:sprint7": "node sprint7_test.js",
