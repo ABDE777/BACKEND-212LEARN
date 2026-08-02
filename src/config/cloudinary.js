@@ -13,11 +13,11 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-/** Cloudinary Advanced-plan maxima (highest documented standard limits). */
+/** Cloudinary Free-plan maxima. */
 export const CLOUDINARY_MAX_BYTES = {
-  image: 40 * 1024 * 1024,       // 40 MB
-  raw:   40 * 1024 * 1024,       // 40 MB (pdf / zip / doc)
-  video: 4 * 1024 * 1024 * 1024, // 4 GB
+  image: 10 * 1024 * 1024,  // 10 MB
+  raw:   10 * 1024 * 1024,  // 10 MB (pdf / zip / doc)
+  video: 100 * 1024 * 1024, // 100 MB
 };
 
 /** Above this, Cloudinary requires chunked upload_large. */

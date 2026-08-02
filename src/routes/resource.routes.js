@@ -29,8 +29,7 @@ const router = Router();
  *                 type: string
  *                 format: binary
  *                 description: >
- *                   Video (max 4 GB), image/PDF/ZIP/DOC (max 40 MB) — Cloudinary Advanced limits.
- *                   Videos over 100 MB use chunked upload.
+ *                   Video (max 100 MB), image/PDF/ZIP/DOC (max 10 MB) — Cloudinary Free plan limits.
  *               type:
  *                 type: string
  *                 enum: [video, pdf, zip, image, link]
