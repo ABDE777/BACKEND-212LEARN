@@ -29,7 +29,9 @@ const router = Router();
  *                 type: string
  *                 format: binary
  *                 description: >
- *                   Video (max 100 MB), image/PDF/ZIP/DOC (max 10 MB) — Cloudinary Free plan limits.
+ *                   ONLY for files under ~4 MB (Vercel API body limit is 4.5 MB).
+ *                   For larger PDFs/ZIPs/videos/images, use POST /uploads/cloudinary-sign
+ *                   then POST { type, url: secure_url } as JSON — do not send the file here.
  *               type:
  *                 type: string
  *                 enum: [video, pdf, zip, image, link]

@@ -41,12 +41,18 @@ export const errorHandler = (err, req, res, next) => {
 
   // ── Multer / upload size errors ───────────────────────────────────────────
   if (err.code === 'LIMIT_FILE_SIZE') {
-    return res.status(400).json(
-      errorResponse('File too large for Cloudinary limits.', 'VALIDATION_ERROR')
+    return res.status(413).json(
+      errorResponse(
+        'File exceeds Vercel’s 4.5 MB API limit. Use POST /api/v1/uploads/cloudinary-sign, upload to Cloudinary, then POST { type, url } to /resources.',
+        'PAYLOAD_TOO_LARGE'
+      )
     );
   }
-  if (err.message && /File too large|Unsupported file type/i.test(err.message)) {
-    return res.status(400).json(errorResponse(err.message, 'VALIDATION_ERROR'));
+  if (err.message && /File too large|Unsupported file type|Vercel|cloudinary-sign/i.test(err.message)) {
+    const code = /Vercel|4\.5 MB|PAYLOAD/i.test(err.message) ? 413 : 400;
+    return res.status(code).json(
+      errorResponse(err.message, code === 413 ? 'PAYLOAD_TOO_LARGE' : 'VALIDATION_ERROR')
+    );
   }
 
   // ── Operational errors (thrown by AppError) ───────────────────────────────

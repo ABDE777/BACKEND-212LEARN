@@ -20,6 +20,21 @@ export const CLOUDINARY_MAX_BYTES = {
   video: 100 * 1024 * 1024, // 100 MB
 };
 
+/**
+ * Vercel serverless request body hard limit is 4.5 MB.
+ * Multipart through the API must stay under this — larger files need
+ * direct browser → Cloudinary upload (signed endpoint).
+ */
+export const VERCEL_SAFE_UPLOAD_BYTES = 4 * 1024 * 1024; // 4 MB safety margin
+
+const TYPE_TARGETS = {
+  video:    { folder: '212learn/videos',    resourceType: 'video', sizeClass: 'video', mimeHint: 'video/mp4' },
+  pdf:      { folder: '212learn/pdfs',      resourceType: 'raw',   sizeClass: 'raw',   mimeHint: 'application/pdf' },
+  zip:      { folder: '212learn/zips',      resourceType: 'raw',   sizeClass: 'raw',   mimeHint: 'application/zip' },
+  document: { folder: '212learn/documents', resourceType: 'raw',   sizeClass: 'raw',   mimeHint: 'application/msword' },
+  image:    { folder: '212learn/images',    resourceType: 'image', sizeClass: 'image', mimeHint: 'image/jpeg' },
+};
+
 /** Above this, Cloudinary requires chunked upload_large. */
 const CHUNK_THRESHOLD = 100 * 1024 * 1024;
 const CHUNK_SIZE = 20 * 1024 * 1024;
@@ -82,6 +97,75 @@ export function ensureOriginalFilename(originalname, mimetype) {
 export function maxBytesForMimetype(mimetype) {
   const { sizeClass } = resolveUploadTarget(mimetype);
   return CLOUDINARY_MAX_BYTES[sizeClass] || CLOUDINARY_MAX_BYTES.raw;
+}
+
+export function resolveTargetByType(type) {
+  const target = TYPE_TARGETS[type];
+  if (!target) return null;
+  return target;
+}
+
+export function isOurCloudinaryUrl(url) {
+  const cloud = process.env.CLOUDINARY_CLOUD_NAME;
+  if (!cloud || !url) return false;
+  try {
+    const u = new URL(url);
+    return (
+      u.hostname === 'res.cloudinary.com' &&
+      u.pathname.startsWith(`/${cloud}/`)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Build a signed payload so the browser can upload directly to Cloudinary
+ * (bypasses Vercel's 4.5 MB function body limit).
+ */
+export function createSignedUpload({ type, filename, mimetype }) {
+  const byType = type ? resolveTargetByType(type) : null;
+  const byMime = mimetype ? resolveUploadTarget(mimetype) : null;
+
+  const folder = byType?.folder || byMime?.folder || '212learn/misc';
+  const resourceType = byType?.resourceType || byMime?.resourceType || 'auto';
+  const sizeClass = byType?.sizeClass || byMime?.sizeClass || 'raw';
+  const mime = mimetype || byType?.mimeHint || 'application/octet-stream';
+
+  const safeName = ensureOriginalFilename(filename || 'file', mime);
+  const parsed = path.parse(safeName);
+  const uniqueSuffix = Date.now().toString(36);
+  const publicId =
+    resourceType === 'raw'
+      ? `${parsed.name}_${uniqueSuffix}${parsed.ext}`
+      : `${parsed.name}_${uniqueSuffix}`;
+
+  const timestamp = Math.round(Date.now() / 1000);
+  // Only sign params that will be sent with the upload (except file/api_key/resource_type)
+  const paramsToSign = {
+    timestamp,
+    folder,
+    public_id: publicId,
+  };
+
+  const signature = cloudinary.utils.api_sign_request(
+    paramsToSign,
+    process.env.CLOUDINARY_API_SECRET
+  );
+
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+
+  return {
+    cloudName,
+    apiKey: process.env.CLOUDINARY_API_KEY,
+    timestamp,
+    signature,
+    folder,
+    public_id: publicId,
+    resource_type: resourceType,
+    maxBytes: CLOUDINARY_MAX_BYTES[sizeClass],
+    uploadUrl: `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
+  };
 }
 
 function buildUploadOptions(file) {
@@ -205,15 +289,25 @@ const fileFilter = (_req, file, cb) => {
   }
 };
 
-/** After multer, enforce Cloudinary per-type max sizes and clean temp on reject. */
+/** After multer, enforce Cloudinary + Vercel-safe sizes; clean temp on reject. */
 export function enforceCloudinarySizeLimit(req, res, next) {
   if (!req.file) return next();
+
+  if (req.file.size > VERCEL_SAFE_UPLOAD_BYTES) {
+    unlinkQuietly(req.file.path);
+    return next(
+      new Error(
+        `File exceeds Vercel’s 4.5 MB API limit (${Math.round(req.file.size / 1024 / 1024)} MB). ` +
+          'Upload directly to Cloudinary: POST /api/v1/uploads/cloudinary-sign then POST the secure_url to /resources.'
+      )
+    );
+  }
 
   const max = maxBytesForMimetype(req.file.mimetype);
   if (req.file.size > max) {
     unlinkQuietly(req.file.path);
     const mb = Math.round(max / (1024 * 1024));
-    return next(new Error(`File too large. Max for this type is ${mb} MB (Cloudinary limit).`));
+    return next(new Error(`File too large. Max for this type is ${mb} MB (Cloudinary Free limit).`));
   }
   return next();
 }
@@ -221,14 +315,15 @@ export function enforceCloudinarySizeLimit(req, res, next) {
 export const upload = multer({
   storage,
   fileFilter,
-  limits: { fileSize: CLOUDINARY_MAX_BYTES.video },
+  // Avatars/receipts stay small; still cap under Vercel body limit when hosted there
+  limits: { fileSize: VERCEL_SAFE_UPLOAD_BYTES },
 });
 
-/** Lesson resources: disk → Cloudinary (supports up to video max). */
+/** Lesson resources via API proxy — only safe under Vercel 4.5 MB. Prefer signed direct upload. */
 export const uploadRaw = multer({
   storage: diskStorage,
   fileFilter,
-  limits: { fileSize: CLOUDINARY_MAX_BYTES.video },
+  limits: { fileSize: VERCEL_SAFE_UPLOAD_BYTES },
 });
 
 export { cloudinary };

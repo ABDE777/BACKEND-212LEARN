@@ -18,6 +18,7 @@ import categoryRoutes   from './routes/category.routes.js';
 import sectionRoutes    from './routes/section.routes.js';
 import resourceRoutes   from './routes/resource.routes.js';
 import assignmentRoutes from './routes/assignment.routes.js';
+import uploadRoutes     from './routes/upload.routes.js';
 import wafacashRoutes from './routes/wafacash.routes.js';
 import progressRoutes from './routes/progress.routes.js';
 import quizRoutes     from './routes/quiz.routes.js';
@@ -122,6 +123,7 @@ app.use(`${V1}/auth`,        authRoutes);
 app.use(`${V1}/users`,       userRoutes);
 app.use(`${V1}`,             sectionRoutes);    // /courses/:id/curriculum, /sections/:id, /lessons/:id
 app.use(`${V1}`,             resourceRoutes);   // /lessons/:id/resources, /resources/:id
+app.use(`${V1}/uploads`,     uploadRoutes);     // /uploads/cloudinary-sign
 app.use(`${V1}`,             assignmentRoutes); // /lessons/:id/assignments, /submissions/:id/grade
 app.use(`${V1}/courses`,     courseRoutes);
 app.use(`${V1}/enrollments`, enrollmentRoutes);

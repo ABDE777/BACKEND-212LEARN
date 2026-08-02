@@ -6,6 +6,8 @@ import {
   uploadFileToCloudinary,
   publicIdFromCloudinaryUrl,
   maxBytesForMimetype,
+  isOurCloudinaryUrl,
+  VERCEL_SAFE_UPLOAD_BYTES,
 } from '../config/cloudinary.js';
 import { ensureCourseManager } from '../utils/authorization.js';
 import { validateUUID, validateURL } from '../utils/validation.js';
@@ -50,12 +52,21 @@ function uploadDedupeKey(userId, lessonId, file) {
 }
 
 async function createFileResource({ lessonId, type, file }) {
+  if (file.size > VERCEL_SAFE_UPLOAD_BYTES) {
+    await unlinkQuietly(file.path);
+    throw new AppError(
+      `File exceeds Vercel’s 4.5 MB API limit. Use POST /api/v1/uploads/cloudinary-sign then send the secure_url.`,
+      413,
+      'PAYLOAD_TOO_LARGE'
+    );
+  }
+
   const max = maxBytesForMimetype(file.mimetype);
   if (file.size > max) {
     await unlinkQuietly(file.path);
     const mb = Math.round(max / (1024 * 1024));
     throw new AppError(
-      `File too large. Max for this type is ${mb} MB (Cloudinary limit).`,
+      `File too large. Max for this type is ${mb} MB (Cloudinary Free limit).`,
       400,
       'VALIDATION_ERROR'
     );
@@ -132,11 +143,23 @@ export const addResource = async (req, res, next) => {
     if (!url || !String(url).trim()) {
       return next(new AppError('url is required (upload a file or provide a link URL).', 400, 'VALIDATION_ERROR'));
     }
-    if (type === 'link') {
-      validateURL(url, 'link URL');
-    }
 
     const trimmedUrl = String(url).trim();
+
+    if (type === 'link') {
+      validateURL(trimmedUrl, 'link URL');
+    } else {
+      // File resources after direct Cloudinary upload must use our cloud URL
+      if (!isOurCloudinaryUrl(trimmedUrl)) {
+        return next(
+          new AppError(
+            'For type pdf/zip/video/image/document, url must be a Cloudinary secure_url from this project (use /uploads/cloudinary-sign).',
+            400,
+            'VALIDATION_ERROR'
+          )
+        );
+      }
+    }
 
     const existingLink = await prisma.resource.findFirst({
       where: { lessonId: req.params.lessonId, url: trimmedUrl },
