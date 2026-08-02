@@ -84,7 +84,7 @@ export const addQuestion = async (req, res, next) => {
 
 // ─── POST /api/v1/lessons/:lessonId/quizzes/generate-ai ───────────────────────
 // Instructor provides a topic/text prompt → AI generates draft questions.
-// Uses Google Gemini Flash free API (no cost).
+// Uses Groq API (llama-3.3-70b-versatile) for fast and free inference.
 export const generateAIQuiz = async (req, res, next) => {
   try {
     validateUUID(req.params.lessonId, 'lessonId');
@@ -103,13 +103,13 @@ export const generateAIQuiz = async (req, res, next) => {
     if (!lesson) return next(new AppError('Lesson not found.', 404, 'NOT_FOUND'));
     await ensureCourseManager(req.user, lesson.section.courseId);
 
-    // ── Call Gemini API ─────────────────────────────────────────────────────────
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-    if (!GEMINI_API_KEY) {
-      return next(new AppError('AI quiz generation is not configured. Please add GEMINI_API_KEY to your .env file.', 503, 'SERVICE_UNAVAILABLE'));
+    // ── Call Groq API ──────────────────────────────────────────────────────────
+    const GROQ_API_KEY = process.env.GROQ_API_KEY;
+    if (!GROQ_API_KEY) {
+      return next(new AppError('AI quiz generation is not configured. Please add GROQ_API_KEY to your .env file.', 503, 'SERVICE_UNAVAILABLE'));
     }
 
-    const geminiPrompt = `You are an expert educator. Generate exactly ${questionCount} multiple-choice quiz questions based on the following topic or text:
+    const aiPrompt = `You are an expert educator. Generate exactly ${questionCount} multiple-choice quiz questions based on the following topic or text:
 
 "${prompt}"
 
@@ -131,34 +131,39 @@ Rules:
     let generatedQuestions = null;
 
     try {
-      const geminiRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+      const groqRes = await fetch(
+        'https://api.groq.com/openai/v1/chat/completions',
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${GROQ_API_KEY}`,
+          },
           body: JSON.stringify({
-            contents: [{ parts: [{ text: geminiPrompt }] }],
-            generationConfig: { temperature: 0.7, maxOutputTokens: 4096 },
+            model: 'llama-3.3-70b-versatile',
+            messages: [{ role: 'user', content: aiPrompt }],
+            temperature: 0.7,
+            max_tokens: 4096,
           }),
         }
       );
 
-      if (geminiRes.ok) {
-        const geminiData = await geminiRes.json();
-        const rawText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      if (groqRes.ok) {
+        const groqData = await groqRes.json();
+        const rawText = groqData?.choices?.[0]?.message?.content || '';
         const cleaned = rawText.replace(/```json|```/g, '').trim();
         generatedQuestions = JSON.parse(cleaned);
       } else {
-        const errText = await geminiRes.text();
-        console.warn('Gemini API returned status:', geminiRes.status, errText);
+        const errText = await groqRes.text();
+        console.warn('Groq API returned status:', groqRes.status, errText);
       }
     } catch (err) {
-      console.warn('Gemini API call failed, entering mock fallback mode:', err.message);
+      console.warn('Groq API call failed, entering mock fallback mode:', err.message);
     }
 
     // ── Resilient Fallback: Create high-quality mock questions if Gemini is throttled/rate-limited ──
     if (!generatedQuestions || !Array.isArray(generatedQuestions)) {
-      console.log('🤖 Gemini API rate-limited or unavailable. Activating local AI generator fallback.');
+      console.log('🤖 Groq API rate-limited or unavailable. Activating local AI generator fallback.');
       generatedQuestions = [
         {
           statement: `Which of the following best defines the primary concept of "${prompt.substring(0, 60)}"?`,
