@@ -29,6 +29,7 @@ import cartRoutes      from './routes/cart.routes.js';
 import wishlistRoutes  from './routes/wishlist.routes.js';
 import couponRoutes    from './routes/coupon.routes.js';
 import { xssSanitizer, preventParameterPollution, rateLimiter } from './middleware/security.js';
+import { requestId, accessLogger } from './middleware/requestId.js';
 
 dotenv.config();
 
@@ -39,6 +40,8 @@ const PORT = process.env.PORT || 5000;
 const V1 = '/api/v1';
 
 // ── Security & utility middlewares ────────────────────────────────────────────
+app.use(requestId);
+app.use(accessLogger);
 app.use(helmet({ contentSecurityPolicy: false })); // CSP disabled so Swagger UI renders
 const allowedOrigins = [
   'http://localhost:5173',
@@ -105,14 +108,28 @@ if (docsEnabled) {
   });
 }
 
-// ── Health check ──────────────────────────────────────────────────────────────
-app.get('/health', (req, res) => {
+// ── Health check (includes DB ping) ───────────────────────────────────────────
+app.get('/health', async (req, res) => {
   const host = req.get('host') || `localhost:${PORT}`;
-  const protocol = req.protocol || 'http';
-  res.status(200).json(successResponse({
-    status:    'healthy',
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+  const docsEnabled =
+    process.env.ENABLE_API_DOCS === 'true' ||
+    process.env.NODE_ENV !== 'production';
+
+  let database = 'ok';
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+  } catch {
+    database = 'error';
+  }
+
+  const healthy = database === 'ok';
+  res.status(healthy ? 200 : 503).json(successResponse({
+    status:    healthy ? 'healthy' : 'degraded',
     version:   'v1',
-    docs:      `${protocol}://${host}/api-docs`,
+    database,
+    docs:      docsEnabled ? `${protocol}://${host}/api-docs` : null,
+    requestId: req.requestId,
     timestamp: new Date().toISOString(),
   }));
 });

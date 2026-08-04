@@ -140,7 +140,7 @@ export const changePassword = async (req, res, next) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/v1/auth/forgot-password
-// Public: receives an email, sends a 15-min reset link if the account exists.
+// Public: receives an email, sends a 5-min reset link if the account exists.
 // Always returns 200 to prevent email enumeration attacks.
 // ─────────────────────────────────────────────────────────────────────────────
 export const forgotPassword = async (req, res, next) => {

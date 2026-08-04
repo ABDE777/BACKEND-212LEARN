@@ -83,7 +83,7 @@ router.post('/lessons/:lessonId/quizzes', protect, restrictTo('instructor', 'adm
  *       201:
  *         description: AI-generated quiz with questions created in draft status
  *       503:
- *         description: AI not configured (missing GEMINI_API_KEY)
+ *         description: AI not configured (missing GROQ_API_KEY) or provider unavailable
  */
 router.post('/lessons/:lessonId/quizzes/generate-ai', protect, restrictTo('instructor', 'admin'), generateAIQuiz);
 

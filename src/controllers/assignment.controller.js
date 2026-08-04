@@ -31,7 +31,7 @@ export const createAssignment = async (req, res, next) => {
       data: {
         lessonId:    req.params.lessonId,
         title:       title.trim(),
-        // description field is not in the schema — store via title if needed
+        description: description != null ? String(description).trim() || null : null,
         dueDate:     dueDate ? new Date(dueDate) : null,
       },
     });

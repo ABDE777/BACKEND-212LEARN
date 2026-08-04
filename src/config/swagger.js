@@ -332,17 +332,19 @@ const options = {
           required: ['title'],
           description: 'Payload for creating an assignment',
           properties: {
-            title:   { type: 'string', example: 'Build a Todo App in React' },
-            dueDate: { type: 'string', format: 'date-time', example: '2026-09-01T23:59:00Z', nullable: true },
+            title:       { type: 'string', example: 'Build a Todo App in React' },
+            description: { type: 'string', nullable: true, example: 'Implement useState and list rendering.' },
+            dueDate:     { type: 'string', format: 'date-time', example: '2026-09-01T23:59:00Z', nullable: true },
           },
         },
         Assignment: {
           type: 'object',
           properties: {
-            id:       { type: 'string', format: 'uuid' },
-            lessonId: { type: 'string', format: 'uuid' },
-            title:    { type: 'string', example: 'Build a Todo App in React' },
-            dueDate:  { type: 'string', format: 'date-time', nullable: true },
+            id:          { type: 'string', format: 'uuid' },
+            lessonId:    { type: 'string', format: 'uuid' },
+            title:       { type: 'string', example: 'Build a Todo App in React' },
+            description: { type: 'string', nullable: true },
+            dueDate:     { type: 'string', format: 'date-time', nullable: true },
           },
         },
         Submission: {

@@ -154,10 +154,11 @@ model Resource {
 }
 
 model Assignment {
-  id       String    @id @default(uuid()) @db.Uuid
-  lessonId String    @db.Uuid
-  title    String    @db.VarChar(255)
-  dueDate  DateTime?
+  id          String    @id @default(uuid()) @db.Uuid
+  lessonId    String    @db.Uuid
+  title       String    @db.VarChar(255)
+  description String?   @db.Text
+  dueDate     DateTime?
 
   // Relations
   lesson      Lesson       @relation(fields: [lessonId], references: [id], onDelete: Cascade)

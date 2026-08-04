@@ -28,5 +28,19 @@ jobs:
         env:
           DATABASE_URL: postgresql://user:pass@localhost:5432/ci
 
-      - name: Run unit tests (no live server required)
+      - name: Validate Prisma schema
+        run: npx prisma validate
+        env:
+          DATABASE_URL: postgresql://user:pass@localhost:5432/ci
+
+      - name: Check migration SQL is present
+        run: |
+          test -d prisma/migrations
+          test "$(find prisma/migrations -name migration.sql | wc -l)" -gt 0
+
+      - name: Run unit tests
         run: npm run test:unit
+        env:
+          NODE_ENV: test
+          JWT_SECRET: ci-test-secret
+          CLOUDINARY_CLOUD_NAME: demo-cloud

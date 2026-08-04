@@ -96,7 +96,7 @@ router.get('/me', protect, getMe);
  *   post:
  *     summary: Request a password reset link by email
  *     description: |
- *       Sends a **15-minute** password reset link to the user's email address.
+ *       Sends a **5-minute** password reset link to the user's email address.
  *       Always returns `200` even if the email is not found — this prevents
  *       email enumeration attacks (nobody can tell if an account exists or not).
  *     tags: [Auth]
@@ -129,7 +129,7 @@ router.post('/forgot-password', authRateLimit, forgotPassword);
  *     summary: Reset password using the token received by email
  *     description: |
  *       Validates the JWT token from the reset email link and sets a new password.
- *       The token is **valid for 15 minutes** and becomes **invalid after first use**
+ *       The token is **valid for 5 minutes** and becomes **invalid after first use**
  *       (because the signing secret includes the old password hash).
  *     tags: [Auth]
  *     parameters:

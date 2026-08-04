@@ -33,7 +33,7 @@ RESTful API backend for the **212LEARN** (EduTrack) online learning management p
 
 ### ⏳ Sprint 3: Pedagogical Content Hierarchy & Files
 - **Curriculum Builder**: Full hierarchical structure support: `Courses -> Sections -> Lessons`. Includes position-based sorting and auto-indexing.
-- **Asset Attachment System**: Connects Cloudinary storage to Multer middleware, supporting secure uploads of videos, PDF files, ZIP folders, and slides (max size 200MB) or external links.
+- **Asset Attachment System**: Cloudinary storage for videos/PDFs/ZIPs/images. On Vercel, files above ~4 MB must use direct browser → Cloudinary upload (`POST /uploads/cloudinary-sign`), then save the URL. Cloudinary Free limits: image/raw 10 MB, video 100 MB.
 - **Assignments Workspace**:
   - Instructors can create homework tasks with deadlines.
   - Students can submit completed tasks (direct uploads or URLs).
