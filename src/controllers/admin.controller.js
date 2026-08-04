@@ -7,6 +7,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { validateUUID, validateRequired, validateEmail, validateEnum } from '../utils/validation.js';
 import { sendPasswordResetEmail } from '../utils/email.js';
+import { getJwtSecret } from '../config/jwt.js';
 
 // ─── GET /api/v1/admin/users/pending-kyc ─────────────────────────────────────
 // Retrieve all instructors awaiting KYC verification.
@@ -689,7 +690,7 @@ export const resetUserPassword = async (req, res, next) => {
     }
 
     // Create a 5-minute reset token
-    const resetSecret = (process.env.JWT_SECRET || 'dev-secret-key-212learn') + targetUser.passwordHash;
+    const resetSecret = getJwtSecret() + targetUser.passwordHash;
     const resetToken = jwt.sign({ id: targetUser.id }, resetSecret, { expiresIn: '5m' });
 
     const frontendUrl = process.env.FRONTEND_URL || 'https://212-learn.vercel.app';

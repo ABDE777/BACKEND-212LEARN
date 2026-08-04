@@ -5,9 +5,10 @@ import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { validateRequired, validateEmail } from '../utils/validation.js';
 import { sendPasswordResetEmail } from '../utils/email.js';
+import { getJwtSecret } from '../config/jwt.js';
 
 const signToken = (id) =>
-  jwt.sign({ id }, process.env.JWT_SECRET || 'dev-secret-key-212learn', {
+  jwt.sign({ id }, getJwtSecret(), {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   });
 
@@ -35,6 +36,10 @@ export const register = async (req, res, next) => {
 
     validateRequired(req.body, ['firstName', 'lastName', 'email', 'password']);
     validateEmail(email);
+
+    if (String(password).length < 8) {
+      return next(new AppError('Password must be at least 8 characters.', 400, 'VALIDATION_ERROR'));
+    }
 
     const passwordHash = await bcrypt.hash(password, 12);
 
@@ -157,7 +162,7 @@ export const forgotPassword = async (req, res, next) => {
     }
 
     // Create a short-lived reset token (5 min) signed with a dedicated secret
-    const resetSecret = (process.env.JWT_SECRET || 'dev-secret-key-212learn') + user.passwordHash;
+    const resetSecret = (getJwtSecret()) + user.passwordHash;
     const resetToken = jwt.sign({ id: user.id }, resetSecret, { expiresIn: '5m' });
 
     const frontendUrl = process.env.FRONTEND_URL || 'https://212-learn.vercel.app';
@@ -214,7 +219,7 @@ export const resetPassword = async (req, res, next) => {
     }
 
     // Now fully verify using the hash-based secret (token auto-invalidates after password change)
-    const resetSecret = (process.env.JWT_SECRET || 'dev-secret-key-212learn') + user.passwordHash;
+    const resetSecret = (getJwtSecret()) + user.passwordHash;
     try {
       jwt.verify(token, resetSecret);
     } catch (err) {

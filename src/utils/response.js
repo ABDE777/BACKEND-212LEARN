@@ -56,15 +56,25 @@ export const paginationMeta = (total, page, limit, isUnlimited = false) => {
 /**
  * Parse and validate pagination query params from the request.
  * Defaults: page=1, limit=20, max limit=100.
- * Special case: limit=0 or limit=-1 disables pagination and returns all rows.
- * @param {object} query - req.query
- * @returns {{ page: number, limit: number|null, skip: number|undefined, isUnlimited: boolean }}
+ * Special case: limit=0 or limit=-1 disables pagination (dev / explicit allow only).
+ * In production, unlimited fetch is blocked unless ALLOW_UNLIMITED_PAGINATION=true.
  */
 export const parsePagination = (query) => {
   const page = Math.max(1, parseInt(query.page, 10) || 1);
   const rawLimit = parseInt(query.limit, 10);
 
   if (rawLimit === 0 || rawLimit === -1) {
+    const allowUnlimited =
+      process.env.ALLOW_UNLIMITED_PAGINATION === 'true' ||
+      process.env.NODE_ENV !== 'production';
+
+    if (!allowUnlimited) {
+      // Fall back to max page size instead of dumping entire tables
+      const limit = 100;
+      const skip = (page - 1) * limit;
+      return { page, limit, skip, isUnlimited: false };
+    }
+
     return { page: 1, limit: null, skip: undefined, isUnlimited: true };
   }
 

@@ -71,8 +71,8 @@ export const addCartItem = async (req, res, next) => {
       return next(new AppError('Course not found or not available.', 404, 'NOT_FOUND'));
     }
 
-    const enrolled = await prisma.enrollment.findFirst({
-      where: { userId: req.user.id, courseId },
+    const enrolled = await prisma.enrollment.findUnique({
+      where: { userId_courseId: { userId: req.user.id, courseId } },
       include: { payment: true },
     });
 

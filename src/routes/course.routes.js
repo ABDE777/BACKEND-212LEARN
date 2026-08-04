@@ -10,7 +10,6 @@ import {
   getCourseStudents,
 } from '../controllers/course.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
-import { getCourseReviews, submitReview } from '../controllers/review.controller.js';
 
 const router = Router();
 
@@ -108,23 +107,6 @@ router.get('/', getAllCourses);
  *         description: Course not found
  */
 router.get('/:id', getCourse);
-
-/**
- * @swagger
- * /courses/{id}/reviews:
- *   get:
- *     summary: List all reviews for a course with average rating (public)
- *     tags: [Reviews]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: string, format: uuid }
- *     responses:
- *       200:
- *         description: Reviews with averageRating
- */
-router.get('/:id/reviews', getCourseReviews);
 
 // ── Protected routes ──────────────────────────────────────────────────────────
 router.use(protect);
@@ -233,43 +215,6 @@ router.delete('/:id', restrictTo('admin'), deleteCourse);
  *         description: Forbidden — admin only
  */
 router.post('/:id/publish', restrictTo('admin'), publishCourse);
-
-/**
- * @swagger
- * /courses/{id}/reviews:
- *   post:
- *     summary: Submit a star review for a course (enrolled PAID student only)
- *     tags: [Reviews]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: string, format: uuid }
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [rating]
- *             properties:
- *               rating:
- *                 type: integer
- *                 minimum: 1
- *                 maximum: 5
- *               comment:
- *                 type: string
- *     responses:
- *       201:
- *         description: Review submitted
- *       200:
- *         description: Existing review updated
- *       403:
- *         description: Not enrolled with a PAID payment
- */
-router.post('/:id/reviews', submitReview);
 
 /**
  * @swagger

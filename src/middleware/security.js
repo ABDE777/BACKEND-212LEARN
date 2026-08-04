@@ -1,50 +1,128 @@
 import { AppError } from './error.js';
 
-// ─── 1. Memory-based Rate Limiter ──────────────────────────────────────────
-// Simple, dependency-free sliding window rate limiter to protect auth/sensitive endpoints.
+// ─── Rate limit store (memory + optional Upstash Redis REST) ─────────────────
 const rateLimitCache = new Map();
+const CLEANUP_EVERY_MS = 60_000;
+let lastCleanupAt = Date.now();
+
+function cleanupMemoryStore(windowMs) {
+  const now = Date.now();
+  if (now - lastCleanupAt < CLEANUP_EVERY_MS) return;
+  lastCleanupAt = now;
+  for (const [key, timestamps] of rateLimitCache.entries()) {
+    const active = timestamps.filter((t) => now - t < windowMs);
+    if (active.length === 0) rateLimitCache.delete(key);
+    else rateLimitCache.set(key, active);
+  }
+}
+
+function clientKey(req, prefix) {
+  const forwarded = req.headers['x-forwarded-for'];
+  const ip = (Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(',')[0])?.trim()
+    || req.ip
+    || req.socket?.remoteAddress
+    || 'unknown';
+  return `${prefix}:${ip}`;
+}
+
+async function upstashIncr(key, windowMs) {
+  const base = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!base || !token) return null;
+
+  const now = Date.now();
+  const member = `${now}:${Math.random().toString(36).slice(2, 8)}`;
+  const windowStart = now - windowMs;
+
+  // Sliding window via sorted set
+  const pipeline = [
+    ['ZREMRANGEBYSCORE', key, 0, windowStart],
+    ['ZADD', key, now, member],
+    ['ZCARD', key],
+    ['PEXPIRE', key, windowMs],
+  ];
+
+  const res = await fetch(`${base}/pipeline`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(pipeline),
+  });
+
+  if (!res.ok) {
+    console.warn('[rateLimit] Upstash pipeline failed:', res.status);
+    return null;
+  }
+
+  const results = await res.json();
+  // ZCARD result is 3rd command → results[2].result
+  const count = Number(results?.[2]?.result ?? 0);
+  return Number.isFinite(count) ? count : null;
+}
+
+function memoryIncr(key, windowMs) {
+  cleanupMemoryStore(windowMs);
+  const now = Date.now();
+  const requests = (rateLimitCache.get(key) || []).filter((t) => now - t < windowMs);
+  requests.push(now);
+  rateLimitCache.set(key, requests);
+  return requests.length;
+}
 
 /**
  * Creates a rate limiter middleware.
- * @param {number} windowMs - Time window in milliseconds (e.g., 60000 for 1 minute)
- * @param {number} maxRequests - Max requests allowed in the window per IP
- * @param {string} message - Error message when rate limit is exceeded
+ * Uses Upstash Redis REST when UPSTASH_REDIS_REST_URL + TOKEN are set (recommended on Vercel).
+ * Falls back to in-memory sliding window (per-instance only on serverless).
+ *
+ * @param {number} windowMs
+ * @param {number} maxRequests
+ * @param {string} message
+ * @param {object} [options]
+ * @param {string} [options.prefix] - key prefix (e.g. 'auth', 'global')
+ * @param {boolean} [options.enforceInDev] - also enforce in development (default false)
  */
-export const rateLimiter = (windowMs = 60000, maxRequests = 100, message = 'Too many requests. Please try again later.') => {
-  return (req, res, next) => {
-    // Skip rate limit in test/dev environments to prevent local test lockouts
-    if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') return next();
+export const rateLimiter = (
+  windowMs = 60000,
+  maxRequests = 100,
+  message = 'Too many requests. Please try again later.',
+  options = {}
+) => {
+  const { prefix = 'rl', enforceInDev = false } = options;
 
-    const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-    const now = Date.now();
+  return async (req, res, next) => {
+    try {
+      if (process.env.NODE_ENV === 'test') return next();
+      if (process.env.NODE_ENV === 'development' && !enforceInDev) return next();
 
-    if (!rateLimitCache.has(ip)) {
-      rateLimitCache.set(ip, []);
+      const key = clientKey(req, prefix);
+      let count = await upstashIncr(key, windowMs);
+      if (count === null) {
+        count = memoryIncr(key, windowMs);
+      }
+
+      res.setHeader('X-RateLimit-Limit', String(maxRequests));
+      res.setHeader('X-RateLimit-Remaining', String(Math.max(0, maxRequests - count)));
+
+      if (count > maxRequests) {
+        return next(new AppError(message, 429, 'RATE_LIMIT_EXCEEDED'));
+      }
+
+      next();
+    } catch (error) {
+      // Fail open on rate-limit infrastructure errors (don't take the API down)
+      console.warn('[rateLimit] error, allowing request:', error.message);
+      next();
     }
-
-    const requests = rateLimitCache.get(ip);
-    // Filter out requests older than the sliding window
-    const activeRequests = requests.filter((timestamp) => now - timestamp < windowMs);
-    activeRequests.push(now);
-    rateLimitCache.set(ip, activeRequests);
-
-    if (activeRequests.length > maxRequests) {
-      return next(new AppError(message, 429, 'RATE_LIMIT_EXCEEDED'));
-    }
-
-    next();
   };
 };
 
 // ─── 2. Input XSS Sanitizer ────────────────────────────────────────────────
-// Recursively sanitizes string inputs to strip scripts, HTML tags, and suspicious protocols.
 const sanitizeValue = (value) => {
   if (typeof value === 'string') {
-    // 1. Strip script tags and inline javascript
     let cleaned = value.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-    // 2. Strip HTML tags generally to prevent code execution
     cleaned = cleaned.replace(/<[^>]*>/g, '');
-    // 3. Remove javascript: javascript/data/vbscript protocols
     cleaned = cleaned.replace(/(javascript|data|vbscript):/gi, '[removed]:');
     return cleaned.trim();
   }
@@ -61,9 +139,6 @@ const sanitizeValue = (value) => {
   return value;
 };
 
-/**
- * Middleware that sanitizes all incoming bodies, queries, and params to prevent XSS.
- */
 export const xssSanitizer = (req, res, next) => {
   if (req.body)  req.body  = sanitizeValue(req.body);
   if (req.query) req.query = sanitizeValue(req.query);
@@ -72,16 +147,10 @@ export const xssSanitizer = (req, res, next) => {
 };
 
 // ─── 3. HTTP Parameter Pollution (HPP) Preventer ───────────────────────────
-/**
- * Middleware to protect against parameter pollution.
- * If query parameters are arrays instead of single strings when not expected,
- * it forces them to be the first string in the array.
- */
 export const preventParameterPollution = (req, res, next) => {
   if (req.query) {
     for (const key of Object.keys(req.query)) {
       if (Array.isArray(req.query[key])) {
-        // Force it to use only the first value
         req.query[key] = req.query[key][0];
       }
     }

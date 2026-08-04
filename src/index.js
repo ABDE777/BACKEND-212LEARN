@@ -69,43 +69,59 @@ app.use(
   })
 );
 
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 app.use(process.env.NODE_ENV === 'development' ? morgan('dev') : morgan('combined'));
 
 // ── Security Hardening Middlewares ───────────────────────────────────────────
 app.use(preventParameterPollution); // Protect against HTTP Parameter Pollution
 app.use(xssSanitizer);              // Sanitize input body/query/params from XSS scripts
-app.use(rateLimiter(900000, 150, 'Too many requests from this IP. Please try again later.')); // 150 requests per 15 minutes limit
+app.use(rateLimiter(900000, 150, 'Too many requests from this IP. Please try again later.', { prefix: 'global' }));
 
-// ── Swagger UI ────────────────────────────────────────────────────────────────
-app.use(
-  '/api-docs',
-  swaggerUi.serve,
-  swaggerUi.setup(swaggerSpec, {
-    customSiteTitle: '212Learning API Docs',
-    customCss: '.swagger-ui .topbar { background-color: #0d1117; }',
-    swaggerOptions: { persistAuthorization: true },
-  })
-);
+const docsEnabled =
+  process.env.ENABLE_API_DOCS === 'true' ||
+  process.env.NODE_ENV !== 'production';
 
-// Raw OpenAPI JSON — import into Postman / Insomnia
-app.get('/api-docs.json', (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
-  res.send(swaggerSpec);
-});
+if (docsEnabled) {
+  app.use(
+    '/api-docs',
+    swaggerUi.serve,
+    swaggerUi.setup(swaggerSpec, {
+      customSiteTitle: '212Learning API Docs',
+      customCss: '.swagger-ui .topbar { background-color: #0d1117; }',
+      swaggerOptions: { persistAuthorization: true },
+    })
+  );
+
+  app.get('/api-docs.json', (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.send(swaggerSpec);
+  });
+} else {
+  app.use('/api-docs', (req, res, next) => {
+    next(new AppError('API docs are disabled in production.', 404, 'NOT_FOUND'));
+  });
+  app.get('/api-docs.json', (req, res, next) => {
+    next(new AppError('API docs are disabled in production.', 404, 'NOT_FOUND'));
+  });
+}
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {
+  const host = req.get('host') || `localhost:${PORT}`;
+  const protocol = req.protocol || 'http';
   res.status(200).json(successResponse({
     status:    'healthy',
     version:   'v1',
-    docs:      `http://localhost:${PORT}/api-docs`,
+    docs:      `${protocol}://${host}/api-docs`,
     timestamp: new Date().toISOString(),
   }));
 });
 
-// ── Diagnostics (DB connectivity) ────────────────────────────────────────────
+// ── Diagnostics (DB connectivity) — disabled in production ───────────────────
 app.get(`${V1}/diagnostics`, async (req, res, next) => {
+  if (process.env.NODE_ENV === 'production') {
+    return next(new AppError('Diagnostics disabled in production.', 404, 'NOT_FOUND'));
+  }
   try {
     const [userCount, courseCount, enrollmentCount] = await Promise.all([
       prisma.user.count(),
@@ -146,10 +162,16 @@ app.all('*', (req, res, next) => {
 // ── Global error handler ──────────────────────────────────────────────────────
 app.use(errorHandler);
 
-// ── Start server ──────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`⚡ [server]  http://localhost:${PORT}`);
-  console.log(`📚 [docs]    http://localhost:${PORT}/api-docs`);
-  console.log(`📋 [v1]      ${V1}/auth | ${V1}/users | ${V1}/courses | ${V1}/enrollments | ${V1}/categories`);
-  console.log(`📋 [v1]      ${V1}/(courses|sections|lessons) | ${V1}/(lessons|resources) | ${V1}/(lessons|assignments|submissions)`);
-});
+// ── Start server (skip on Vercel — platform invokes the exported app) ─────────
+const isVercel = Boolean(process.env.VERCEL);
+
+if (!isVercel) {
+  app.listen(PORT, () => {
+    console.log(`⚡ [server]  http://localhost:${PORT}`);
+    console.log(`📚 [docs]    http://localhost:${PORT}/api-docs`);
+    console.log(`📋 [v1]      ${V1}/auth | ${V1}/users | ${V1}/courses | ${V1}/enrollments | ${V1}/categories`);
+    console.log(`📋 [v1]      ${V1}/(courses|sections|lessons) | ${V1}/(lessons|resources) | ${V1}/(lessons|assignments|submissions)`);
+  });
+}
+
+export default app;

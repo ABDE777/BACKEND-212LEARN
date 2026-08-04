@@ -172,7 +172,7 @@ router.post('/quizzes/:quizId/questions', protect, restrictTo('instructor', 'adm
  *       200:
  *         description: Quiz updated
  */
-router.get('/quizzes/:quizId', protect, getQuiz);
+router.get('/quizzes/:quizId', protect, checkEnrollment, getQuiz);
 router.patch('/quizzes/:quizId', protect, restrictTo('instructor', 'admin'), updateQuiz);
 router.delete('/quizzes/:quizId', protect, restrictTo('instructor', 'admin'), deleteQuiz);
 
@@ -262,6 +262,6 @@ router.delete('/questions/:questionId', protect, restrictTo('instructor', 'admin
  *       201:
  *         description: Attempt recorded with score, breakdown, and pass/fail result
  */
-router.post('/quizzes/:quizId/attempts', protect, restrictTo('student'), submitAttempt);
+router.post('/quizzes/:quizId/attempts', protect, restrictTo('student'), checkEnrollment, submitAttempt);
 
 export default router;

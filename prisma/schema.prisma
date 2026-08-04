@@ -90,6 +90,8 @@ model Course {
   certificates Certificate[]
   groups       Group[]
 
+  @@index([status, deletedAt])
+  @@index([categoryId])
   @@map("courses")
 }
 
@@ -103,6 +105,8 @@ model CourseInstructor {
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([courseId, userId])
+  @@index([userId])
   @@map("course_instructors")
 }
 
@@ -191,6 +195,9 @@ model Enrollment {
   course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   payment Payment?
 
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
   @@map("enrollments")
 }
 
@@ -216,6 +223,7 @@ model Payment {
   enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
   coupon     Coupon?    @relation(fields: [couponId], references: [id], onDelete: SetNull)
 
+  @@index([status, provider])
   @@map("payments")
 }
 
@@ -344,6 +352,8 @@ model Review {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, courseId])
+  @@index([courseId])
   @@map("reviews")
 }
 

@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma.js';
 import { AppError } from './error.js';
+import { getJwtSecret } from '../config/jwt.js';
 
 export const protect = async (req, res, next) => {
   try {
@@ -16,7 +17,7 @@ export const protect = async (req, res, next) => {
     }
 
     // 2) Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret-key-212learn');
+    const decoded = jwt.verify(token, getJwtSecret());
 
     // 3) Check if user still exists
     const currentUser = await prisma.user.findUnique({

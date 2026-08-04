@@ -23,9 +23,9 @@ export const submitReview = async (req, res, next) => {
     }
 
     // Student must be enrolled with a PAID payment to review
-    const enrollment = await prisma.enrollment.findFirst({
-      where: { userId, courseId },
-      include: { payment: true }, // singular — Payment is 1:1 with Enrollment
+    const enrollment = await prisma.enrollment.findUnique({
+      where: { userId_courseId: { userId, courseId } },
+      include: { payment: true },
     });
 
     const hasPaidEnrollment = enrollment?.payment?.status === 'PAID';
@@ -33,26 +33,18 @@ export const submitReview = async (req, res, next) => {
       return next(new AppError('You must be enrolled in this course to leave a review.', 403, 'FORBIDDEN'));
     }
 
-    // Prevent duplicate reviews
-    const existing = await prisma.review.findFirst({ where: { userId, courseId } });
-    if (existing) {
-      // Update existing review instead of creating a new one
-      const updated = await prisma.review.update({
-        where: { id: existing.id },
-        data: {
-          rating,
-          ...(comment !== undefined && { comment }),
-        },
-      });
-      return res.status(200).json(successResponse({
-        ...updated,
-        message: 'Your review has been updated.',
-      }));
-    }
+    const existingReview = await prisma.review.findUnique({
+      where: { userId_courseId: { userId, courseId } },
+    });
 
-    // Create review
-    const review = await prisma.review.create({
-      data: {
+    const review = await prisma.review.upsert({
+      where: { userId_courseId: { userId, courseId } },
+      update: {
+        rating,
+        ...(comment !== undefined && { comment }),
+        reviewDate: new Date(),
+      },
+      create: {
         userId,
         courseId,
         rating,
@@ -61,19 +53,21 @@ export const submitReview = async (req, res, next) => {
       },
     });
 
-    // Notify instructor (find the lead instructor of this course)
-    const courseInstructor = await prisma.courseInstructor.findFirst({
-      where: { courseId, role: 'lead_instructor' },
-    });
-    if (courseInstructor) {
-      const stars = '⭐'.repeat(rating);
-      await createNotification(
-        courseInstructor.userId,
-        `${stars} Un étudiant a laissé un avis ${rating}/5 sur votre cours "${course.title}".`
-      );
+    // Notify instructor only on first review
+    if (!existingReview) {
+      const courseInstructor = await prisma.courseInstructor.findFirst({
+        where: { courseId, role: 'lead_instructor' },
+      });
+      if (courseInstructor) {
+        const stars = '⭐'.repeat(rating);
+        await createNotification(
+          courseInstructor.userId,
+          `${stars} Un étudiant a laissé un avis ${rating}/5 sur votre cours "${course.title}".`
+        );
+      }
     }
 
-    res.status(201).json(successResponse(review));
+    res.status(existingReview ? 200 : 201).json(successResponse(review));
   } catch (error) {
     next(error);
   }
@@ -94,7 +88,7 @@ export const getCourseReviews = async (req, res, next) => {
       return next(new AppError('Course not found.', 404, 'NOT_FOUND'));
     }
 
-    const [reviews, total] = await Promise.all([
+    const [reviews, total, ratingAgg] = await Promise.all([
       prisma.review.findMany({
         where:   { courseId },
         orderBy: { reviewDate: 'desc' },
@@ -107,21 +101,20 @@ export const getCourseReviews = async (req, res, next) => {
         },
       }),
       prisma.review.count({ where: { courseId } }),
+      prisma.review.aggregate({
+        where: { courseId },
+        _avg: { rating: true },
+      }),
     ]);
 
-    // Calculate average rating
-    const allRatings = await prisma.review.findMany({
-      where:  { courseId },
-      select: { rating: true },
-    });
-    const averageRating = allRatings.length > 0
-      ? (allRatings.reduce((sum, r) => sum + r.rating, 0) / allRatings.length).toFixed(1)
+    const averageRating = ratingAgg._avg.rating != null
+      ? Number(Number(ratingAgg._avg.rating).toFixed(1))
       : null;
 
     res.status(200).json(
       successResponse({
         courseId,
-        averageRating: averageRating ? Number(averageRating) : null,
+        averageRating,
         totalReviews: total,
         reviews,
         page,

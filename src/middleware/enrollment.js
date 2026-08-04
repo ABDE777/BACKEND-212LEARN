@@ -1,6 +1,8 @@
 import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma.js';
 import { AppError } from './error.js';
+import { getJwtSecret } from '../config/jwt.js';
+import { ensureCourseManager } from '../utils/authorization.js';
 
 /**
  * Optional authentication middleware.
@@ -20,7 +22,7 @@ export const optionalProtect = async (req, res, next) => {
       return next();
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret-key-212learn');
+    const decoded = jwt.verify(token, getJwtSecret());
 
     const currentUser = await prisma.user.findUnique({
       where: { id: decoded.id },
@@ -29,7 +31,7 @@ export const optionalProtect = async (req, res, next) => {
     if (currentUser && !currentUser.deletedAt) {
       req.user = currentUser;
     }
-    
+
     next();
   } catch (error) {
     // Fail silently on token errors to allow guests to browse public curriculum preview
@@ -38,13 +40,44 @@ export const optionalProtect = async (req, res, next) => {
 };
 
 /**
+ * Resolve courseId from common path params used by content routes.
+ */
+async function resolveCourseId(params) {
+  if (params.courseId) return params.courseId;
+
+  if (params.lessonId) {
+    const lesson = await prisma.lesson.findUnique({
+      where: { id: params.lessonId },
+      include: { section: true },
+    });
+    if (!lesson) throw new AppError('Lesson not found.', 404, 'NOT_FOUND');
+    return lesson.section.courseId;
+  }
+
+  if (params.assignmentId) {
+    const assignment = await prisma.assignment.findUnique({
+      where: { id: params.assignmentId },
+      include: { lesson: { include: { section: true } } },
+    });
+    if (!assignment) throw new AppError('Assignment not found.', 404, 'NOT_FOUND');
+    return assignment.lesson.section.courseId;
+  }
+
+  if (params.quizId) {
+    const quiz = await prisma.quiz.findUnique({
+      where: { id: params.quizId },
+      include: { lesson: { include: { section: true } } },
+    });
+    if (!quiz) throw new AppError('Quiz not found.', 404, 'NOT_FOUND');
+    return quiz.lesson.section.courseId;
+  }
+
+  return null;
+}
+
+/**
  * Enrollment verification middleware.
- * Restricts access to students who are actively enrolled in the course.
- * Admins and instructors bypass this check.
- * Resolves the courseId dynamically from path parameters:
- *   - Direct: req.params.courseId
- *   - Via Lesson: req.params.lessonId
- *   - Via Assignment: req.params.assignmentId
+ * Students need PAID enrollment. Admins bypass. Instructors only for assigned courses.
  */
 export const checkEnrollment = async (req, res, next) => {
   try {
@@ -53,66 +86,39 @@ export const checkEnrollment = async (req, res, next) => {
       return next(new AppError('You must be logged in to access this content.', 401));
     }
 
-    // Admins and instructors have global access
-    if (user.role === 'admin' || user.role === 'instructor') {
+    if (user.role === 'admin') {
       return next();
     }
 
-    let courseId = req.params.courseId;
-
-    // Resolve courseId from lessonId if necessary
-    if (!courseId && req.params.lessonId) {
-      const lesson = await prisma.lesson.findUnique({
-        where: { id: req.params.lessonId },
-        include: {
-          section: true,
-        },
-      });
-
-      if (!lesson) {
-        return next(new AppError('Lesson not found.', 404, 'NOT_FOUND'));
-      }
-      courseId = lesson.section.courseId;
-    }
-
-    // Resolve courseId from assignmentId if necessary
-    if (!courseId && req.params.assignmentId) {
-      const assignment = await prisma.assignment.findUnique({
-        where: { id: req.params.assignmentId },
-        include: {
-          lesson: {
-            include: {
-              section: true,
-            },
-          },
-        },
-      });
-
-      if (!assignment) {
-        return next(new AppError('Assignment not found.', 404, 'NOT_FOUND'));
-      }
-      courseId = assignment.lesson.section.courseId;
-    }
-
+    const courseId = await resolveCourseId(req.params);
     if (!courseId) {
       return next(new AppError('Course context could not be determined.', 400, 'BAD_REQUEST'));
     }
 
-    // Verify active enrollment in the database with status = paid
-    const enrollment = await prisma.enrollment.findFirst({
-      where: {
-        userId:   user.id,
-        courseId,
-        payment: {
-          status: 'PAID',
-        },
-      },
-    });
-
-    if (!enrollment) {
-      return next(new AppError('Access denied. You must be enrolled with a validated payment to view this content.', 403, 'FORBIDDEN'));
+    // Instructors: only courses they manage
+    if (user.role === 'instructor') {
+      await ensureCourseManager(user, courseId);
+      return next();
     }
 
+    const enrollment = await prisma.enrollment.findUnique({
+      where: {
+        userId_courseId: { userId: user.id, courseId },
+      },
+      include: { payment: true },
+    });
+
+    if (!enrollment || enrollment.payment?.status !== 'PAID') {
+      return next(
+        new AppError(
+          'Access denied. You must be enrolled with a validated payment to view this content.',
+          403,
+          'FORBIDDEN'
+        )
+      );
+    }
+
+    req.enrollment = enrollment;
     next();
   } catch (error) {
     next(error);

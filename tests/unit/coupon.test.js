@@ -35,12 +35,25 @@ describe('response helpers', () => {
       skip: 10,
       isUnlimited: false,
     });
+
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'development';
     assert.deepEqual(parsePagination({ limit: '-1' }), {
       page: 1,
       limit: null,
       skip: undefined,
       isUnlimited: true,
     });
+
+    process.env.NODE_ENV = 'production';
+    delete process.env.ALLOW_UNLIMITED_PAGINATION;
+    assert.deepEqual(parsePagination({ limit: '-1' }), {
+      page: 1,
+      limit: 100,
+      skip: 0,
+      isUnlimited: false,
+    });
+    process.env.NODE_ENV = prev;
   });
 
   it('builds pagination meta', () => {

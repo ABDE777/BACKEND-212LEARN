@@ -39,8 +39,8 @@ export const requestWafacashPayment = async (req, res, next) => {
     }
 
     // Check if user is already enrolled (either PAID, PENDING, or WAITING_VERIFICATION)
-    const existingEnrollment = await prisma.enrollment.findFirst({
-      where: { userId, courseId },
+    const existingEnrollment = await prisma.enrollment.findUnique({
+      where: { userId_courseId: { userId, courseId } },
       include: { payment: true },
     });
 
@@ -140,11 +140,15 @@ export const submitWafacashTransfer = async (req, res, next) => {
       receiptUrl = req.file.path; // Cloudinary secure URL injected by multer storage
     }
 
-    // Find the payment request
+    // Find the payment request — must belong to the authenticated student
     const payment = await prisma.payment.findFirst({
       where: {
         transactionReference: paymentReference,
         provider: 'wafacash',
+        enrollment: { userId: req.user.id },
+      },
+      include: {
+        enrollment: { select: { id: true, userId: true, courseId: true } },
       },
     });
 

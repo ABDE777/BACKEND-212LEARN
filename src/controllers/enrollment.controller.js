@@ -53,8 +53,8 @@ export const enrollInCourse = async (req, res, next) => {
     }
 
     // Idempotency: return existing enrollment instead of throwing
-    const existing = await prisma.enrollment.findFirst({
-      where: { userId: req.user.id, courseId },
+    const existing = await prisma.enrollment.findUnique({
+      where: { userId_courseId: { userId: req.user.id, courseId } },
       include: { course: { select: { id: true, title: true, price: true } } },
     });
 

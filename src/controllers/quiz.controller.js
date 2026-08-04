@@ -129,6 +129,7 @@ Rules:
 - Do not number the options.`;
 
     let generatedQuestions = null;
+    let groqErrorDetail = null;
 
     try {
       const groqRes = await fetch(
@@ -154,48 +155,41 @@ Rules:
         const cleaned = rawText.replace(/```json|```/g, '').trim();
         generatedQuestions = JSON.parse(cleaned);
       } else {
-        const errText = await groqRes.text();
-        console.warn('Groq API returned status:', groqRes.status, errText);
+        groqErrorDetail = await groqRes.text();
+        console.warn('Groq API returned status:', groqRes.status, groqErrorDetail);
       }
     } catch (err) {
-      console.warn('Groq API call failed, entering mock fallback mode:', err.message);
+      groqErrorDetail = err.message;
+      console.warn('Groq API call failed:', err.message);
     }
 
-    // ── Resilient Fallback: Create high-quality mock questions if Gemini is throttled/rate-limited ──
-    if (!generatedQuestions || !Array.isArray(generatedQuestions)) {
-      console.log('🤖 Groq API rate-limited or unavailable. Activating local AI generator fallback.');
-      generatedQuestions = [
-        {
-          statement: `Which of the following best defines the primary concept of "${prompt.substring(0, 60)}"?`,
-          options: [
-            'A functional closure storing variables in its lexical scope.',
-            'A global namespace storing execution variables.',
-            'An external script injection protocol.',
-            'A structural class layout pattern.'
-          ],
-          correctAnswer: 'A functional closure storing variables in its lexical scope.'
-        },
-        {
-          statement: `In modern development, what is the best practice for implementing "${prompt.substring(0, 60)}"?`,
-          options: [
-            'Using stateless class components.',
-            'Avoiding local state storage.',
-            'Encapsulating states inside lexical scopes using functional hooks.',
-            'Declaring variables globally on the window context.'
-          ],
-          correctAnswer: 'Encapsulating states inside lexical scopes using functional hooks.'
-        },
-        {
-          statement: `What is a common potential drawback of poorly managed "${prompt.substring(0, 60)}"?`,
-          options: [
-            'Unintended memory leaks due to retained variables in parent scope.',
-            'Complete server-side performance degradation.',
-            'Automatic deletion of database schemas.',
-            'Network request security failures.'
-          ],
-          correctAnswer: 'Unintended memory leaks due to retained variables in parent scope.'
-        }
-      ].slice(0, questionCount);
+    if (!generatedQuestions || !Array.isArray(generatedQuestions) || generatedQuestions.length === 0) {
+      return next(
+        new AppError(
+          'AI quiz generation is temporarily unavailable. Please try again or create the quiz manually.',
+          503,
+          'SERVICE_UNAVAILABLE'
+        )
+      );
+    }
+
+    // Validate AI payload shape before persisting
+    for (const q of generatedQuestions) {
+      if (
+        !q?.statement ||
+        !Array.isArray(q.options) ||
+        q.options.length < 2 ||
+        !q.correctAnswer ||
+        !q.options.includes(q.correctAnswer)
+      ) {
+        return next(
+          new AppError(
+            'AI returned invalid quiz questions. Please retry generation.',
+            502,
+            'BAD_GATEWAY'
+          )
+        );
+      }
     }
 
     // ── Create quiz + questions in a transaction ────────────────────────────────

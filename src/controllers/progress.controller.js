@@ -70,7 +70,6 @@ export const getQuizzesByCourse = async (req, res, next) => {
 
 // ─── POST /api/v1/lessons/:lessonId/progress ─────────────────────────────────
 // Log or update a student's progress on a lesson.
-// Used by the frontend Classroom Player page: /learn/:courseId/lesson/:lessonId
 export const logProgress = async (req, res, next) => {
   try {
     validateUUID(req.params.lessonId, 'lessonId');
@@ -84,21 +83,15 @@ export const logProgress = async (req, res, next) => {
       return next(new AppError('Lesson not found.', 404, 'NOT_FOUND'));
     }
 
-    // Upsert: create if not exists, update if already started
     const progress = await prisma.lessonProgress.upsert({
       where: {
-        // We need a compound unique identifier — use findFirst + update pattern
-        // since the schema doesn't define a @@unique on (userId, lessonId)
-        id: (await prisma.lessonProgress.findFirst({
-          where: { userId, lessonId },
-          select: { id: true },
-        }))?.id || 'new',
+        userId_lessonId: { userId, lessonId },
       },
       update: {
-        ...(completed    !== undefined && { completed: Boolean(completed) }),
+        ...(completed     !== undefined && { completed: Boolean(completed) }),
         ...(videoPosition !== undefined && { videoPosition: Number(videoPosition) }),
-        ...(timeSpent    !== undefined && { timeSpent: Number(timeSpent) }),
-        ...(completed    === true      && { completedAt: new Date() }),
+        ...(timeSpent     !== undefined && { timeSpent: Number(timeSpent) }),
+        ...(completed     === true      && { completedAt: new Date() }),
       },
       create: {
         userId,
@@ -110,64 +103,18 @@ export const logProgress = async (req, res, next) => {
       },
     });
 
-    // Import the checkAndAwardBadges utility inside the controller file
-    // Trigger the gamification and certificate processor in background
     const section = await prisma.section.findFirst({
-      where: { lessons: { some: { id: lessonId } } }
+      where: { lessons: { some: { id: lessonId } } },
     });
     const courseId = section?.courseId || null;
 
     if (completed === true) {
-      // Defer badge check to avoid blocking response
       checkAndAwardBadges(userId, courseId).catch(console.error);
     }
 
     res.status(200).json(successResponse({ progress }));
   } catch (error) {
-    // Fallback: upsert by id 'new' fails — use create or update directly
-    try {
-      const existing = await prisma.lessonProgress.findFirst({
-        where: { userId: req.user.id, lessonId: req.params.lessonId },
-      });
-
-      const { completed, videoPosition, timeSpent } = req.body;
-
-      let progress;
-      if (existing) {
-        progress = await prisma.lessonProgress.update({
-          where: { id: existing.id },
-          data: {
-            ...(completed    !== undefined && { completed: Boolean(completed) }),
-            ...(videoPosition !== undefined && { videoPosition: Number(videoPosition) }),
-            ...(timeSpent    !== undefined && { timeSpent: Number(timeSpent) }),
-            ...(completed    === true      && { completedAt: new Date() }),
-          },
-        });
-      } else {
-        progress = await prisma.lessonProgress.create({
-          data: {
-            userId:        req.user.id,
-            lessonId:      req.params.lessonId,
-            completed:     Boolean(completed) || false,
-            videoPosition: Number(videoPosition) || 0,
-            timeSpent:     Number(timeSpent) || 0,
-            ...(completed === true && { completedAt: new Date() }),
-          },
-        });
-      }
-
-      if (completed === true) {
-        const section = await prisma.section.findFirst({
-          where: { lessons: { some: { id: req.params.lessonId } } }
-        });
-        const courseId = section?.courseId || null;
-        checkAndAwardBadges(req.user.id, courseId).catch(console.error);
-      }
-
-      res.status(200).json(successResponse({ progress }));
-    } catch (fallbackError) {
-      next(fallbackError);
-    }
+    next(error);
   }
 };
 

@@ -964,19 +964,45 @@
 ### Add Resource to Lesson (Instructor/Admin)
 **POST** `/lessons/:lessonId/resources`
 
+> **CRITICAL (Vercel):** Do **NOT** send the file as `multipart/form-data` to this URL when the file is larger than ~4 MB. Vercel returns `413 FUNCTION_PAYLOAD_TOO_LARGE` **before** the backend runs.
+>
+> Use **direct Cloudinary upload** for PDFs / ZIPs / videos / images (see below). Copy-paste helper: `examples/uploadLessonResource.js`.
+
 **Headers:** `Authorization: Bearer <token>`
 
-**Request Body (multipart/form-data):**
-- `file` (binary, optional - video, PDF, ZIP, or image file, max 200MB)
-- `type` (string, optional - video|pdf|zip|image|link, auto-detected from file)
-- `url` (string, required only for type=link - external URL)
+#### ✅ Correct flow (any file up to Cloudinary Free limits)
 
-**Request Body (JSON for link type):**
+1. `POST /uploads/cloudinary-sign` with JSON `{ type, filename, mimetype? }`
+2. `POST` the file to Cloudinary `uploadUrl` (browser → Cloudinary)
+3. `POST /lessons/:lessonId/resources` with JSON `{ type, url: secure_url }`
+
+**Request Body (JSON — after Cloudinary upload):**
+```json
+{
+  "type": "pdf",
+  "url": "https://res.cloudinary.com/<cloud>/raw/upload/v123/212learn/pdfs/notes_xxx.pdf"
+}
+```
+
+`type`: `video` | `pdf` | `zip` | `document` | `image` | `link`
+
+**Request Body (JSON for external link only):**
 ```json
 {
   "type": "link",
   "url": "https://youtube.com/watch?v=abc123"
 }
+```
+
+**❌ Broken (your current frontend — causes 413):**
+```js
+const form = new FormData();
+form.append('file', pdfFile); // ~4.7 MB
+await fetch('/api/v1/lessons/' + lessonId + '/resources', {
+  method: 'POST',
+  headers: { Authorization: 'Bearer ...' },
+  body: form, // Vercel rejects > 4.5 MB
+});
 ```
 
 **Response (201):**
@@ -988,12 +1014,31 @@
       "id": "uuid",
       "lessonId": "uuid",
       "type": "video|pdf|zip|image|link",
-      "url": "string",
-      "createdAt": "ISO8601"
+      "url": "string"
     }
   }
 }
 ```
+
+---
+
+### Sign Cloudinary Upload (Instructor/Admin)
+**POST** `/uploads/cloudinary-sign`
+
+**Headers:** `Authorization: Bearer <token>` · `Content-Type: application/json`
+
+**Body:**
+```json
+{
+  "type": "pdf",
+  "filename": "course-notes.pdf",
+  "mimetype": "application/pdf"
+}
+```
+
+**Response includes:** `uploadUrl`, `apiKey`, `timestamp`, `signature`, `folder`, `public_id`, `resource_type`, `maxBytes`
+
+Then upload to `uploadUrl` with FormData fields: `file`, `api_key`, `timestamp`, `signature`, `folder`, `public_id`.
 
 ---
 

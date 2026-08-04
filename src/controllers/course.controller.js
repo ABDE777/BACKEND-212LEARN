@@ -9,6 +9,7 @@ import {
 } from '../utils/response.js';
 import { ensureCourseManager } from '../utils/authorization.js';
 import { validateUUID, validateRequired, validateEnum } from '../utils/validation.js';
+import { getJwtSecret } from '../config/jwt.js';
 
 const SORTABLE_FIELDS = ['createdAt', 'title', 'price', 'duration'];
 
@@ -24,7 +25,7 @@ const resolveSoftAuthUser = async (req) => {
     const token = req.headers.authorization.split(' ')[1];
     const decoded = jwt.verify(
       token,
-      process.env.JWT_SECRET || 'dev-secret-key-212learn'
+      getJwtSecret()
     );
     const user = await prisma.user.findUnique({ where: { id: decoded.id } });
     return user && !user.deletedAt ? user : null;

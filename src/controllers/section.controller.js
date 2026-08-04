@@ -20,9 +20,15 @@ export const getCurriculum = async (req, res, next) => {
       return next(new AppError('Course not found.', 404, 'NOT_FOUND'));
     }
 
-    // Non-admin/instructor can only view published courses
-    const isPrivileged =
-      req.user && (req.user.role === 'admin' || req.user.role === 'instructor');
+    // Admins always privileged; instructors only for courses they manage
+    let isPrivileged = req.user?.role === 'admin';
+    if (!isPrivileged && req.user?.role === 'instructor') {
+      const assignment = await prisma.courseInstructor.findFirst({
+        where: { userId: req.user.id, courseId: req.params.courseId },
+        select: { id: true },
+      });
+      isPrivileged = Boolean(assignment);
+    }
 
     if (course.status !== 'published' && !isPrivileged) {
       return next(new AppError('Course not found.', 404, 'NOT_FOUND'));
@@ -31,16 +37,16 @@ export const getCurriculum = async (req, res, next) => {
     // Check if the requesting user is an enrolled student with a validated paid status
     let isEnrolled = false;
     if (req.user && req.user.role === 'student') {
-      const enrollment = await prisma.enrollment.findFirst({
+      const enrollment = await prisma.enrollment.findUnique({
         where: {
-          userId: req.user.id,
-          courseId: req.params.courseId,
-          payment: {
-            status: 'PAID',
+          userId_courseId: {
+            userId: req.user.id,
+            courseId: req.params.courseId,
           },
         },
+        include: { payment: true },
       });
-      isEnrolled = !!enrollment;
+      isEnrolled = enrollment?.payment?.status === 'PAID';
     }
 
     const sections = await prisma.section.findMany({
