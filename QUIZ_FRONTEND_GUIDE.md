@@ -1,10 +1,13 @@
 # 212LEARN — Quiz Feature Guide for Frontend Developers
 
-> **Status (verified):** All quiz + AI endpoints tested successfully against the local API (`quiz_test.js` — 6/6 PASS).  
+> **Full handoff (uploads, paywall, all endpoints):** [`FRONTEND_TEAM_HANDOFF.md`](./FRONTEND_TEAM_HANDOFF.md)
+
+> **Status:** Quiz + AI endpoints verified against the API.  
 > **Base URL (dev):** `http://localhost:5000/api/v1`  
 > **Base URL (prod):** `https://backend-212learn.vercel.app/api/v1`  
-> **Auth:** Every quiz route requires `Authorization: Bearer <JWT>`  
-> **Envelope:** All success responses use `{ "success": true, "data": { ... } }`
+> **Auth:** Every quiz mutation / attempt route requires `Authorization: Bearer <JWT>`  
+> **Envelope:** `{ "success": true, "data": { ... } }`  
+> **AI failure:** Missing/failed Groq → **503** `SERVICE_UNAVAILABLE` (no mock questions).
 
 This document describes how quizzes work end-to-end so you can build the **Instructor AI Quiz Builder** and the **Student Quiz Player**.
 

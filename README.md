@@ -1,172 +1,162 @@
-# 212LEARN E-Learning Platform Backend API (MVP)
+# 212LEARN Backend API
 
-RESTful API backend for the **212LEARN** (EduTrack) online learning management platform, built using Node.js, Express, Prisma ORM, and PostgreSQL, with Cloudinary media storage, Wafacash Moroccan manual payment tracking, and Gemini-powered AI quiz generation.
+Production REST API for the **212LEARN** e-learning platform.
 
----
+| | |
+|---|---|
+| **Production** | https://backend-212learn.vercel.app |
+| **API base** | https://backend-212learn.vercel.app/api/v1 |
+| **Health** | https://backend-212learn.vercel.app/health |
+| **Stack** | Node.js · Express · Prisma 7 · PostgreSQL (Neon) · Cloudinary · Groq · Upstash Redis |
 
-## ⚡ Tech Stack & Architecture
-
-- **Runtime**: Node.js (ES Modules, `"type": "module"`)
-- **Web Framework**: Express.js
-- **Database**: PostgreSQL (Neon Database Cloud or local PostgreSQL instance)
-- **ORM**: Prisma Client v7
-- **Media Hosting**: Cloudinary (for curriculum PDFs, ZIP archives, images, and video assets)
-- **AI Integration**: Groq API (`llama-3.3-70b-versatile`) for quiz generation, with local mock fallback
-- **Documentation**: Swagger UI & OpenAPI Specification v3
-- **Deployment**: Serverless Functions on Vercel
-- **Payments**: Wafacash Moroccan cash flow (no Stripe)
-- **Commerce**: Cart, Wishlist, and Coupon APIs
+> **Frontend developers:** start with [`FRONTEND_TEAM_HANDOFF.md`](./FRONTEND_TEAM_HANDOFF.md) — full integration guide, upload flow, paywall rules, endpoint catalog, and Vercel Analytics setup.
 
 ---
 
-## 🌟 Implemented Features (Sprints 1 to 8)
+## Features
 
-### 🔐 Sprint 1: Security, Auth & Category Trees
-- **JWT Authentication**: Full signup, login, and profile fetching. Password hashing using `bcryptjs`.
-- **Role-Based Access Control (RBAC)**: Custom middlewares protecting routes based on roles (`visitor`, `student`, `instructor`, `admin`).
-- **Category Tree Engine**: Supports multi-level nesting of parent-child course categories (`GET /categories` returns a clean nested tree).
-
-### 📚 Sprint 2: Course Catalog & Instructor Tools
-- **Course Administration**: Instructors and admins can create draft courses, modify details, and configure levels, pricing, or languages.
-- **Catalog Navigation**: Public endpoint to list published courses with paginated search and filters (category, language, level).
-- **Admin Approval**: `POST /courses/:id/publish` transitions draft courses into the public catalog.
-
-### ⏳ Sprint 3: Pedagogical Content Hierarchy & Files
-- **Curriculum Builder**: Full hierarchical structure support: `Courses -> Sections -> Lessons`. Includes position-based sorting and auto-indexing.
-- **Asset Attachment System**: Cloudinary storage for videos/PDFs/ZIPs/images. On Vercel, files above ~4 MB must use direct browser → Cloudinary upload (`POST /uploads/cloudinary-sign`), then save the URL. Cloudinary Free limits: image/raw 10 MB, video 100 MB.
-- **Assignments Workspace**:
-  - Instructors can create homework tasks with deadlines.
-  - Students can submit completed tasks (direct uploads or URLs).
-  - Instructors can review and issue grades (0–100%) with written feedback.
-
-### 💸 Sprint 4: Wafacash Moroccan Payment System & Paywall
-- **Wafacash manual cash payment**: Complete localized manual cash transfer system (`PENDING` -> `WAITING_VERIFICATION` -> `PAID` / `REJECTED` / `REFUNDED`).
-- **Verification**: Student submits 10-digit MTCN code and receipt photo (stored in Cloudinary).
-- **Access Paywall**: Middleware (`checkEnrollment`) blocks access to pedagogical resources unless the enrollment's payment is `'PAID'`.
-- **Curriculum URL Redaction**: Redacts resource links to guest/unpaid users, returning `"ENROLLMENT_REQUIRED"`.
-
-### 🧠 Sprint 5: Quiz Engine & AI Generation
-- **MCQ Quizzes**: Support for manually created quizzes and AI-generated quizzes via Groq (`llama-3.3-70b-versatile`) with local fallback.
-- **Quiz Evaluations**: safe submission handling that validates student responses and dynamically calculates passing scores.
-
-### 🏆 Sprint 6: Gamification, Reviews & Notifications
-- **Badge Engine**: Automatic background badge granting (🥇 *First Steps*, 🏆 *Quiz Master*, 🎓 *Course Finisher* with PDF certificate generation).
-- **Dynamic Points**: Dynamic points calculation on dashboard fetch (10 pts per completed lesson, 20/50 pts per quiz score).
-- **Reviews**: Enrolled (PAID) students can rate courses with smart updates (re-submission updates reviews without duplicate creation).
-- **Notifications**: Integrated in-app notifications with unread counts and read-all markers.
-
-### 📊 Sprint 7: Live Meetings & Analytics Dashboards
-- **Sessions Live**: Creation of scheduled live sessions (Zoom / Google Meet) for a course, sending notifications to all enrolled students automatically.
-- **Instructor Analytics**: Monthly revenue trends, top courses, student counts, and completion rates.
-
-### 🛡️ Sprint 8: Admin Moderation, Refunds & Auditing
-- **KYC Approvals**: Admins can fetch and verify/revoke instructor profiles.
-- **Refund System**: Admin can refund a payment (`REFUNDED`), which revokes student course access instantly.
-- **Audit Logging**: All admin actions are tracked in a dedicated `AuditLog` table.
-
-### 🔒 Security Hardening & Improvements
-- **Draft Course Protection**: Anonymous users and non-enrolled students cannot access draft course content. Draft courses expose limited details (no sections/lessons) even to authorized users.
-- **Meetings Access Control**: Course meetings are only accessible to enrolled students (PAID status), course instructors, and admins.
-- **Role Escalation Prevention**: Public registration is forced to create student accounts only - users cannot self-assign admin/instructor roles.
-- **Soft-Delete Auth Enforcement**: Soft-deleted users are rejected during login and in auth middleware, preventing account reuse.
-- **Full-Fetch Contract**: Pagination supports `limit=-1` and `limit=0` to return all records without pagination.
-- **Deterministic Progress**: Lesson progress entries have unique constraints on `(userId, lessonId)` to prevent duplicates.
+- JWT auth + RBAC (`student` / `instructor` / `admin`)
+- Courses → sections → lessons → resources / assignments / quizzes
+- Wafacash cash payments (PENDING → WAITING_VERIFICATION → PAID / REJECTED / REFUNDED)
+- Enrollment paywall (`PAID` required for curriculum content)
+- Cart, wishlist, coupons
+- AI quiz generation (Groq) — returns **503** if AI is unavailable (no silent mock)
+- Direct Cloudinary uploads (avoids Vercel **413** body limit)
+- Rate limiting (memory + optional Upstash Redis)
+- CI: Prisma validate + unit tests
 
 ---
 
-## 🚀 Environment Variables (`.env`)
+## Environment variables
 
-Create a `.env` file in the root of the `SERVER` directory with the following variables:
+### Required (production)
 
 ```env
-# Server Port
-PORT=5000
+NODE_ENV=production
+DATABASE_URL=postgresql://...          # Neon (pooled URL recommended on Vercel)
+JWT_SECRET=long-random-secret          # required in production
+JWT_EXPIRES_IN=7d
 
-# Environment
-NODE_ENV=development
+CLOUDINARY_CLOUD_NAME=...
+CLOUDINARY_API_KEY=...
+CLOUDINARY_API_SECRET=...
 
-# Database URL (Neon or Local PostgreSQL)
-DATABASE_URL="postgresql://username:password@localhost:5432/dbname?schema=public"
-
-# JWT Configuration
-JWT_SECRET="your-jwt-secret-key-here"
-JWT_EXPIRES_IN="7d"
-
-# Cloudinary Credentials
-CLOUDINARY_CLOUD_NAME="your-cloudinary-cloud-name"
-CLOUDINARY_API_KEY="your-cloudinary-api-key"
-CLOUDINARY_API_SECRET="your-cloudinary-api-secret"
-
-# Frontend Application URL
-FRONTEND_URL=http://localhost:5173
-
-# Wafacash Simulation (For academic presentation / soutenance)
-WAFACASH_AUTO_APPROVE=false # Set to false to require manual validation by default (demo=true parameter still works in dev)
-
-# Groq API Key (AI quiz generation)
-GROQ_API_KEY=your-groq-api-key
+FRONTEND_URL=https://your-frontend.vercel.app
+GROQ_API_KEY=...                       # AI quizzes
 ```
+
+### Recommended (production)
+
+```env
+# Distributed rate limits across Vercel instances
+UPSTASH_REDIS_REST_URL=https://....upstash.io
+UPSTASH_REDIS_REST_TOKEN=...
+
+# Optional
+ENABLE_API_DOCS=true                   # expose /api-docs in production
+ALLOW_UNLIMITED_PAGINATION=false       # keep false in prod
+WAFACASH_AUTO_APPROVE=false
+PG_POOL_MAX=1                          # Neon serverless (defaulted when VERCEL=1)
+```
+
+### Email (password reset)
+
+```env
+EMAIL_MOCK=false
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=...
+EMAIL_PASS=...
+EMAIL_FROM="212Learn" <noreply@example.com>
+```
+
+**Never commit `.env`.** Rotate any secrets that were shared in chat.
 
 ---
 
-## 🛠️ Getting Started & Local Development
+## Local development
 
-### 1. Install Dependencies
 ```bash
 npm install
+cp .env.example .env   # if present; otherwise create .env from the list above
+npm run db:setup       # generate + migrate deploy + lean seed
+npm run dev            # http://localhost:5000
 ```
 
-### 2. Set Up Database Schema & Seeder
-Verify your schema matches the database, apply updates and run the seed script:
-```bash
-npx prisma generate
-npx prisma db push
-npx prisma db seed
-```
-*The database seeder generates structured mock profiles for all system tables.*
+### Scripts
 
-### 3. Start Development Server
-```bash
-npm run dev
-```
-The server will boot on `http://localhost:5000` with hot reloading enabled.
+| Script | Purpose |
+|--------|---------|
+| `npm run dev` | Nodemon local server |
+| `npm start` | Production start |
+| `npm run db:setup` | Prisma generate + migrate deploy + seed |
+| `npm run prisma:seed` | Lean test dataset only |
+| `npm test` | Unit tests |
+
+### Seed accounts (password: `password123`)
+
+| Email | Role | Notes |
+|-------|------|--------|
+| `admin@212learn.com` | admin | Full access |
+| `instructor@212learn.com` | instructor | Course manager |
+| `student1@212learn.com` | student | **PAID** on React Essentials |
+| `student2@212learn.com` | student | **PENDING** Wafacash `WFC-TESTPEND` |
+
+Coupon: `TEST10` (10%). Courses: React Essentials, JavaScript Basics.
 
 ---
 
-## 📖 Live API Documentation
+## Uploads (important)
 
-Once the server is running, explore and test the endpoints directly via the Swagger UI:
-- **Interactive OpenAPI UI**: [http://localhost:5000/api-docs](http://localhost:5000/api-docs)
-- **Raw Spec JSON**: `http://localhost:5000/api-docs.json`
-- **Live Vercel Production API**: [https://backend-212learn.vercel.app](https://backend-212learn.vercel.app)
+Vercel serverless rejects request bodies larger than **~4.5 MB** (`413 FUNCTION_PAYLOAD_TOO_LARGE`).
+
+**Do not** `multipart` large PDFs/videos to `/lessons/:id/resources` on production.
+
+**Correct flow:**
+
+1. `POST /api/v1/uploads/cloudinary-sign` (JSON)
+2. Browser uploads file **directly to Cloudinary**
+3. `POST /api/v1/lessons/:id/resources` with JSON `{ type, url }`
+
+Helper for the frontend: [`examples/uploadLessonResource.js`](./examples/uploadLessonResource.js)
+
+Cloudinary Free limits: **image/raw 10 MB**, **video 100 MB**.
 
 ---
 
-## 🧪 Testing
+## Docs for the team
 
-### CI-friendly unit tests (default)
-No live server required — safe for GitHub Actions:
+| Document | Audience |
+|----------|----------|
+| [`FRONTEND_TEAM_HANDOFF.md`](./FRONTEND_TEAM_HANDOFF.md) | Frontend — send this |
+| [`FRONTEND_API_GUIDE.md`](./FRONTEND_API_GUIDE.md) | Detailed request/response examples |
+| [`QUIZ_FRONTEND_GUIDE.md`](./QUIZ_FRONTEND_GUIDE.md) | Quiz builder + player |
+| [`ERROR_CODES.md`](./ERROR_CODES.md) | Error code reference |
+
+Swagger UI: `/api-docs` (off in production unless `ENABLE_API_DOCS=true`).
+
+---
+
+## Vercel Analytics
+
+This repo is an **API-only** Express app. Page-view Analytics must be installed on the **frontend** project (Vite/React or Next), not here.
+
+Exact steps for the frontend team are in [`FRONTEND_TEAM_HANDOFF.md`](./FRONTEND_TEAM_HANDOFF.md#vercel-web-analytics-frontend).
+
+---
+
+## Testing
 
 ```bash
-npm test
-# same as:
-npm run test:unit
+npm test                 # unit (CI)
+npm run test:integration # needs local server
 ```
 
-### Integration tests (server must be running)
-```bash
-npm run dev   # separate terminal
-npm run test:integration   # Cart / Wishlist / Coupon (skips if server down)
-npm run test:commerce      # commerce only
-npm run test:quiz          # quiz + AI generation
-npm run test:security      # security regression
-```
+---
 
-### Legacy sprint scripts
-```bash
-npm run test:sprint6
-npm run test:sprint7
-npm run test:sprint8
-```
+## Deployment
 
-**Note**: Integration / sprint scripts expect the server on `http://localhost:5000` (override with `API_BASE_URL`).
+- Host: **Vercel** → https://backend-212learn.vercel.app  
+- Region note: function often runs near `cdg1` (Paris); Neon may be US — expect occasional cold DB latency.  
+- Ensure all env vars above are set in the Vercel project (including Upstash).  
+- Redeploy after env changes.

@@ -1,8 +1,20 @@
 # 212LEARN Backend API Documentation for Frontend Developers
 
-**Base URL:** `http://localhost:5000/api/v1` (Development)  
-**Production URL:** `https://backend-212learn.vercel.app/api/v1`  
-**API Version:** 1.1.0
+> **Start here for the team handoff:** [`FRONTEND_TEAM_HANDOFF.md`](./FRONTEND_TEAM_HANDOFF.md)  
+> That doc has production gotchas (413 uploads, paywall, Wafacash `action`, Analytics). This file keeps detailed request/response examples.
+
+**Base URL (dev):** `http://localhost:5000/api/v1`  
+**Base URL (prod):** `https://backend-212learn.vercel.app/api/v1`  
+**API Version:** 1.2.0
+
+### Critical updates (Aug 2026)
+
+1. Large lesson files → `POST /uploads/cloudinary-sign` then Cloudinary, then JSON `{ type, url }` (avoid Vercel 413).
+2. Wafacash verify uses `action: "approve"|"reject"` (not `status`).
+3. Wafacash submit fields: `paymentReference`, `mtcn`, `receipt`.
+4. AI quiz failure → **503** (no mock questions).
+5. Cart / wishlist / coupons live under `/cart`, `/wishlist`, `/coupons`.
+6. Vercel Analytics → install on the **frontend** (`@vercel/analytics/react`).
 
 ---
 
@@ -20,9 +32,10 @@
 11. [Analytics & Meetings](#analytics--meetings)
 12. [Admin & Moderation](#admin--moderation)
 13. [Wafacash Payments](#wafacash-payments)
-14. [Categories](#categories)
-15. [Response Formats](#response-formats)
-16. [Error Handling](#error-handling)
+14. [Cart, Wishlist & Coupons](#cart-wishlist--coupons)
+15. [Categories](#categories)
+16. [Response Formats](#response-formats)
+17. [Error Handling](#error-handling)
 
 ---
 
@@ -1062,6 +1075,7 @@ Then upload to `uploadUrl` with FormData fields: `file`, `api_key`, `timestamp`,
 ```json
 {
   "title": "string",
+  "description": "string (optional)",
   "dueDate": "ISO8601 (optional)"
 }
 ```
@@ -1075,6 +1089,7 @@ Then upload to `uploadUrl` with FormData fields: `file`, `api_key`, `timestamp`,
       "id": "uuid",
       "lessonId": "uuid",
       "title": "string",
+      "description": "string | null",
       "dueDate": "ISO8601 | null",
       "createdAt": "ISO8601"
     }
@@ -2061,6 +2076,9 @@ Then upload to `uploadUrl` with FormData fields: `file`, `api_key`, `timestamp`,
 
 ## Wafacash Payments
 
+Roles: **request/submit** = student · **pending/verify** = admin.  
+Ownership: submit only works for the logged-in student's own `paymentReference`.
+
 ### Request Wafacash Payment
 **POST** `/payments/wafacash/request`
 
@@ -2069,33 +2087,34 @@ Then upload to `uploadUrl` with FormData fields: `file`, `api_key`, `timestamp`,
 **Request Body:**
 ```json
 {
-  "courseId": "uuid"
+  "courseId": "uuid",
+  "couponCode": "TEST10"
 }
 ```
+
+`couponCode` is optional. Returns **201** for a new request, or **200** if an existing `PENDING` / `WAITING_VERIFICATION` payment already exists.
 
 **Response (201):**
 ```json
 {
   "success": true,
   "data": {
-    "enrollment": {
-      "id": "uuid",
-      "userId": "uuid",
-      "courseId": "uuid",
-      "status": "active"
-    },
-    "payment": {
-      "id": "uuid",
-      "enrollmentId": "uuid",
-      "status": "PENDING",
-      "amount": number,
-      "currency": "MAD",
-      "reference": "WFC-XXXXXXXX",
-      "createdAt": "ISO8601"
+    "message": "Wafacash payment request initialized successfully.",
+    "paymentId": "uuid",
+    "paymentReference": "WFC-XXXXXXXX",
+    "amount": "299.00",
+    "currency": "MAD",
+    "instructions": {
+      "step1": "Visit your nearest Wafacash agency in Morocco.",
+      "step2": "Provide them with the payment reference: WFC-XXXXXXXX",
+      "step3": "Pay the cash amount: 299.00 MAD",
+      "step4": "Upload your receipt picture and submit the 10-digit MTCN code on your dashboard."
     }
   }
 }
 ```
+
+Show `paymentReference` to the student for the cash transfer.
 
 ---
 
@@ -2105,8 +2124,9 @@ Then upload to `uploadUrl` with FormData fields: `file`, `api_key`, `timestamp`,
 **Headers:** `Authorization: Bearer <token>`
 
 **Request Body (multipart/form-data):**
-- `receipt` (binary, image file)
-- `mtcn` (string, 10-digit MTCN code)
+- `paymentReference` (string, e.g. `WFC-XXXXXXXX`) — **required**
+- `mtcn` (string, 10-digit MTCN code) — **required**
+- `receipt` (binary, image file) — **required**
 
 **Response (200):**
 ```json
@@ -2141,9 +2161,9 @@ Then upload to `uploadUrl` with FormData fields: `file`, `api_key`, `timestamp`,
         "id": "uuid",
         "enrollmentId": "uuid",
         "status": "WAITING_VERIFICATION",
-        "amount": number,
+        "amount": "number",
         "currency": "MAD",
-        "reference": "string",
+        "transactionReference": "string",
         "mtcn": "string",
         "receiptUrl": "string",
         "submittedAt": "ISO8601",
@@ -2177,10 +2197,12 @@ Then upload to `uploadUrl` with FormData fields: `file`, `api_key`, `timestamp`,
 ```json
 {
   "paymentId": "uuid",
-  "status": "PAID|REJECTED",
+  "action": "approve",
   "notes": "string (optional)"
 }
 ```
+
+`action` must be `"approve"` or `"reject"` (not `status`).
 
 **Response (200):**
 ```json
@@ -2189,12 +2211,71 @@ Then upload to `uploadUrl` with FormData fields: `file`, `api_key`, `timestamp`,
   "data": {
     "payment": {
       "id": "uuid",
-      "status": "PAID|REJECTED",
+      "status": "PAID",
       "verifiedAt": "ISO8601"
-    }
+    },
+    "message": "string"
   }
 }
 ```
+
+---
+
+## Cart, Wishlist & Coupons
+
+Roles: cart/wishlist = **student** or **admin**. Coupon CRUD = **admin**. Validate = any authenticated user.
+
+### Get Cart
+**GET** `/cart`
+
+**Headers:** `Authorization: Bearer <token>`
+
+Auto-creates an empty cart if needed. Returns items + MAD subtotal.
+
+### Clear Cart
+**DELETE** `/cart`
+
+### Add Cart Item
+**POST** `/cart/items`
+
+```json
+{ "courseId": "uuid" }
+```
+
+**409** if already in cart or already purchased (PAID).
+
+### Remove Cart Item
+**DELETE** `/cart/items/:itemId`
+
+### Get Wishlist
+**GET** `/wishlist`
+
+### Add to Wishlist
+**POST** `/wishlist`
+
+```json
+{ "courseId": "uuid" }
+```
+
+### Remove from Wishlist
+**DELETE** `/wishlist/:courseId` → **204**
+
+### Validate Coupon
+**POST** `/coupons/validate`
+
+```json
+{ "code": "TEST10", "courseId": "uuid" }
+```
+
+`courseId` optional — when present, response includes discounted price preview. Codes are case-insensitive.
+
+### Admin Coupon CRUD
+| Method | Path |
+|--------|------|
+| GET | `/coupons` |
+| POST | `/coupons` — `{ code, discount (0–100), expirationDate }` |
+| PATCH | `/coupons/:id` |
+| DELETE | `/coupons/:id` → **204** |
 
 ---
 
@@ -2322,50 +2403,58 @@ Then upload to `uploadUrl` with FormData fields: `file`, `api_key`, `timestamp`,
 - `409` - Conflict
 - `429` - Rate limit exceeded
 - `500` - Internal server error
+- `503` - Service unavailable (e.g. Groq AI)
+- `413` - Payload too large (Vercel body limit — use Cloudinary-sign)
 
 ---
 
-## Authentication
+## Authentication Header
 
-All protected endpoints require the `Authorization` header:
+All protected endpoints require:
 
 ```
 Authorization: Bearer <jwt_token>
 ```
 
-Get the token from `/auth/login` or `/auth/register` endpoints.
+Token comes from `/auth/login` or `/auth/register`.
 
 ---
 
 ## Rate Limiting
 
-- Auth endpoints: 10 requests per minute
-- General endpoints: 150 requests per 15 minutes
-- Rate limiting is disabled in development mode
+- Auth endpoints: **10** requests / minute / IP
+- Global: **150** requests / 15 minutes / IP
+- Disabled in local `development` (unless enforced)
+- Production uses Upstash Redis when configured
 
 ---
 
 ## File Uploads
 
-- Max file size: 200MB
-- Supported formats: Video, PDF, ZIP, Images
-- Storage: Cloudinary
-- Use `multipart/form-data` for file uploads
+| Context | How |
+|---------|-----|
+| Lesson resources (PDF/video/ZIP/image) on **Vercel** | **Required:** `POST /uploads/cloudinary-sign` → upload to Cloudinary → `POST /lessons/:id/resources` with JSON `{ type, url }` |
+| External link | JSON `{ type: "link", url }` |
+| Avatar / Wafacash receipt | Small multipart to API is OK |
+| Cloudinary Free limits | Image/raw **10 MB**, video **100 MB** |
+| Vercel body limit | ~**4.5 MB** — larger multipart → **413** |
+
+Helper: `examples/uploadLessonResource.js`. Details: [`FRONTEND_TEAM_HANDOFF.md`](./FRONTEND_TEAM_HANDOFF.md#3-critical--file-uploads-vercel-413).
 
 ---
 
 ## Security Features
 
-- Draft courses are protected - only accessible to admins and course instructors
-- Course meetings require enrollment (PAID status) or instructor/admin access
-- Registration forces student role - role escalation prevented
+- Draft courses: admins / course instructors only for full content
+- Meetings: PAID enrollment or instructor/admin
+- Registration always creates `student` (no self-escalation)
 - Soft-deleted users cannot authenticate
-- Pagination supports `limit=-1` and `limit=0` for full-fetch
+- `limit=-1` / `0` (fetch-all) blocked in production by default
 
 ---
 
 ## Live Documentation
 
-Interactive API documentation is available at:
-- **Development:** https://backend-212learn.vercel.app/api-docs
-- **Production:** https://backend-212learn.vercel.app/api-docs
+- Local Swagger: `http://localhost:5000/api-docs`
+- Production Swagger: often **disabled** unless `ENABLE_API_DOCS=true`
+- Team handoff: [`FRONTEND_TEAM_HANDOFF.md`](./FRONTEND_TEAM_HANDOFF.md)

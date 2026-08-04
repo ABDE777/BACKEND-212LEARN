@@ -26,8 +26,10 @@ All error responses follow this standard format:
 - **403** - Forbidden (Permission denied)
 - **404** - Not Found (Resource doesn't exist)
 - **409** - Conflict (Duplicate resource or conflicting state)
+- **429** - Too Many Requests (rate limit)
 - **500** - Internal Server Error
 - **503** - Service Unavailable
+- **413** - Payload Too Large (Vercel body limit — use Cloudinary signed upload)
 
 ## Error Codes
 
@@ -68,6 +70,12 @@ All error responses follow this standard format:
 | `DUPLICATE_VALUE` | Value already exists for: {field} | Unique constraint violation in database |
 | `ALREADY_ENROLLED` | Already enrolled in this course | User is already enrolled in the course |
 | `CONFLICT` | Various conflict messages | Resource state conflicts with request |
+
+### Rate Limit Errors (429)
+
+| Code | Message | Description |
+|------|---------|-------------|
+| `RATE_LIMIT_EXCEEDED` | Too many requests | Client exceeded auth or global rate limit |
 
 ### Service Errors (503)
 
