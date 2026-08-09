@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getCategories, createCategory } from '../controllers/category.controller.js';
+import { getCategories, createCategory, updateCategory, deleteCategory } from '../controllers/category.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
 import { cacheMiddleware, clearCachePattern } from '../middleware/cache.js';
 
@@ -62,5 +62,10 @@ const router = Router();
 router.route('/')
   .get(getCategories)
   .post(protect, restrictTo('admin'), createCategory);
+
+router.route('/:id')
+  .patch(protect, restrictTo('admin'), updateCategory)
+  .put(protect, restrictTo('admin'), updateCategory)
+  .delete(protect, restrictTo('admin'), deleteCategory);
 
 export default router;
