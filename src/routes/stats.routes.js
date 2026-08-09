@@ -1,8 +1,9 @@
 import express from 'express';
-import { getPublicStats } from '../controllers/stats.controller.js';
+import { getPublicStats, getPublicTestimonials } from '../controllers/stats.controller.js';
 
 const router = express.Router();
 
 router.get('/', getPublicStats);
+router.get('/testimonials', getPublicTestimonials);
 
 export default router;

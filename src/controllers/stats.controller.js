@@ -23,3 +23,42 @@ export const getPublicStats = async (req, res, next) => {
     next(error);
   }
 };
+
+export const getPublicTestimonials = async (req, res, next) => {
+  try {
+    const reviews = await prisma.review.findMany({
+      where: {
+        comment: {
+          not: null,
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            avatar: true,
+          },
+        },
+        course: {
+          select: {
+            id: true,
+            title: true,
+          },
+        },
+      },
+      orderBy: {
+        reviewDate: 'desc',
+      },
+      take: 6,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: reviews,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
