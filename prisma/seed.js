@@ -121,6 +121,7 @@ async function main() {
       language: 'french',
       duration: 480,
       status: 'published',
+      thumbnail: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=600&q=80',
     },
   });
 
@@ -262,7 +263,7 @@ async function main() {
     },
   });
 
-  // ── Course B: free published draft companion (catalog filler) ───────────────
+  // ── Course B: published, free (catalog browsing test) ───────────────────────
   const courseJs = await prisma.course.create({
     data: {
       categoryId: webDev.id,
@@ -273,6 +274,7 @@ async function main() {
       language: 'french',
       duration: 120,
       status: 'published',
+      thumbnail: 'https://images.unsplash.com/photo-1579468118864-1b9ea3c0db4a?w=600&q=80',
     },
   });
 
@@ -314,6 +316,10 @@ async function main() {
       title: 'Live Q&A — React Essentials',
       meetingUrl: 'https://meet.google.com/test-react-qa',
       meetingDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+      roomName: '212learn-react-qa-scheduled',
+      status: 'SCHEDULED',
+      durationMinutes: 60,
+      recordingUrl: null,
     },
   });
 

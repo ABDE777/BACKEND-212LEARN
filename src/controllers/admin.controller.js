@@ -32,6 +32,8 @@ export const getPendingKyc = async (req, res, next) => {
           email: true,
           avatar: true,
           bio: true,
+          role: true,
+          isVerified: true,
           createdAt: true,
         },
         orderBy: { createdAt: 'desc' },
@@ -705,6 +707,115 @@ export const resetUserPassword = async (req, res, next) => {
     res.status(200).json(successResponse({
       message: `Password reset email has been sent to ${targetUser.email} (link valid for 5 minutes).`
     }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ─── PATCH /api/v1/admin/users/:userId/restore ──────────────────────────────
+// Admin restores a soft-deleted user account.
+export const restoreUser = async (req, res, next) => {
+  try {
+    const userId = req.params.userId || req.params.id;
+    validateUUID(userId, 'userId');
+
+    const targetUser = await prisma.user.findUnique({ where: { id: userId } });
+    if (!targetUser) {
+      return next(new AppError('User not found.', 404, 'NOT_FOUND'));
+    }
+
+    if (!targetUser.deletedAt) {
+      return next(new AppError('User is not deleted.', 400, 'BAD_REQUEST'));
+    }
+
+    const restoredUser = await prisma.user.update({
+      where: { id: userId },
+      data: { deletedAt: null },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        role: true,
+        isVerified: true,
+        avatar: true,
+        bio: true,
+        createdAt: true,
+        deletedAt: true,
+      },
+    });
+
+    await logAuditEvent(req.user.id, 'RESTORE_USER', 'User', userId, {
+      email: targetUser.email,
+      role: targetUser.role,
+    });
+
+    res.status(200).json(successResponse({ user: restoredUser, message: 'User account restored successfully.' }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ─── GET /api/v1/admin/stats ──────────────────────────────────────────────────
+// Returns a complete platform statistics snapshot for the admin dashboard.
+export const getAdminStats = async (req, res, next) => {
+  try {
+    const [
+      totalUsers,
+      students,
+      instructors,
+      admins,
+      totalCourses,
+      activeCourses,
+      draftCourses,
+      totalCategories,
+      totalEnrollments,
+      revenueAgg,
+      pendingPayments,
+      paidPayments,
+    ] = await Promise.all([
+      // Users
+      prisma.user.count({ where: { deletedAt: null } }),
+      prisma.user.count({ where: { deletedAt: null, role: 'student' } }),
+      prisma.user.count({ where: { deletedAt: null, role: 'instructor' } }),
+      prisma.user.count({ where: { deletedAt: null, role: 'admin' } }),
+      // Courses
+      prisma.course.count({ where: { deletedAt: null } }),
+      prisma.course.count({ where: { deletedAt: null, status: 'published' } }),
+      prisma.course.count({ where: { deletedAt: null, status: 'draft' } }),
+      // Categories
+      prisma.category.count({ where: { deletedAt: null } }),
+      // Enrollments
+      prisma.enrollment.count(),
+      // Revenue — sum of all PAID payments
+      prisma.payment.aggregate({
+        _sum: { amount: true },
+        where: { status: 'PAID' },
+      }),
+      // Wafacash pending
+      prisma.payment.count({ where: { provider: 'wafacash', status: 'WAITING_VERIFICATION' } }),
+      // Wafacash paid
+      prisma.payment.count({ where: { provider: 'wafacash', status: 'PAID' } }),
+    ]);
+
+    const totalRevenue = Number(revenueAgg._sum.amount ?? 0);
+
+    const stats = {
+      totalUsers,
+      students,
+      instructors,
+      admins,
+      totalCourses,
+      activeCourses,
+      draftCourses,
+      totalCategories,
+      totalEnrollments,
+      totalRevenue,
+      pendingPayments,
+      paidPayments,
+    };
+
+    res.status(200).json(successResponse({ stats }));
   } catch (error) {
     next(error);
   }

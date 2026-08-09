@@ -3,6 +3,29 @@ import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { validateUUID, validateRequired } from '../utils/validation.js';
 import { resolveValidCoupon, applyCouponDiscount } from '../utils/coupon.js';
+import crypto from 'crypto';
+
+// ─── Webhook Signature Verification ─────────────────────────────────────────────
+/**
+ * Verify webhook signature to prevent payment fraud.
+ * Uses HMAC-SHA256 with a shared secret key.
+ */
+const verifyWebhookSignature = (payload, signature, secret) => {
+  if (!signature || !secret) {
+    return false;
+  }
+
+  const expectedSignature = crypto
+    .createHmac('sha256', secret)
+    .update(JSON.stringify(payload))
+    .digest('hex');
+
+  // Use timing-safe comparison to prevent timing attacks
+  return crypto.timingSafeEqual(
+    Buffer.from(signature),
+    Buffer.from(expectedSignature)
+  );
+};
 
 // Helper to generate a unique Wafacash Reference
 const generateWafacashReference = () => {
@@ -195,11 +218,23 @@ export const submitWafacashTransfer = async (req, res, next) => {
 // Admin retrieves all payments with status 'WAITING_VERIFICATION' to moderate.
 export const getPendingPayments = async (req, res, next) => {
   try {
+    const { status } = req.query;
+
+    const whereClause = {
+      provider: 'wafacash',
+    };
+
+    if (status === 'paid' || status === 'PAID') {
+      whereClause.status = 'PAID';
+    } else if (status === 'rejected' || status === 'REJECTED') {
+      whereClause.status = 'REJECTED';
+    } else if (status === 'pending' || status === 'PENDING' || status === 'WAITING_VERIFICATION') {
+      whereClause.status = { in: ['WAITING_VERIFICATION', 'PENDING'] };
+    }
+    // If status is 'all' or omitted, whereClause has no status restriction -> returns all Wafacash payments
+
     const payments = await prisma.payment.findMany({
-      where: {
-        provider: 'wafacash',
-        status:   'WAITING_VERIFICATION',
-      },
+      where: whereClause,
       include: {
         enrollment: {
           include: {
@@ -225,10 +260,29 @@ export const getPendingPayments = async (req, res, next) => {
 // Admin approves or rejects the submitted Wafacash receipt.
 export const verifyPayment = async (req, res, next) => {
   try {
-    const { paymentId, action, notes } = req.body; // action: 'approve' | 'reject'
+    const { paymentId, action, notes, webhookSignature } = req.body; // action: 'approve' | 'reject'
 
     if (!paymentId || !['approve', 'reject'].includes(action)) {
       return next(new AppError('paymentId and action ("approve" | "reject") are required.', 400, 'VALIDATION_ERROR'));
+    }
+
+    // Verify webhook signature if provided (for automated webhooks)
+    if (webhookSignature) {
+      const webhookSecret = process.env.WAFACASH_WEBHOOK_SECRET;
+      if (!webhookSecret) {
+        return next(new AppError('Webhook secret not configured.', 500, 'SERVER_CONFIGURATION_ERROR'));
+      }
+
+      const isValid = verifyWebhookSignature(
+        { paymentId, action, notes },
+        webhookSignature,
+        webhookSecret
+      );
+
+      if (!isValid) {
+        console.error('[Wafacash] Invalid webhook signature for payment:', paymentId);
+        return next(new AppError('Invalid webhook signature.', 401, 'UNAUTHORIZED'));
+      }
     }
 
     const payment = await prisma.payment.findUnique({
@@ -243,15 +297,27 @@ export const verifyPayment = async (req, res, next) => {
       return next(new AppError('This payment is already approved and paid.', 409, 'CONFLICT'));
     }
 
-    const updated = await prisma.payment.update({
-      where: { id: paymentId },
-      data: {
-        status:     action === 'approve' ? 'PAID' : 'REJECTED',
-        paidAt:     action === 'approve' ? new Date() : null,
-        verifiedBy: req.user.id,
-        verifiedAt: new Date(),
-        notes:      notes || null,
-      },
+    // Use transaction to prevent race conditions on payment status changes
+    const updated = await prisma.$transaction(async (tx) => {
+      // Lock the payment row for update
+      const lockedPayment = await tx.payment.findUnique({
+        where: { id: paymentId },
+      });
+
+      if (lockedPayment.status === 'PAID') {
+        throw new AppError('Payment already processed by another request.', 409, 'CONFLICT');
+      }
+
+      return await tx.payment.update({
+        where: { id: paymentId },
+        data: {
+          status:     action === 'approve' ? 'PAID' : 'REJECTED',
+          paidAt:     action === 'approve' ? new Date() : null,
+          verifiedBy: req.user.id,
+          verifiedAt: new Date(),
+          notes:      notes || null,
+        },
+      });
     });
 
     res.status(200).json(

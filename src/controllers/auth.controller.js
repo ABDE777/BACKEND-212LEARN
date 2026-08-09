@@ -1,11 +1,13 @@
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { validateRequired, validateEmail } from '../utils/validation.js';
-import { sendPasswordResetEmail } from '../utils/email.js';
+import { sendPasswordResetEmail, sendAccountRestoreOtpEmail } from '../utils/email.js';
 import { getJwtSecret } from '../config/jwt.js';
+import { logAuditEvent } from '../utils/audit.js';
 
 const signToken = (id) =>
   jwt.sign({ id }, getJwtSecret(), {
@@ -75,8 +77,25 @@ export const login = async (req, res, next) => {
       return next(new AppError('Incorrect email or password.', 401, 'INVALID_CREDENTIALS'));
     }
 
+    // Deleted account — send OTP to allow self-restoration
     if (user.deletedAt) {
-      return next(new AppError('This account has been deactivated.', 401, 'ACCOUNT_DEACTIVATED'));
+      const otp = String(crypto.randomInt(100000, 999999)); // 6-digit OTP
+      const otpHash = await bcrypt.hash(otp, 10);
+      const otpExp = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { restoreOtp: otpHash, restoreOtpExp: otpExp },
+      });
+
+      // Fire-and-forget — don't block the response
+      sendAccountRestoreOtpEmail(user.email, user.firstName, otp).catch(() => {});
+
+      return res.status(200).json({
+        success: true,
+        requiresRestore: true,
+        message: 'Votre compte a été désactivé. Un code de restauration a été envoyé à votre adresse email.',
+      });
     }
 
     // Update lastLogin without blocking the response
@@ -246,3 +265,57 @@ export const resetPassword = async (req, res, next) => {
     next(error);
   }
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/auth/restore-account
+// Public: validates email + OTP and restores the soft-deleted account.
+// Returns a full login token on success (equivalent to a normal login).
+// ─────────────────────────────────────────────────────────────────────────────
+export const restoreAccountWithOtp = async (req, res, next) => {
+  try {
+    validateRequired(req.body, ['email', 'otp']);
+    validateEmail(req.body.email);
+    const { email, otp } = req.body;
+
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: {
+        ...USER_PUBLIC_FIELDS,
+        passwordHash: true,
+        deletedAt: true,
+        restoreOtp: true,
+        restoreOtpExp: true,
+      },
+    });
+
+    // Generic error — never reveal exact reason to prevent user enumeration
+    const invalid = () => next(new AppError('Code de restauration invalide ou expiré.', 400, 'INVALID_OTP'));
+
+    if (!user || !user.deletedAt) return invalid();
+    if (!user.restoreOtp || !user.restoreOtpExp) return invalid();
+    if (new Date() > new Date(user.restoreOtpExp)) return invalid();
+
+    const otpMatch = await bcrypt.compare(String(otp).trim(), user.restoreOtp);
+    if (!otpMatch) return invalid();
+
+    // Restore the account and clear OTP fields atomically
+    const restoredUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        deletedAt: null,
+        restoreOtp: null,
+        restoreOtpExp: null,
+        lastLogin: new Date(),
+      },
+      select: { ...USER_PUBLIC_FIELDS, passwordHash: true, deletedAt: true },
+    });
+
+    // Log audit event (best-effort)
+    logAuditEvent(user.id, 'SELF_RESTORE_USER', 'User', user.id, { email: user.email }).catch(() => {});
+
+    sendTokenResponse(restoredUser, 200, res);
+  } catch (error) {
+    next(error);
+  }
+};
+

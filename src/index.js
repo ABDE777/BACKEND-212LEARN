@@ -28,10 +28,21 @@ import adminRoutes     from './routes/admin.routes.js';
 import cartRoutes      from './routes/cart.routes.js';
 import wishlistRoutes  from './routes/wishlist.routes.js';
 import couponRoutes    from './routes/coupon.routes.js';
+import meetingRoutes   from './routes/meeting.routes.js';
+import statsRoutes     from './routes/stats.routes.js';
 import { xssSanitizer, preventParameterPollution, rateLimiter } from './middleware/security.js';
 import { requestId, accessLogger } from './middleware/requestId.js';
+import { validateJwtSecret } from './config/jwt.js';
 
 dotenv.config();
+
+// ── Security validations on startup ─────────────────────────────────────────────
+try {
+  validateJwtSecret();
+} catch (error) {
+  console.error('FATAL: Security validation failed:', error.message);
+  process.exit(1);
+}
 
 const app  = express();
 const PORT = process.env.PORT || 5000;
@@ -74,6 +85,9 @@ app.use(
 
 app.use(express.json({ limit: '1mb' }));
 app.use(process.env.NODE_ENV === 'development' ? morgan('dev') : morgan('combined'));
+
+// ── Public Routes (no auth required) ───────────────────────────────────────────
+app.use(`${V1}/stats`, statsRoutes);
 
 // ── Security Hardening Middlewares ───────────────────────────────────────────
 app.use(preventParameterPollution); // Protect against HTTP Parameter Pollution
@@ -134,22 +148,12 @@ app.get('/health', async (req, res) => {
   }));
 });
 
-// ── Diagnostics (DB connectivity) — disabled in production ───────────────────
-app.get(`${V1}/diagnostics`, async (req, res, next) => {
-  if (process.env.NODE_ENV === 'production') {
-    return next(new AppError('Diagnostics disabled in production.', 404, 'NOT_FOUND'));
-  }
-  try {
-    const [userCount, courseCount, enrollmentCount] = await Promise.all([
-      prisma.user.count(),
-      prisma.course.count(),
-      prisma.enrollment.count(),
-    ]);
-    res.status(200).json(successResponse({ databaseConnected: true, userCount, courseCount, enrollmentCount }));
-  } catch (error) {
-    next(error);
-  }
-});
+// ── Diagnostics (System & DB Health) ───────────────────────────────────────────
+import { getDiagnostics } from './controllers/diagnostics.controller.js';
+import { protect, restrictTo } from './middleware/auth.js';
+
+app.get(`${V1}/diagnostics`, protect, restrictTo('admin'), getDiagnostics);
+app.get(`${V1}/admin/diagnostics`, protect, restrictTo('admin'), getDiagnostics);
 
 // ── API v1 Routes ─────────────────────────────────────────────────────────────
 app.use(`${V1}/auth`,        authRoutes);
@@ -169,6 +173,7 @@ app.use(`${V1}`,             progressRoutes); // /courses/:id/quizzes, /lessons/
 app.use(`${V1}`,             quizRoutes);     // /lessons/:id/quizzes, /quizzes/:id, /quizzes/:id/attempts
 app.use(`${V1}`,             reviewRoutes);   // /courses/:id/reviews, /users/:id/notifications
 app.use(`${V1}`,             analyticsRoutes); // /instructor/analytics/*, /courses/:id/meetings
+app.use(`${V1}`,             meetingRoutes);   // /courses/:id/meetings, /meetings/*
 app.use(`${V1}`,             adminRoutes);     // /admin/*
 
 // ── 404 ───────────────────────────────────────────────────────────────────────

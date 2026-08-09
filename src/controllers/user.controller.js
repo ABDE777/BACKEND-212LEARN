@@ -7,20 +7,27 @@ import { validateUUID } from '../utils/validation.js';
 const USER_SELECT = {
   id: true, firstName: true, lastName: true, email: true,
   role: true, isVerified: true, avatar: true, bio: true,
-  createdAt: true, lastLogin: true,
+  createdAt: true, lastLogin: true, deletedAt: true,
 };
 
 const SORTABLE_FIELDS = ['createdAt', 'firstName', 'lastName', 'email', 'role'];
 
-// GET /api/v1/users?page=1&limit=20&role=admin&sort=createdAt&order=desc
+// GET /api/v1/users?page=1&limit=20&role=admin&sort=createdAt&order=desc&deleted=true
 export const getAllUsers = async (req, res, next) => {
   try {
     const { page, limit, skip } = parsePagination(req.query);
     const orderBy = parseSort(req.query, SORTABLE_FIELDS);
-    const { role, search } = req.query;
+    const { role, search, deleted, includeDeleted } = req.query;
+
+    let deletedAtFilter = { deletedAt: null };
+    if (deleted === 'true' || deleted === true || deleted === 'only') {
+      deletedAtFilter = { deletedAt: { not: null } };
+    } else if (includeDeleted === 'true' || includeDeleted === true) {
+      deletedAtFilter = {};
+    }
 
     const where = {
-      deletedAt: null,
+      ...deletedAtFilter,
       ...(role && { role }),
       ...(search && {
         OR: [

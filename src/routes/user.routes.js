@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getAllUsers, getUser, updateMe, deleteMe, uploadAvatar } from '../controllers/user.controller.js';
 import { changePassword } from '../controllers/auth.controller.js';
+import { restoreUser } from '../controllers/admin.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
 import { upload } from '../config/cloudinary.js';
 
@@ -199,5 +200,30 @@ router.get('/', restrictTo('admin'), getAllUsers);
  *         description: Forbidden
  */
 router.get('/:id', restrictTo('admin'), getUser);
+
+/**
+ * @swagger
+ * /users/{id}/restore:
+ *   patch:
+ *     summary: Restore a soft-deleted user account (admin only)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: User account restored successfully
+ *       400:
+ *         description: User is not deleted
+ *       404:
+ *         description: User not found
+ *       403:
+ *         description: Forbidden — admin only
+ */
+router.patch('/:id/restore', restrictTo('admin'), restoreUser);
 
 export default router;

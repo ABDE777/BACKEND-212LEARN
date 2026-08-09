@@ -85,10 +85,17 @@ export const getAllCourses = async (req, res, next) => {
     }
 
     // Resolve course visibility status:
-    // Only course instructors or admins can see 'draft' / non-published statuses.
-    let targetStatus = 'published';
+    // Admins can see all statuses (published, draft, archived) by default or filter explicitly.
+    // Guests and non-admin users default to seeing only 'published' courses.
+    let targetStatus;
     if (status) {
-      if (status !== 'published') {
+      if (status === 'all') {
+        if (currentUser && currentUser.role === 'admin') {
+          targetStatus = null; // No status filter for admin -> returns published, draft, archived
+        } else {
+          targetStatus = 'published';
+        }
+      } else if (status !== 'published') {
         const isAuthorized =
           currentUser &&
           (currentUser.role === 'admin' ||
@@ -105,6 +112,13 @@ export const getAllCourses = async (req, res, next) => {
           );
         }
         targetStatus = status;
+      } else {
+        targetStatus = 'published';
+      }
+    } else {
+      // If no status query parameter is explicitly provided:
+      if (currentUser && currentUser.role === 'admin') {
+        targetStatus = null; // Return all non-deleted courses for admin
       } else {
         targetStatus = 'published';
       }
@@ -246,6 +260,7 @@ export const createCourse = async (req, res, next) => {
       language,
       duration,
       status,
+      thumbnail,
       instructorId,
     } = req.body;
 
@@ -294,6 +309,7 @@ export const createCourse = async (req, res, next) => {
         language,
         duration,
         status: status || 'draft',
+        thumbnail: thumbnail || null,
         instructors: {
           create: { userId: targetInstructorId, role: 'lead_instructor' },
         },
@@ -319,6 +335,7 @@ export const updateCourse = async (req, res, next) => {
       language,
       duration,
       status,
+      thumbnail,
       categoryId,
       instructorId,
     } = req.body;
@@ -349,6 +366,7 @@ export const updateCourse = async (req, res, next) => {
       ...(language && { language }),
       ...(duration !== undefined && { duration }),
       ...(status && { status }),
+      ...(thumbnail !== undefined && { thumbnail }),
       ...(categoryId && { categoryId }),
     };
 

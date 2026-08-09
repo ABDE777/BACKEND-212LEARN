@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { register, login, getMe, forgotPassword, resetPassword } from '../controllers/auth.controller.js';
+import { register, login, getMe, forgotPassword, resetPassword, restoreAccountWithOtp } from '../controllers/auth.controller.js';
 import { protect } from '../middleware/auth.js';
 import { rateLimiter } from '../middleware/security.js';
 
@@ -161,6 +161,42 @@ router.post('/forgot-password', authRateLimit, forgotPassword);
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post('/reset-password/:token', authRateLimit, resetPassword);
+
+/**
+ * @swagger
+ * /auth/restore-account:
+ *   post:
+ *     summary: Restore a soft-deleted account using an OTP received by email
+ *     description: |
+ *       After a deleted-account login attempt, a 6-digit OTP is emailed to the user.
+ *       Submit `email` + `otp` here to restore the account and receive a login token.
+ *       OTP is valid for **15 minutes** and single-use.
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, otp]
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               otp:
+ *                 type: string
+ *                 example: "483920"
+ *     responses:
+ *       200:
+ *         description: Account restored — returns JWT token + user object
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AuthResponse'
+ *       400:
+ *         description: Invalid or expired OTP
+ */
+router.post('/restore-account', authRateLimit, restoreAccountWithOtp);
 
 export default router;
 

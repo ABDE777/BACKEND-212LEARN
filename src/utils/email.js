@@ -89,3 +89,40 @@ export const sendPasswordResetEmail = async (to, firstName, resetLink) => {
 
   return sendEmail({ to, subject, text, html });
 };
+
+/**
+ * Pre-built: Account Restore OTP Email
+ * @param {string} to           - Recipient email address
+ * @param {string} firstName    - Recipient's first name
+ * @param {string} otp          - 6-digit OTP code
+ */
+export const sendAccountRestoreOtpEmail = async (to, firstName, otp) => {
+  const subject = '🔓 Restauration de votre compte — 212Learn';
+
+  const text = `Bonjour ${firstName},\n\nNous avons détecté une tentative de connexion sur un compte désactivé.\n\nVotre code de restauration (valable 15 minutes) :\n\n  ${otp}\n\nEntrez ce code sur la page de connexion pour restaurer votre compte.\n\nSi vous n'avez pas fait cette demande, ignorez cet email.\n\n— L'équipe 212Learn`;
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #1a1a2e;">Restauration de votre compte</h2>
+      <p>Bonjour <strong>${firstName}</strong>,</p>
+      <p>Nous avons détecté une tentative de connexion sur votre compte désactivé.</p>
+      <p>Utilisez le code ci-dessous pour restaurer votre compte. Ce code est <strong>valable 15 minutes</strong> :</p>
+      <div style="text-align:center;margin:28px 0;">
+        <span style="display:inline-block;padding:18px 36px;background:#6c63ff;color:#fff;
+                     font-size:32px;font-weight:bold;letter-spacing:10px;border-radius:10px;">
+          ${otp}
+        </span>
+      </div>
+      <p style="color:#444;">Entrez ce code sur la page de connexion pour restaurer votre compte.</p>
+      <hr style="border:none;border-top:1px solid #eee;margin:24px 0;">
+      <p style="color:#666;font-size:13px;">
+        Si vous n'avez pas fait cette demande, ignorez simplement cet email.<br>
+        Ce code expirera dans 15 minutes.
+      </p>
+      <p style="color:#999;font-size:12px;">© 212Learn — Plateforme d'apprentissage en ligne</p>
+    </div>
+  `;
+
+  return sendEmail({ to, subject, text, html });
+};
+

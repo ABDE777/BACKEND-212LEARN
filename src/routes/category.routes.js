@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getCategories, createCategory } from '../controllers/category.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
+import { cacheMiddleware, clearCachePattern } from '../middleware/cache.js';
 
 const router = Router();
 

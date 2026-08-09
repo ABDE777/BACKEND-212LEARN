@@ -22,6 +22,8 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
+  restoreOtp      String?   @db.VarChar(255)
+  restoreOtpExp   DateTime?
 
   // Relations
   coursesInstructed CourseInstructor[]
@@ -74,6 +76,7 @@ model Course {
   language    String?   @db.VarChar(50)
   duration    Int?
   status      String    @db.VarChar(50)
+  thumbnail   String?   @db.VarChar(500)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
@@ -415,15 +418,20 @@ model Certificate {
 // ─── Module 8: Sessions Live (Meeting) ───────────────────────────────────────
 
 model Meeting {
-  id          String   @id @default(uuid()) @db.Uuid
-  courseId    String   @db.Uuid
-  title       String   @db.VarChar(255)
-  meetingUrl  String   @db.VarChar(500)
-  meetingDate DateTime
+  id             String   @id @default(uuid()) @db.Uuid
+  courseId       String   @db.Uuid
+  title          String   @db.VarChar(255)
+  meetingUrl     String   @db.VarChar(500)
+  meetingDate    DateTime
+  roomName       String?  @db.VarChar(255)
+  status         String   @default("SCHEDULED") @db.VarChar(50) // 'SCHEDULED', 'LIVE', 'COMPLETED'
+  durationMinutes Int?
+  recordingUrl   String?  @db.VarChar(500)
 
   // Relations
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
+  @@index([status])
   @@map("meetings")
 }
 

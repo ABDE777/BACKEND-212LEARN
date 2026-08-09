@@ -15,6 +15,8 @@ import {
   updateUser,
   deleteUser,
   resetUserPassword,
+  restoreUser,
+  getAdminStats,
 } from '../controllers/admin.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
 
@@ -447,6 +449,9 @@ router.post('/admin/groups/:groupId/students', addStudentsToGroup);
 router.delete('/admin/groups/:groupId/students/:studentId', removeStudentFromGroup);
 router.get('/admin/audit-logs', getAuditLogs);
 
+// ── Platform statistics ──────────────────────────────────────────────────────
+router.get('/admin/stats', getAdminStats);
+
 /**
  * @swagger
  * /admin/users/{userId}/reset-password:
@@ -485,5 +490,34 @@ router.get('/admin/audit-logs', getAuditLogs);
  */
 router.post('/admin/users/:userId/reset-password', resetUserPassword);
 router.patch('/admin/users/:userId/reset-password', resetUserPassword);
+
+/**
+ * @swagger
+ * /admin/users/{userId}/restore:
+ *   patch:
+ *     summary: Restore a soft-deleted user account (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: User account restored successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessResponse'
+ *       400:
+ *         description: User is not deleted
+ *       404:
+ *         description: User not found
+ *       403:
+ *         description: Forbidden — admin only
+ */
+router.patch('/admin/users/:userId/restore', restoreUser);
 
 export default router;

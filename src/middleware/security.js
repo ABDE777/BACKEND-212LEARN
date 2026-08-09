@@ -1,4 +1,9 @@
 import { AppError } from './error.js';
+import createDOMPurify from 'dompurify';
+import { JSDOM } from 'jsdom';
+
+const window = new JSDOM('').window;
+const DOMPurify = createDOMPurify(window);
 
 // ─── Rate limit store (memory + optional Upstash Redis REST) ─────────────────
 const rateLimitCache = new Map();
@@ -96,6 +101,20 @@ export const rateLimiter = (
       if (process.env.NODE_ENV === 'test') return next();
       if (process.env.NODE_ENV === 'development' && !enforceInDev) return next();
 
+      // In production, require Upstash Redis for distributed rate limiting
+      if (process.env.NODE_ENV === 'production') {
+        const base = process.env.UPSTASH_REDIS_REST_URL;
+        const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+        if (!base || !token) {
+          console.error('[rateLimit] FATAL: Upstash Redis credentials missing in production');
+          return next(new AppError(
+            'Server configuration error: Rate limiting infrastructure not available',
+            500,
+            'SERVER_CONFIGURATION_ERROR'
+          ));
+        }
+      }
+
       const key = clientKey(req, prefix);
       let count = await upstashIncr(key, windowMs);
       if (count === null) {
@@ -121,10 +140,7 @@ export const rateLimiter = (
 // ─── 2. Input XSS Sanitizer ────────────────────────────────────────────────
 const sanitizeValue = (value) => {
   if (typeof value === 'string') {
-    let cleaned = value.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-    cleaned = cleaned.replace(/<[^>]*>/g, '');
-    cleaned = cleaned.replace(/(javascript|data|vbscript):/gi, '[removed]:');
-    return cleaned.trim();
+    return DOMPurify.sanitize(value, { ALLOWED_TAGS: [] }).trim();
   }
   if (Array.isArray(value)) {
     return value.map(sanitizeValue);

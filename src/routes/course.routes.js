@@ -10,6 +10,7 @@ import {
   getCourseStudents,
 } from '../controllers/course.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
+import { cacheMiddleware, clearCachePattern } from '../middleware/cache.js';
 
 const router = Router();
 
@@ -41,7 +42,7 @@ const router = Router();
  *       400:
  *         description: Query too short
  */
-router.get('/search', searchCourses);
+router.get('/search', cacheMiddleware(30), searchCourses);
 
 /**
  * @swagger
