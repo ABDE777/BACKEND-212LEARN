@@ -35,7 +35,6 @@ export const getMyCourses = async (req, res, next) => {
               transactionReference: true,
               mtcn: true,
               receiptUrl: true,
-              submittedAt: true,
               paidAt: true,
               notes: true,
             },

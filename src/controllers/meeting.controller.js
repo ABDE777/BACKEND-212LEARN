@@ -149,6 +149,44 @@ export const endMeeting = async (req, res, next) => {
   }
 };
 
+// PATCH /api/v1/meetings/:id - Update meeting (instructor/admin) - only for SCHEDULED meetings
+export const updateMeeting = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { title, meetingDate, meetingUrl } = req.body;
+    validateUUID(id, 'meetingId');
+
+    const meeting = await prisma.meeting.findUnique({
+      where: { id },
+      include: { course: true },
+    });
+
+    if (!meeting) {
+      return next(new AppError('Meeting not found.', 404, 'NOT_FOUND'));
+    }
+
+    await ensureCourseManager(req.user, meeting.courseId);
+
+    if (meeting.status !== 'SCHEDULED') {
+      return next(new AppError('Only SCHEDULED meetings can be modified.', 400, 'BAD_REQUEST'));
+    }
+
+    const updateData = {};
+    if (title) updateData.title = title;
+    if (meetingDate) updateData.meetingDate = new Date(meetingDate);
+    if (meetingUrl !== undefined) updateData.meetingUrl = meetingUrl;
+
+    const updated = await prisma.meeting.update({
+      where: { id },
+      data: updateData,
+    });
+
+    res.status(200).json(successResponse({ meeting: updated }));
+  } catch (error) {
+    next(error);
+  }
+};
+
 // POST /api/v1/meetings/webhook - Webhook for recording completion
 export const meetingWebhook = async (req, res, next) => {
   try {

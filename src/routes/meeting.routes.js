@@ -4,6 +4,7 @@ import {
   getCourseMeetings,
   startMeeting,
   endMeeting,
+  updateMeeting,
   meetingWebhook,
 } from '../controllers/meeting.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
@@ -20,6 +21,9 @@ router.post(
 
 // GET /api/v1/courses/:courseId/meetings - Get meetings
 router.get('/courses/:courseId/meetings', protect, getCourseMeetings);
+
+// PATCH /api/v1/meetings/:id - Update meeting (instructor/admin) - only for SCHEDULED meetings
+router.patch('/meetings/:id', protect, restrictTo('instructor', 'admin'), updateMeeting);
 
 // PATCH /api/v1/meetings/:id/start - Start meeting (instructor/admin)
 router.patch('/meetings/:id/start', protect, restrictTo('instructor', 'admin'), startMeeting);
