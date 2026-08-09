@@ -1,6 +1,10 @@
 import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
-import { successResponse, paginationMeta, parsePagination } from '../utils/response.js';
+import {
+  successResponse,
+  paginationMeta,
+  parsePagination,
+} from '../utils/response.js';
 import { validateUUID, validateRequired } from '../utils/validation.js';
 
 // GET /api/v1/enrollments?page=1&limit=20
@@ -21,6 +25,21 @@ export const getMyCourses = async (req, res, next) => {
               _count: { select: { sections: true, reviews: true } },
             },
           },
+          payment: {
+            select: {
+              id: true,
+              status: true,
+              amount: true,
+              currency: true,
+              provider: true,
+              transactionReference: true,
+              mtcn: true,
+              receiptUrl: true,
+              submittedAt: true,
+              paidAt: true,
+              notes: true,
+            },
+          },
         },
         orderBy: { enrolledAt: 'desc' },
         ...(skip !== undefined && { skip }),
@@ -28,7 +47,11 @@ export const getMyCourses = async (req, res, next) => {
       }),
     ]);
 
-    res.status(200).json(successResponse({ enrollments }, paginationMeta(total, page, limit)));
+    res
+      .status(200)
+      .json(
+        successResponse({ enrollments }, paginationMeta(total, page, limit))
+      );
   } catch (error) {
     next(error);
   }
@@ -49,7 +72,13 @@ export const enrollInCourse = async (req, res, next) => {
     });
 
     if (!course || course.deletedAt || course.status !== 'published') {
-      return next(new AppError('Course not found or not available for enrollment.', 404, 'NOT_FOUND'));
+      return next(
+        new AppError(
+          'Course not found or not available for enrollment.',
+          404,
+          'NOT_FOUND'
+        )
+      );
     }
 
     // Idempotency: return existing enrollment instead of throwing
@@ -59,7 +88,13 @@ export const enrollInCourse = async (req, res, next) => {
     });
 
     if (existing) {
-      return next(new AppError('Already enrolled in this course.', 409, 'ALREADY_ENROLLED'));
+      return next(
+        new AppError(
+          'Already enrolled in this course.',
+          409,
+          'ALREADY_ENROLLED'
+        )
+      );
     }
 
     const enrollment = await prisma.enrollment.create({
@@ -87,7 +122,13 @@ export const unenroll = async (req, res, next) => {
     }
 
     if (enrollment.userId !== req.user.id) {
-      return next(new AppError('You are not authorized to cancel this enrollment.', 403, 'FORBIDDEN'));
+      return next(
+        new AppError(
+          'You are not authorized to cancel this enrollment.',
+          403,
+          'FORBIDDEN'
+        )
+      );
     }
 
     await prisma.enrollment.delete({ where: { id: req.params.id } });
