@@ -187,6 +187,37 @@ export const updateMeeting = async (req, res, next) => {
   }
 };
 
+// DELETE /api/v1/meetings/:id - Delete meeting (instructor/admin) - only for SCHEDULED meetings
+export const deleteMeeting = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    validateUUID(id, 'meetingId');
+
+    const meeting = await prisma.meeting.findUnique({
+      where: { id },
+      include: { course: true },
+    });
+
+    if (!meeting) {
+      return next(new AppError('Meeting not found.', 404, 'NOT_FOUND'));
+    }
+
+    await ensureCourseManager(req.user, meeting.courseId);
+
+    if (meeting.status !== 'SCHEDULED') {
+      return next(new AppError('Only SCHEDULED meetings can be deleted.', 400, 'BAD_REQUEST'));
+    }
+
+    await prisma.meeting.delete({
+      where: { id },
+    });
+
+    res.status(204).json(successResponse({ message: 'Meeting deleted successfully' }));
+  } catch (error) {
+    next(error);
+  }
+};
+
 // POST /api/v1/meetings/webhook - Webhook for recording completion
 export const meetingWebhook = async (req, res, next) => {
   try {
