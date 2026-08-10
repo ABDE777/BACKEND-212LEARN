@@ -1,8 +1,5 @@
 import { AppError } from './error.js';
-import createDOMPurify from 'dompurify';
-
-// Initialize DOMPurify in server mode (no window needed for text-only sanitization)
-const DOMPurify = createDOMPurify();
+import DOMPurify from 'isomorphic-dompurify';
 
 // ─── Rate limit store (memory + optional Upstash Redis REST) ─────────────────
 const rateLimitCache = new Map();
