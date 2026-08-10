@@ -1,5 +1,29 @@
 import { AppError } from './error.js';
-import DOMPurify from 'isomorphic-dompurify';
+import DOMPurify from 'dompurify';
+
+// Server-side DOMPurify configuration (no window needed for text sanitization)
+const sanitizeValue = (value) => {
+  if (typeof value === 'string') {
+    // Simple server-side sanitization without DOM
+    return value
+      .replace(/[<>]/g, '') // Remove < and >
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;')
+      .trim();
+  }
+  if (Array.isArray(value)) {
+    return value.map(sanitizeValue);
+  }
+  if (value !== null && typeof value === 'object') {
+    const newObj = {};
+    for (const key of Object.keys(value)) {
+      newObj[key] = sanitizeValue(value[key]);
+    }
+    return newObj;
+  }
+  return value;
+};
 
 // ─── Rate limit store (memory + optional Upstash Redis REST) ─────────────────
 const rateLimitCache = new Map();
@@ -134,23 +158,6 @@ export const rateLimiter = (
 };
 
 // ─── 2. Input XSS Sanitizer ────────────────────────────────────────────────
-const sanitizeValue = (value) => {
-  if (typeof value === 'string') {
-    return DOMPurify.sanitize(value, { ALLOWED_TAGS: [] }).trim();
-  }
-  if (Array.isArray(value)) {
-    return value.map(sanitizeValue);
-  }
-  if (value !== null && typeof value === 'object') {
-    const newObj = {};
-    for (const key of Object.keys(value)) {
-      newObj[key] = sanitizeValue(value[key]);
-    }
-    return newObj;
-  }
-  return value;
-};
-
 export const xssSanitizer = (req, res, next) => {
   if (req.body)  req.body  = sanitizeValue(req.body);
   if (req.query) req.query = sanitizeValue(req.query);
