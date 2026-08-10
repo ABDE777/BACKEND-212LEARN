@@ -33,6 +33,7 @@ import statsRoutes     from './routes/stats.routes.js';
 import { xssSanitizer, preventParameterPollution, rateLimiter } from './middleware/security.js';
 import { requestId, accessLogger } from './middleware/requestId.js';
 import { validateJwtSecret } from './config/jwt.js';
+import { startCleanupService } from './services/cleanup.service.js';
 
 dotenv.config();
 
@@ -193,6 +194,9 @@ if (!isVercel) {
     console.log(`📚 [docs]    http://localhost:${PORT}/api-docs`);
     console.log(`📋 [v1]      ${V1}/auth | ${V1}/users | ${V1}/courses | ${V1}/enrollments | ${V1}/categories`);
     console.log(`📋 [v1]      ${V1}/(courses|sections|lessons) | ${V1}/(lessons|resources) | ${V1}/(lessons|assignments|submissions)`);
+    
+    // Start cleanup service for scheduled tasks
+    startCleanupService();
   });
 }
 

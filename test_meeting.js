@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:5000/api/v1';
+const API_BASE = 'https://backend-212learn.vercel.app/api/v1';
 
 async function testLogin() {
   const response = await fetch(`${API_BASE}/auth/login`, {
