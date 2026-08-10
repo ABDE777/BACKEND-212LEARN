@@ -1,16 +1,13 @@
+import { describe, it, beforeEach, afterEach } from 'node:test';
+import assert from 'node:assert/strict';
 import { getJaasConfig, signJaasJwt } from './jaas.js';
 
 // Mock environment variables
-const originalEnv = process.env;
+const originalEnv = { ...process.env };
 
 describe('JaaS Configuration', () => {
-  beforeEach(() => {
-    jest.resetModules();
-    process.env = { ...originalEnv };
-  });
-
   afterEach(() => {
-    process.env = originalEnv;
+    process.env = { ...originalEnv };
   });
 
   describe('getJaasConfig', () => {
@@ -22,7 +19,7 @@ describe('JaaS Configuration', () => {
 
       const config = getJaasConfig();
 
-      expect(config).toEqual({
+      assert.deepEqual(config, {
         appId: 'test-app-id',
         apiKeyId: 'test-api-key-id',
         privateKey: '-----BEGIN PRIVATE KEY-----\ntest-key\n-----END PRIVATE KEY-----',
@@ -38,7 +35,7 @@ describe('JaaS Configuration', () => {
 
       const config = getJaasConfig();
 
-      expect(config.domain).toBe('8x8.vc');
+      assert.equal(config.domain, '8x8.vc');
     });
 
     it('should throw error when JAAS_APP_ID is missing', () => {
@@ -46,7 +43,7 @@ describe('JaaS Configuration', () => {
       process.env.JAAS_PRIVATE_KEY = '-----BEGIN PRIVATE KEY-----\ntest-key\n-----END PRIVATE KEY-----';
       delete process.env.JAAS_APP_ID;
 
-      expect(() => getJaasConfig()).toThrow('JAAS_APP_ID is required');
+      assert.throws(() => getJaasConfig(), /JAAS_APP_ID is required/);
     });
 
     it('should throw error when JAAS_API_KEY_ID is missing', () => {
@@ -54,7 +51,7 @@ describe('JaaS Configuration', () => {
       process.env.JAAS_PRIVATE_KEY = '-----BEGIN PRIVATE KEY-----\ntest-key\n-----END PRIVATE KEY-----';
       delete process.env.JAAS_API_KEY_ID;
 
-      expect(() => getJaasConfig()).toThrow('JAAS_API_KEY_ID is required');
+      assert.throws(() => getJaasConfig(), /JAAS_API_KEY_ID is required/);
     });
 
     it('should throw error when JAAS_PRIVATE_KEY is missing', () => {
@@ -62,7 +59,7 @@ describe('JaaS Configuration', () => {
       process.env.JAAS_API_KEY_ID = 'test-api-key-id';
       delete process.env.JAAS_PRIVATE_KEY;
 
-      expect(() => getJaasConfig()).toThrow('JAAS_PRIVATE_KEY is required');
+      assert.throws(() => getJaasConfig(), /JAAS_PRIVATE_KEY is required/);
     });
   });
 
@@ -92,9 +89,9 @@ HyN9/O+HlIUMb2PYiC82u+v50PTa0ylXT9ZRUENnbeBPauoYwrkMJ8flNAoqpC/J
 
       const token = signJaasJwt({ user, roomSlug, moderator, ttlMinutes });
 
-      expect(token).toBeDefined();
-      expect(typeof token).toBe('string');
-      expect(token.split('.')).toHaveLength(3); // JWT has 3 parts
+      assert.ok(token);
+      assert.equal(typeof token, 'string');
+      assert.equal(token.split('.').length, 3); // JWT has 3 parts
     });
 
     it('should include correct claims in the token', () => {
@@ -112,14 +109,14 @@ HyN9/O+HlIUMb2PYiC82u+v50PTa0ylXT9ZRUENnbeBPauoYwrkMJ8flNAoqpC/J
       // Decode the token (without verification for testing purposes)
       const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
 
-      expect(payload.iss).toBe('chat');
-      expect(payload.aud).toBe('jitsi');
-      expect(payload.sub).toBe('test-app-id');
-      expect(payload.room).toBe(roomSlug);
-      expect(payload.context.user.id).toBe(user.id);
-      expect(payload.context.user.name).toBe(user.name);
-      expect(payload.context.user.email).toBe(user.email);
-      expect(payload.context.user.moderator).toBe(moderator);
+      assert.equal(payload.iss, 'chat');
+      assert.equal(payload.aud, 'jitsi');
+      assert.equal(payload.sub, 'test-app-id');
+      assert.equal(payload.room, roomSlug);
+      assert.equal(payload.context.user.id, user.id);
+      assert.equal(payload.context.user.name, user.name);
+      assert.equal(payload.context.user.email, user.email);
+      assert.equal(payload.context.user.moderator, moderator);
     });
 
     it('should set correct moderator features', () => {
@@ -131,10 +128,10 @@ HyN9/O+HlIUMb2PYiC82u+v50PTa0ylXT9ZRUENnbeBPauoYwrkMJ8flNAoqpC/J
       const token = signJaasJwt({ user, roomSlug, moderator, ttlMinutes });
       const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
 
-      expect(payload.context.features.livestreaming).toBe(true);
-      expect(payload.context.features.recording).toBe(true);
-      expect(payload.context.features.transcription).toBe(true);
-      expect(payload.context.features['file-upload']).toBe(true);
+      assert.equal(payload.context.features.livestreaming, true);
+      assert.equal(payload.context.features.recording, true);
+      assert.equal(payload.context.features.transcription, true);
+      assert.equal(payload.context.features['file-upload'], true);
     });
 
     it('should set correct participant features', () => {
@@ -146,10 +143,10 @@ HyN9/O+HlIUMb2PYiC82u+v50PTa0ylXT9ZRUENnbeBPauoYwrkMJ8flNAoqpC/J
       const token = signJaasJwt({ user, roomSlug, moderator, ttlMinutes });
       const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
 
-      expect(payload.context.features.livestreaming).toBe(false);
-      expect(payload.context.features.recording).toBe(false);
-      expect(payload.context.features.transcription).toBe(false);
-      expect(payload.context.features['file-upload']).toBe(false);
+      assert.equal(payload.context.features.livestreaming, false);
+      assert.equal(payload.context.features.recording, false);
+      assert.equal(payload.context.features.transcription, false);
+      assert.equal(payload.context.features['file-upload'], false);
     });
 
     it('should set correct expiration time', () => {
@@ -162,9 +159,9 @@ HyN9/O+HlIUMb2PYiC82u+v50PTa0ylXT9ZRUENnbeBPauoYwrkMJ8flNAoqpC/J
       const token = signJaasJwt({ user, roomSlug, moderator, ttlMinutes });
       const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
 
-      expect(payload.exp).toBeGreaterThan(now);
-      expect(payload.exp).toBeLessThanOrEqual(now + ttlMinutes * 60 + 5); // Allow 5 second buffer
-      expect(payload.nbf).toBeLessThanOrEqual(now);
+      assert.ok(payload.exp > now);
+      assert.ok(payload.exp <= now + ttlMinutes * 60 + 5); // Allow 5 second buffer
+      assert.ok(payload.nbf <= now);
     });
 
     it('should handle missing user fields gracefully', () => {
@@ -176,10 +173,10 @@ HyN9/O+HlIUMb2PYiC82u+v50PTa0ylXT9ZRUENnbeBPauoYwrkMJ8flNAoqpC/J
       const token = signJaasJwt({ user, roomSlug, moderator, ttlMinutes });
       const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
 
-      expect(payload.context.user.id).toBe('user-123');
-      expect(payload.context.user.name).toBe('Participant');
-      expect(payload.context.user.email).toBe('');
-      expect(payload.context.user.avatar).toBe('');
+      assert.equal(payload.context.user.id, 'user-123');
+      assert.equal(payload.context.user.name, 'Participant');
+      assert.equal(payload.context.user.email, '');
+      assert.equal(payload.context.user.avatar, '');
     });
   });
 });

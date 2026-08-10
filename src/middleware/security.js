@@ -1,9 +1,9 @@
 import { AppError } from './error.js';
 import createDOMPurify from 'dompurify';
-import { JSDOM } from 'jsdom';
 
-const window = new JSDOM('').window;
-const DOMPurify = createDOMPurify(window);
+// Initialize DOMPurify in server mode (no window needed for text-only sanitization)
+const DOMPurify = createDOMPurify();
+DOMPurify.setConfig({ ALLOWED_TAGS: [] });
 
 // ─── Rate limit store (memory + optional Upstash Redis REST) ─────────────────
 const rateLimitCache = new Map();
