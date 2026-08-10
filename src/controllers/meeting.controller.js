@@ -3,6 +3,36 @@ import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { validateUUID, validateRequired, validateEnum } from '../utils/validation.js';
 import { ensureCourseManager } from '../utils/authorization.js';
+import { getJaasConfig, signJaasJwt } from '../config/jaas.js';
+import crypto from 'crypto';
+
+// ─── Webhook Signature Verification ─────────────────────────────────────────────
+/**
+ * Verify JaaS webhook signature to prevent unauthorized requests.
+ * Uses HMAC-SHA256 with a shared secret key.
+ */
+const verifyJaasWebhook = (req) => {
+  const secret = process.env.JAAS_WEBHOOK_SECRET;
+  const signature = req.headers['x-jaas-signature'] || req.headers['x-webhook-signature'];
+  
+  if (!secret) {
+    // Not configured yet - log a warning instead of hard-failing
+    console.warn('JAAS_WEBHOOK_SECRET not configured, skipping webhook signature verification');
+    return true;
+  }
+  
+  if (!signature) {
+    return false;
+  }
+  
+  const expected = crypto.createHmac('sha256', secret).update(JSON.stringify(req.body)).digest('hex');
+  
+  try {
+    return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+  } catch {
+    return false;
+  }
+};
 
 // POST /api/v1/courses/:courseId/meetings - Create meeting (instructor/admin)
 export const createMeeting = async (req, res, next) => {
@@ -15,18 +45,19 @@ export const createMeeting = async (req, res, next) => {
 
     await ensureCourseManager(req.user, courseId);
 
-    // Generate unique room name
-    const roomName = `212learn-${courseId}-${Date.now()}`;
+    // Generate unique room slug (without AppID prefix)
+    const roomSlug = `212learn-${courseId}-${Date.now()}`;
+    const { appId, domain } = getJaasConfig();
 
     const meeting = await prisma.meeting.create({
       data: {
         courseId,
         title,
         meetingDate: new Date(meetingDate),
-        roomName,
+        roomName: roomSlug,
         status: 'SCHEDULED',
         durationMinutes: durationMinutes || 60,
-        meetingUrl: `https://meet.jit.si/${roomName}`,
+        meetingUrl: `https://${domain}/${appId}/${roomSlug}`,
       },
     });
 
@@ -74,12 +105,31 @@ export const getCourseMeetings = async (req, res, next) => {
       orderBy: { meetingDate: 'desc' },
     });
 
-    // For students, only show completed meetings with recordingUrl
-    const filteredMeetings = isInstructorOrAdmin || isInstructor
-      ? meetings
-      : meetings.filter((m) => m.status === 'COMPLETED' && m.recordingUrl);
+    // For students, show all meetings (SCHEDULED, LIVE, COMPLETED) so they can see upcoming sessions
+    const filteredMeetings = meetings;
 
     res.status(200).json(successResponse({ meetings: filteredMeetings }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /api/v1/admin/meetings - Get all meetings (admin only)
+export const getAllMeetings = async (req, res, next) => {
+  try {
+    const meetings = await prisma.meeting.findMany({
+      include: {
+        course: {
+          select: {
+            id: true,
+            title: true,
+          },
+        },
+      },
+      orderBy: { meetingDate: 'desc' },
+    });
+
+    res.status(200).json(successResponse({ meetings }));
   } catch (error) {
     next(error);
   }
@@ -212,19 +262,74 @@ export const deleteMeeting = async (req, res, next) => {
       where: { id },
     });
 
-    res.status(204).json(successResponse({ message: 'Meeting deleted successfully' }));
+    res.status(204).send();
   } catch (error) {
     next(error);
   }
 };
 
-// POST /api/v1/meetings/webhook - Webhook for recording completion
+// GET /api/v1/meetings/:id/join - Generate JaaS JWT for meeting access
+export const getMeetingJoinInfo = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    validateUUID(id, 'meetingId');
+
+    const meeting = await prisma.meeting.findUnique({
+      where: { id },
+      include: { course: true },
+    });
+
+    if (!meeting) {
+      return next(new AppError('Meeting not found.', 404, 'NOT_FOUND'));
+    }
+
+    if (meeting.status === 'COMPLETED') {
+      return next(new AppError('This meeting has already ended.', 400, 'MEETING_ENDED'));
+    }
+
+    const isAdmin = req.user.role === 'admin';
+    const isInstructorOnCourse = await prisma.courseInstructor.findFirst({
+      where: { courseId: meeting.courseId, userId: req.user.id },
+    });
+    const isEnrolled = await prisma.enrollment.findUnique({
+      where: { userId_courseId: { userId: req.user.id, courseId: meeting.courseId } },
+      include: { payment: true },
+    });
+
+    const moderator = isAdmin || Boolean(isInstructorOnCourse);
+    const canJoin = moderator || (isEnrolled && isEnrolled.payment?.status === 'PAID');
+
+    if (!canJoin) {
+      return next(new AppError('You do not have access to this meeting.', 403, 'FORBIDDEN'));
+    }
+
+    const { appId, domain } = getJaasConfig();
+    const ttlMinutes = (meeting.durationMinutes || 60) + 15; // buffer past scheduled length
+    const token = signJaasJwt({ user: req.user, roomSlug: meeting.roomName, moderator, ttlMinutes });
+
+    res.status(200).json(successResponse({
+      jwt: token,
+      domain,
+      roomName: `${appId}/${meeting.roomName}`,
+      moderator,
+      meeting,
+    }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// POST /api/v1/meetings/webhook - Jitsi webhook for recording updates
 export const meetingWebhook = async (req, res, next) => {
   try {
-    const { roomName, recordingUrl } = req.body;
+    if (!verifyJaasWebhook(req)) {
+      return next(new AppError('Invalid webhook signature.', 401, 'INVALID_SIGNATURE'));
+    }
 
-    if (!roomName || !recordingUrl) {
-      return next(new AppError('Missing required fields: roomName, recordingUrl', 400, 'BAD_REQUEST'));
+    const { eventType, roomName, recordingUrl, participantId, participantName } = req.body;
+
+    if (!roomName) {
+      return next(new AppError('Missing required field: roomName', 400, 'BAD_REQUEST'));
     }
 
     const meeting = await prisma.meeting.findFirst({
@@ -232,18 +337,70 @@ export const meetingWebhook = async (req, res, next) => {
     });
 
     if (!meeting) {
-      return next(new AppError('Meeting not found.', 404, 'NOT_FOUND'));
+      console.warn(`Webhook: Meeting not found for roomName: ${roomName}`);
+      return res.status(200).json({ success: true, message: 'Meeting not found, ignoring webhook' });
     }
 
-    const updated = await prisma.meeting.update({
-      where: { id: meeting.id },
-      data: {
-        recordingUrl,
-        status: 'COMPLETED',
-      },
-    });
+    // Handle different event types
+    switch (eventType) {
+      case 'RECORDING_STARTED':
+        await prisma.meeting.update({
+          where: { id: meeting.id },
+          data: { status: 'LIVE' },
+        });
+        console.log(`Webhook: Recording started for meeting ${meeting.id}`);
+        break;
 
-    res.status(200).json(successResponse({ meeting: updated }));
+      case 'RECORDING_ENDED':
+        await prisma.meeting.update({
+          where: { id: meeting.id },
+          data: { status: 'COMPLETED' },
+        });
+        console.log(`Webhook: Recording ended for meeting ${meeting.id}`);
+        break;
+
+      case 'RECORDING_UPLOADED':
+        if (!recordingUrl) {
+          return next(new AppError('Missing recordingUrl for RECORDING_UPLOADED event', 400, 'BAD_REQUEST'));
+        }
+        await prisma.meeting.update({
+          where: { id: meeting.id },
+          data: {
+            recordingUrl,
+            status: 'COMPLETED',
+          },
+        });
+        console.log(`Webhook: Recording uploaded for meeting ${meeting.id}: ${recordingUrl}`);
+        break;
+
+      case 'ROOM_DESTROYED':
+        await prisma.meeting.update({
+          where: { id: meeting.id },
+          data: { status: 'COMPLETED' },
+        });
+        console.log(`Webhook: Room destroyed for meeting ${meeting.id}`);
+        break;
+
+      case 'ROOM_CREATED':
+        console.log(`Webhook: Room created for meeting ${meeting.id}`);
+        break;
+
+      case 'PARTICIPANT_JOINED':
+        console.log(`Webhook: Participant joined meeting ${meeting.id}: ${participantName || participantId}`);
+        // Future: Store participant analytics
+        break;
+
+      case 'PARTICIPANT_LEFT':
+        console.log(`Webhook: Participant left meeting ${meeting.id}: ${participantName || participantId}`);
+        // Future: Store participant analytics
+        break;
+
+      default:
+        console.log(`Webhook: Unhandled event type ${eventType} for meeting ${meeting.id}`);
+        break;
+    }
+
+    res.status(200).json(successResponse({ success: true, eventType }));
   } catch (error) {
     next(error);
   }

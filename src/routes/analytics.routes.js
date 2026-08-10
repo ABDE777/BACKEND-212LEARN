@@ -3,8 +3,6 @@ import {
   getRevenueAnalytics,
   getStudentAnalytics,
   getCompletionAnalytics,
-  createMeeting,
-  getCourseMeetings,
 } from '../controllers/analytics.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
 
@@ -71,74 +69,6 @@ router.get(
   getCompletionAnalytics
 );
 
-// ── Course Meetings (Live Sessions) ──────────────────────────────────────────
-
-/**
- * @swagger
- * /courses/{courseId}/meetings:
- *   get:
- *     summary: List all scheduled meetings (upcoming & past) for a course
- *     tags: [Meetings]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: courseId
- *         required: true
- *         schema: { type: string, format: uuid }
- *     responses:
- *       200:
- *         description: Upcoming and past meetings with total count
- */
-router.get('/courses/:courseId/meetings', getCourseMeetings);
-
-/**
- * @swagger
- * /courses/{courseId}/meetings:
- *   post:
- *     summary: Create a live session meeting for a course (instructor / admin)
- *     tags: [Meetings]
- *     security:
- *       - bearerAuth: []
- *     description: |
- *       - Notifies all enrolled (PAID) students with the session details.
- *       - `meetingDate` must be a valid ISO 8601 date string.
- *       - `meetingUrl` must be a valid URL (e.g., Zoom or Google Meet).
- *     parameters:
- *       - in: path
- *         name: courseId
- *         required: true
- *         schema: { type: string, format: uuid }
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [title, meetingUrl, meetingDate]
- *             properties:
- *               title:
- *                 type: string
- *                 example: "Q&A Session: React Hooks Deep Dive"
- *               meetingUrl:
- *                 type: string
- *                 example: "https://zoom.us/j/123456789"
- *               meetingDate:
- *                 type: string
- *                 format: date-time
- *                 example: "2026-08-01T18:00:00.000Z"
- *     responses:
- *       201:
- *         description: Meeting created and students notified
- *       400:
- *         description: Validation error — missing fields or invalid URL/date
- *       403:
- *         description: Not an instructor of this course
- */
-router.post(
-  '/courses/:courseId/meetings',
-  restrictTo('instructor', 'admin'),
-  createMeeting
-);
+// Note: Meeting routes are handled by meeting.routes.js to avoid conflicts
 
 export default router;

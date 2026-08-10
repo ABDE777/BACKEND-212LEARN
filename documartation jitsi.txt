@@ -1,0 +1,1346 @@
+Generating and adding your JaaS API key
+Generating your JaaS API key
+Your uploaded public key is used to authenticate generated JWT tokens using the Private Key of the specific key pair. When the Jitsi IFrame connects to your meeting, valid JaaS JWTs enable meeting room connections in the AppID as specified by the roomName value. The Private Key is used to sign the Jitsi JWT.
+
+A JaaS API key is a Public Key consisting of a 4096 bits RSA SSH Key Pair in PEM format. You can generate the Key Pair using the ssh-keygen command and specify rsa as the algorithm, 4096 as the size, and PEM as the format. Refer to ssh-keygen - Generate a New SSH Key for more information about this facility.
+
+Open a terminal window, then use the ssh-keygen command:
+
+> ssh-keygen -t rsa -b 4096 -m PEM -f \<filename\>
+
+
+The following shows an example output after running the keygen command:
+
+dev\$ssh-keygen -t rsa -b 4096 -m PEM -f jaasauth.key
+Generating public/private rsa key pair.
+Enter passphrase (empty for no passphrase): 
+Enter same passphrase again: 
+Your identification has been saved in jaasauth.key.
+Your public key has been saved in jaasauth.key.pub.
+The key fingerprint is:
+SHA256:aHkvV50wzp6hJ7DB/BTiuzGbh73x3JAnSLhGuxRsyxw dev@dev-machine
+The key's randomart image is:
++---[RSA 4096]----+
+|                 |
+|                 |
+|        . . o    |
+|       B o + + . |
+|      + E o = o  |
+|     . * / = +   |
+|        #oO B .  |
+|       o.Xo* =   |
+|        =...o .  |
++----[SHA256]-----+
+
+
+You must then save the public key in PEM format using the openssl command.
+
+> openssl rsa -in \<filename\> -pubout -outform PEM -out \<filename\>.pub
+
+
+For example:
+
+dev\$openssl rsa -in jaasauth.key -pubout -outform PEM -out jaasauth.key.pub
+writing RSA key
+
+
+The following is an example of a saved JaaS API (Public) key file:
+
+dev\$cat jaasauth.key.pub
+-----BEGIN PUBLIC KEY-----
+MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA1DJxsTKt2lBSl0n4WaqO
+xA/lZ+5PeaLMnSPBLku8ZlVjDaU5fUH8oTkoEZovhJGBcR+uWUp8XMfE3l0LWat2
+2UfdM4WMm2F8wLKAay/NGrLNQFfcJCn6dEimASVPKKe7wRX1/mcDeb5mAXvRF4u2
+iZ3BYw7lLPT6lxtdAwWP+s7sQfsK/7ADoz46o0MZiRlzRDnYtclt2pU4Y6z+fXyF
+tMs4bIIWzLxe81rucXLFXi2FVZu4fngTEV91NS4Y+PiQ4sSLPnEJh5TDZLbq6tLS
+7qOrnp5tbUS1bPfmRIL38viC+m9wOzPM2Kt8+NEj/HtKg4UlJ4cMS2OB+jGYv//H
+zZXfPbzSzn6IEs6C6AH+EEqj0tUTX6wlhi5x6wyaEok20DHq/BgvD4vOwa9eBlBn
+I+kw0NT4mjDmv9I2Rc7QbXsrOkPkCNGKsgXdGeJKO2UNNpetEBV5LTYiTjO3sQH7
+7WH92ujOg0TouTYvjeuTjkEn8GqWUH6l6UrYw0kbno/WBQGcBFpe4ygmSgznLhGq
+3yAuDXoXu7hBHNXTOdyis0aKp+2KOGvoV21gYrU4Z8Uy4JjZNZ1oSwn0Z6RO69tZ
+4ni9b++cjjTx0Py0I/U0XvNSneJyXpdjHpOnVQPsLQOVbfBHdSHgNbVaT+18vSeM
+9VI7LlqQd0SpRw0S0D9/qgcCAwEAAQ==
+-----END PUBLIC KEY-----
+
+
+Uploading your API Key
+Once an RSA key is generated and in the correct format, your JaaS API key can then be added on the JaaS console and a Key Id (kid) will be generated for it. Please refer to the API keys section of the JaaS console for instructions on adding an API key.
+
+
+The Jitsi JSON Web Token (JWT)
+Integration
+For each user endpoint you enable for a meeting, you must generate a JWT token and sign it with a Private Key.
+
+The JWT token is passed as a parameter to either the IFrame or Mobile SDK as described in the following sections.
+
+The Jitsi JWT
+The header of the JWT contains 3 claims:
+
+alg
+The algorithm used for signing the JWT
+
+kid
+The kid listed for the uploaded API Key see Generating the API key
+
+typ
+The JWT type
+
+For example:
+
+{
+  "alg": "RS256",
+  "kid": "vpaas-magic-cookie-1fc542a3e4414a44b2611668195e2bfe/4f4910",
+  "typ": "JWT"
+}
+
+
+The following claims are expected in the JWT body:
+
+aud: “jitsi”
+This value is hardcoded in the body
+
+context
+user
+id
+The user's unique identifier
+
+name
+The user name
+
+avatar
+The publicly available URL that points to the user avatar picture
+
+email
+The user email
+
+moderator
+If the user is the moderator set to “true“
+If this value is missing or is set to “false“ the user will not have moderator permissions.
+hidden-from-recorder
+If set to true, the user will not show up on meeting recording/streaming.
+
+features
+The permissions given to the user for accessing specified features.
+
+The key represents the permission name. The value can be either “true“ or “false“.
+Supported keys
+livestreaming
+recording
+transcription
+sip-inbound-call
+sip-outbound-call
+inbound-call
+outbound-call
+file-upload
+list-visitors
+Additional supported keys (related to special chat and polls permissions set through advanced branding)
+send-groupchat
+Whether the moderator can send group chat messages if group chat requires permission.
+
+create-polls
+Whether the moderator can create polls if creating polls requires permission.
+
+room
+(optional) The configuration at the room level.
+
+regex: If the value is true the room field from below can be a regex otherwise a literal match between the room name and the room claim from jwt will be performed.
+exp
+The time after which the JWT expires
+
+iss: “chat”
+This is a hardcoded value
+
+nbf
+The time before which the JWT must not be accepted for processing
+
+room
+This field is the meeting room name if a literal comparision is needed, a regex if the condition from above is met or a wildcard (“*”) if the token is issued for all rooms. Please review the string.match() method described in the PatternsTutorial for regex usage. Note the use of special symbols such as “-” that must be escaped with “%”.
+
+sub
+The AppID unique identifier (see Webhooks for more information)
+
+For example:
+
+{
+  "aud": "jitsi",
+  "context": {
+    "user": {
+      "id": "0f8b7760-c17f-4a12-b134-c6ac37167144",
+      "name": "John Doe",
+      "avatar": "https://link.to/user/avatar/picture",
+      "email": "user@example.com",
+      "moderator": "true"
+    },
+    "features": {
+      "livestreaming": false,
+      "outbound-call": false,
+      "transcription": false,
+      "recording": false
+    },
+    "room": {
+      "regex": false
+    }
+  },
+  "exp": 1696284052,
+  "iss": "chat",
+  "nbf": 1596197652,
+  "room": "*",
+  "sub": "vpaas-magic-cookie-1fc542a3e4414a44b2611668195e2bfe"
+}
+
+
+For the above examples, a JWT example can be found on the jwt.io Auth0 JWT site and accessing the debugger as shown in the following screenshot:
+
+
+
+exampel / 
+var jsonwebtoken = require('jsonwebtoken');
+var uuid = require('uuid-random');
+
+/**
+ * Function generates a JaaS JWT.
+ */
+const generate = (privateKey, { id, name, email, avatar, appId, kid }) => {
+  const now = new Date()
+  const jwt = jsonwebtoken.sign({
+    aud: 'jitsi',
+    context: {
+      user: {
+        id,
+        name,
+        avatar,
+        email: email,
+        moderator: 'true'
+      },
+      features: {
+        livestreaming: 'true',
+        recording: 'true',
+        transcription: 'true',
+        "outbound-call": 'true'
+      }
+    },
+    iss: 'chat',
+    room: '*',
+    sub: appId,
+    exp: Math.round(now.setHours(now.getHours() + 3) / 1000),
+    nbf: (Math.round((new Date).getTime() / 1000) - 10)
+  }, privateKey, { algorithm: 'RS256', header: { kid } })
+  return jwt;
+}
+
+/**
+ * Generate a new JWT.
+ */
+const token = generate('my private key', {
+    id: uuid(),
+    name: "my user name",
+    email: "my user email",
+    avatar: "my avatar url",
+    appId: "my AppID", // Your AppID ( previously tenant )
+    kid: "my api key"
+});
+
+console.log(token);
+
+ntegration
+Integrate JaaS using the Jitsi IFrame API
+To enable the Jitsi Meet API in your application you must use the following JavaScript (JS) Jitsi Meet API library script and integrate it into your application:
+
+<script src='https://8x8.vc/<AppID>/external_api.js'></script>
+
+Creating the Jitsi Meet API object
+After you have integrated the Meet API library, you must then create the Jitsi Meet API object.
+
+The Meet API object takes the following form:
+
+api = new JitsiMeetExternalAPI(domain, options)
+
+The API object constructor uses the following parameters:
+
+domain: The domain used to build the conference URL: 8x8.vc.
+options: The object with properties.
+IFrame arguments include:
+
+roomName: The name of the room to join. It must be in the format: “<AppID>/<room>”`
+
+width: Optional. The created IFrame width.
+
+The width argument has the following characteristics:
+
+A numerical value indicates the width in pixel units.
+If a string is specified the format is a number followed by px, em, pt, or %.
+height: Optional. The height for the created IFrame.
+
+The height argument has the following characteristics:
+
+A numerical value indicates the height in pixel units.
+If a string is specified the format is a number followed by px, em, pt, or %.
+parentNode: The HTML DOM Element where the IFrame is added as a child. If not provided, body will be used as parent element.
+
+jwt: Optional. The JaaS JWT you have generated and signed.
+
+configOverwrite: Optional. An object containing The JS object with overrides for options defined in the config.js file.
+
+interfaceConfigOverwrite: Optional. The JS object with overrides for options defined in the interface_config.js file.
+
+onload: Optional. The IFrame onload event handler.
+
+devices: Optional. Information map about the devices used in a call. More about devices here.
+
+userInfo: Optional. The JS object that contains information about the participant starting the meeting (e.g., email). This is not normally needed for JaaS since the user info is
+
+already found in the provided JWT.
+
+lang: Optional. The default meeting language.
+
+Example instantiating the iFrame API for AppID vpaas-magic-cookie-96f0941768964ab380ed0fbada7a502f and an endpoint(participant) with jwt eyJraWQiOiJ2cGFhcy1tYWdpYy1jb29raWUtOTZmMDk0MTc2ODk2NGFiMzgwZWQwZmJhZGE3YTUwMmYvMGQ4ODVjLVNBTVBMRV9BUFAiLCJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiJqaXRzaSIsImV4cCI6MTYxNDAwNTI4OCwibmJmIjoxNjEzOTk4MDgzLCJpc3MiOiJjaGF0Iiwicm9vbSI6IioiLCJzdWIiOiJ2cGFhcy1tYWdpYy1jb29raWUtOTZmMDk0MTc2ODk2NGFiMzgwZWQwZmJhZGE3YTUwMmYiLCJjb250ZXh0Ijp7ImZlYXR1cmVzIjp7ImxpdmVzdHJlYW1pbmciOmZhbHNlLCJvdXRib3VuZC1jYWxsIjpmYWxzZSwidHJhbnNjcmlwdGlvbiI6ZmFsc2UsInJlY29yZGluZyI6ZmFsc2V9LCJ1c2VyIjp7Im1vZGVyYXRvciI6dHJ1ZSwibmFtZSI6IlRlc3QgVXNlciIsImlkIjoiYXV0aDB8NWY5MDNkN2E3N2YzYjQwMDZlYjhlNjdkIiwiYXZhdGFyIjoiIiwiZW1haWwiOiJ0ZXN0LnVzZXJAY29tcGFueS5jb20ifX19.XZTZVSVeFgGNim8YZKLwt37mcc8xkf3oSjuR28KeW8If1Xq5XI7w7K2GnsqZjF0S4XbmZzsswmfh2m9UI7Od_p3USv95Xq6gRjS6KUed5neXTs1k8rtKEtvRjHMpMPTanckTm4ol8GYi0z8Rwq7FQqRr9D8LYXWqNW7sA9pG16GXrhQMBPWEYm4usxZe5QP36PnoV-15xZ6leQ7KF3woRScxPcPb7L81bACsT0GjBzIBg_dEMpLG0ckRl4w1LW8YfnYUrbmLK4gE5FwlD8hjJOBW4z_Tm_KGu8-gYE1zzb5KlOCeVGVcik2dUEP7U4zy20iDaBXLIDoD-ayZBKkwiw:
+
+<script src='https://8x8.vc/vpaas-magic-cookie-96f0941768964ab380ed0fbada7a502f/external_api.js'></script>
+.....
+<script type="text/javascript">
+  let api;
+
+  const initIframeAPI = () => {
+    const domain = '8x8.vc';
+    const options = {
+      roomName: 'vpaas-magic-cookie-1fc542a3e4414a44b2611668195e2bfe/ExampleRoom',
+      jwt: 'eyJraWQiOiJ2cGFhcy1tYWdpYy1jb29raWUtOTZmMDk0MTc2ODk2NGFiMzgwZWQwZmJhZGE3YTUwMmYvMGQ4ODVjLVNBTVBMRV9BUFAiLCJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiJqaXRzaSIsImV4cCI6MTYxNDAwNTI4OCwibmJmIjoxNjEzOTk4MDgzLCJpc3MiOiJjaGF0Iiwicm9vbSI6IioiLCJzdWIiOiJ2cGFhcy1tYWdpYy1jb29raWUtOTZmMDk0MTc2ODk2NGFiMzgwZWQwZmJhZGE3YTUwMmYiLCJjb250ZXh0Ijp7ImZlYXR1cmVzIjp7ImxpdmVzdHJlYW1pbmciOmZhbHNlLCJvdXRib3VuZC1jYWxsIjpmYWxzZSwidHJhbnNjcmlwdGlvbiI6ZmFsc2UsInJlY29yZGluZyI6ZmFsc2V9LCJ1c2VyIjp7Im1vZGVyYXRvciI6dHJ1ZSwibmFtZSI6IlRlc3QgVXNlciIsImlkIjoiYXV0aDB8NWY5MDNkN2E3N2YzYjQwMDZlYjhlNjdkIiwiYXZhdGFyIjoiIiwiZW1haWwiOiJ0ZXN0LnVzZXJAY29tcGFueS5jb20ifX19.XZTZVSVeFgGNim8YZKLwt37mcc8xkf3oSjuR28KeW8If1Xq5XI7w7K2GnsqZjF0S4XbmZzsswmfh2m9UI7Od_p3USv95Xq6gRjS6KUed5neXTs1k8rtKEtvRjHMpMPTanckTm4ol8GYi0z8Rwq7FQqRr9D8LYXWqNW7sA9pG16GXrhQMBPWEYm4usxZe5QP36PnoV-15xZ6leQ7KF3woRScxPcPb7L81bACsT0GjBzIBg_dEMpLG0ckRl4w1LW8YfnYUrbmLK4gE5FwlD8hjJOBW4z_Tm_KGu8-gYE1zzb5KlOCeVGVcik2dUEP7U4zy20iDaBXLIDoD-ayZBKkwiw',
+      width: 700,
+      height: 700,
+      parentNode: document.querySelector('#meet')
+    };
+    api = new JitsiMeetExternalAPI(domain, options);
+  }
+
+  window.onload = () => {
+    initIframeAPI();
+  }
+</script>
+...
+<body><div id="meet" /></body>
+
+
+
+The above will inject the meeting iframe as a child of the div with the id meet.
+IFrame API
+Embedding the Jitsi Meet API into your site or app enables you to host and provide secure video meetings with your colleagues, teams, and stakeholders. The Meet API provides a full complement of comprehensive meeting features.
+
+Your Jitsi meetings can be hosted and attended using any device while keeping your data and privacy protected. You can reach your meeting participants anywhere in the world eliminating the need for travel and the associated inconvenience.
+
+The IFrame API enables you to embed Jitsi Meet functionality into your meeting application so you can experience the full functionality of the globally distributed and highly available deployment available with meet.jit.si.
+
+You can also embed and integrate the globally distributed and highly available deployment on the meet.jit.si platform itself.
+
+NOTE
+JaaS customers, please make sure you also read this!
+
+tip
+If you use React in your web application you might want to use our React SDK instead.
+
+Integration
+To enable the Jitsi Meet API in your application you must use one of the following JavaScript (JS) Jitsi Meet API library scripts and integrate it into your application:
+
+For self-hosting in your domain:
+
+<script src='https://<your-domain>/external_api.js'></script>
+
+meet.jit.si:
+
+<script src='https://meet.jit.si/external_api.js'></script>
+
+
+Mobile support
+The iframe API works on mobile browsers the same way as it does on desktop browsers.
+
+Opening meetings in the Jitsi Meet app
+In order to open meetings with the Jitsi Meet app you can use our custom URL scheme as follows:
+
+(let's assume the meeting is https://meet.jit.si/test123)
+
+Android: intent://meet.jit.si/test123#Intent;scheme=org.jitsi.meet;package=org.jitsi.meet;end
+iOS: org.jitsi.meet://meet.jit.si/test123
+This works with custom servers too, just replace meet.jit.si with your custom server URL.
+
+Creating the Jitsi Meet API object
+After you have integrated the Meet API library, you must then create the Jitsi Meet API object.
+
+The Meet API object takes the following form:
+
+api = new JitsiMeetExternalAPI(domain, options)
+
+The API object constructor uses the following options:
+
+domain: The domain used to build the conference URL (e.g., meet.jit.si).
+
+options: The object with properties.
+
+IFrame arguments include:
+
+roomName: The name of the room to join.
+
+width: Optional. The created IFrame width.
+
+The width argument has the following characteristics:
+
+A numerical value indicates the width in pixel units.
+
+If a string is specified the format is a number followed by px, em, pt, or %.
+
+height: Optional. The height for the created IFrame.
+
+The height argument has the following characteristics:
+
+A numerical value indicates the height in pixel units.
+
+If a string is specified the format is a number followed by px, em, pt, or %.
+
+parentNode: The HTML DOM Element where the IFrame is added as a child.
+
+configOverwrite: Optional. The JS object with overrides for options defined in the config.js file.
+
+interfaceConfigOverwrite: Optional. The JS object with overrides for options defined in the interface_config.js file.
+
+jwt: Optional. The JWT token.
+
+onload: Optional. The IFrame onload event handler.
+
+invitees: Optional. Object arrays that contain information about participants invited to a call.
+
+devices: Optional. Information map about the devices used in a call.
+
+userInfo: Optional. The JS object that contains information about the participant starting or joining the meeting (e.g., email).
+
+lang: Optional. The default meeting language.
+
+iceServers: Optional. Object with rules that will be used to modify/remove the existing ice server configuration. NOTE: This property is currently experimental and may be removed in the future!
+
+For example:
+
+const domain = 'meet.jit.si';
+const options = {
+    roomName: 'JitsiMeetAPIExample',
+    width: 700,
+    height: 700,
+    parentNode: document.querySelector('#meet'),
+    lang: 'de'
+};
+const api = new JitsiMeetExternalAPI(domain, options);
+
+You can set the initial media devices for the call using the following:
+
+const domain = 'meet.jit.si';
+const options = {
+    ...
+    devices: {
+        audioInput: '<deviceLabel>',
+        audioOutput: '<deviceLabel>',
+        videoInput: '<deviceLabel>'
+    },
+    ...
+};
+const api = new JitsiMeetExternalAPI(domain, options);
+
+You can override options set in the config.js file and the interface_config.js file using the configOverwrite and interfaceConfigOverwrite objects, respectively.
+
+For example:
+
+const options = {
+    ...
+    configOverwrite: { startWithAudioMuted: true },
+    interfaceConfigOverwrite: { DISABLE_DOMINANT_SPEAKER_INDICATOR: true },
+    ...
+};
+const api = new JitsiMeetExternalAPI(domain, options);
+
+To pass a JWT token to Jitsi Meet use the following:
+
+const options = {
+   ...
+   jwt: '<jwt_token>',
+   ...
+};
+const api = new JitsiMeetExternalAPI(domain, options);
+
+You can set the userInfo (e.g., email, display name) for the call using the following:
+
+var domain = "meet.jit.si";
+var options = {
+    ...
+    userInfo: {
+        email: 'email@jitsiexamplemail.com',
+        displayName: 'John Doe'
+    }
+}
+var api = new JitsiMeetExternalAPI(domain, options);
+
+You can modify the default ice servers configuration with the iceServers property (NOTE: This property is currently experimental and may be removed in the future!) using the following:
+
+var domain = "meet.jit.si";
+var options = {
+    ...
+    iceServers: {
+        replace: [
+            { // replace the URL of all existing ice servers with type matching targetType 
+                targetType: 'turn',
+                urls: 'turn:example.com:443'
+            },
+            { // replace the URL of all existing ice servers with type matching targetType 
+                targetType: 'turns',
+                urls: 'turns:example.com:443?transport=tcp'
+            },
+            { // remove all existing ice servers with type matching targetType 
+                targetType: 'stun',
+                urls: null
+            }
+        ]
+    },
+    ...
+}
+var api = new JitsiMeetExternalAPI(domain, options);
+
+Configuring the tile view:
+
+You can configure the maximum number of columns in the tile view by overriding the TILE_VIEW_MAX_COLUMNS property from the interface_config.js file via the interfaceConfigOverwrite object:
+
+const options = {
+    ...
+    interfaceConfigOverwrite: { TILE_VIEW_MAX_COLUMNS: 2 },
+    ...
+};
+const api = new JitsiMeetExternalAPI(domain, options);
+
+note
+TILE_VIEW_MAX_COLUMNS accepts values from 1 to 5. The default value is 5.
+
+Configuring the invite link
+The in-meeting controls offer your meeting users the option to invite participants into the same session.
+
+To implement a functional invite flow, perform the following steps:
+
+Configure the base URL of the meeting invite link (e.g. https://application.com/meet) in the Customise your meeting invite URL Branding section.
+Define an alias name for your meeting room in your IFrame instantiation code.
+The alias must be a single-level (no slash) string composed of legitimate, safe URL characters. (You can make it identical to the meeting room name as well). This definition is described in the iFrame documentation as the brandingRoomAlias property. An example code block is as follows:
+
+  configOverwrite: {
+       brandingRoomAlias: 'anInterestingMeeting'
+  }
+
+
+The preceding steps result in the meeting Invite more people dialog which generates an invite link comprised of the base/alias pair(e.g. https://application.com/meet/anInterestingMeeting for the values used above)
+
+In your integrating application implement the logic that maps the resulting invite link (base/alias) to your application and handles the users that land on it.
+By doing this the integrating application is in control of who is allowed to join a meeting by authorizing any user (including guests) and then generating a valid JWT.
+JaaS Browser Support
+Desktop
+Browser	Support	Versions	Notes
+Chrome *	✅	>= 72	Best results with >= 96
+Firefox	✅	>= 68	Best results with >= 101
+Safari	✅	>= 14	Best results with >= 15, output device selection unsupported
+Edge	✅	>= 79	Edge Legacy is unsupported
+Internet Explorer	❌		
+*: This also applies to all Chromium based browsers such as Brave, (current) Edge, Opera, Vivaldi and others.
+
+Mobile
+Android
+Browser	Support	Versions	Notes
+Chrome *	✅		Same support as the desktop version
+Firefox	✅		Same support as the desktop version
+*: This also applies to all Chromium based browsers such as Brave, (current) Edge, Opera, Vivaldi and others.
+
+📘
+
+For a better mobile experience (background support, Bluetooth support, etc.) we recommend using a native app instead. We provide a native Android SDK.
+
+iOS
+Browser	Support	Versions	Notes
+Chrome	✅		Same support as Safari as they share the engine
+Firefox	✅		Same support as Safari as they share the engine
+Safari	✅	>= 14.3	Best results with 15.4
+Edge	✅		Same support as Safari as they share the engine
+📘
+
+On iOS all browsers share the same engine, Safari. As such all features and limitations on all iOS browsers are those of Safari.
+
+For a better mobile experience (background support, CallKit integration, etc.) we recommend using a native app instead. We provide a native iOS SDK.
+
+Desktop
+Mobile
+Android
+iOS
+8x8 API License Agreement·8x8 SDK License Agreement
+
+How to set default language
+You can set the default language for the conference through the lang property. Please see below a snippet on how to set the UI language to German:
+
+const domain = '8x8.vc';
+const options = {
+    roomName: 'ExampleRoomName',
+    width: 700,
+    height: 700,
+    parentNode: document.querySelector('#meet'),
+    lang: 'de'
+};
+const api = new JitsiMeetExternalAPI(domain, options);
+
+How to manage UI buttons
+UI buttons visibility is controlled through a configOverwrite property called toolbarButtons
+
+not passing this property at all enables all buttons on the UI
+passing this property with an empty array hides all buttons from the conference's UI
+passing this property with certain values will only enable buttons corresponding to the given values
+For a list of all controllable buttons please check the toolbarButtons property of config.js
+
+Example snippet for showing only the main meeting control buttons: hangup and mute/unmute audio and video:
+
+const domain = '8x8.vc';
+const options = {
+    ...
+    configOverwrite: { toolbarButtons: ['hangup', 'microphone', 'camera'], },
+    ...
+};
+
+const api = new JitsiMeetExternalAPI(domain, options);
+
+Tutorial: Using Custom Buttons with the Iframe API
+Overview
+In this tutorial, we will explore how to add custom buttons to the Jitsi Meet iframe to enhance user interaction during video conferencing. While Jitsi provides a robust set of built-in controls, there are scenarios where custom buttons can improve the user experience or integrate additional functionality.
+
+Why Use Custom Buttons?
+
+Customization: Tailored interface for your application.
+Feature Integration: Allow/disallow certain actions based on events on your application.
+Requirements
+JaaS account
+Basic knowledge in JavaScript and HTML to use the sample code provided.
+Jitsi Iframe Code
+The code below shows an example of a modified Iframe API code where there are buttons for Mute Camera and Mute Microphone that are separated from the JaaS Iframe interface.
+
+📘 Placeholders
+
+Replace {jaas_application_id} and {jaas_room_name} in server.js below with the appropriate values from your application. Appropriate default values can be found by signing into your JaaS console at https://jaas.8x8.vc/#/ and copying values from the Iframe code example.
+
+index.html
+
+<!DOCTYPE html>
+<html>
+
+<head>
+    <script src='https://8x8.vc/{jaas_application_id}/external_api.js' async></script>
+    <style>
+        html,
+        body,
+        #jaas-container {
+            height: 100%;
+            margin: 0;
+        }
+
+        #button-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #f1f1f1;
+            padding: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            display: none;
+            /* Hide the button container initially */
+        }
+
+        button {
+            margin: 0 10px;
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+    <script type="text/javascript">
+        let api;
+
+        window.onload = () => {
+            api = new JitsiMeetExternalAPI("8x8.vc", {
+                roomName: "{jaas_application_id}/{room_name}",
+                parentNode: document.querySelector('#jaas-container')
+            });
+
+            // Listen for the videoConferenceJoined event
+            api.addEventListener('videoConferenceJoined', () => {
+                document.getElementById('button-container').style.display = 'flex'; // Show buttons when local participant joins
+            });
+
+            document.getElementById('mute-mic').onclick = () => api.executeCommand('toggleAudio');
+            document.getElementById('mute-camera').onclick = () => api.executeCommand('toggleVideo');
+        }
+    </script>
+</head>
+
+<body>
+    <div id="button-container">
+        <button id="mute-mic">Toggle Mute Mic</button>
+        <button id="mute-camera">Toggle Mute Camera</button>
+    </div>
+    <div id="jaas-container"></div>
+</body>
+
+</html>
+
+
+The important changes to the default iframe code are outlined below for convenience.
+
+First we create a div for the buttons in the index.html.
+
+Buttons <div>
+
+<div id="button-container">
+  <button id="mute-mic">Toggle Mute Mic</button>
+  <button id="mute-camera">Toggle Mute Camera</button>
+</div>
+
+
+Second we listen for the local participant to join the JaaS room before loading the buttons, otherwise it may show in the prejoin lobby.
+
+Load Buttons on Room Join
+
+api.addEventListener('videoConferenceJoined', () => {
+  document.getElementById('button-container').style.display = 'flex'; // Show buttons when local participant joins
+});
+
+
+Third we add the functionality to those buttons by adding onclick() events and calling the appropriate Iframe API methods, in this case toggleAudio and toggleVideo.
+
+onClick Event
+
+document.getElementById('mute-mic').onclick = () => api.executeCommand('toggleAudio');
+document.getElementById('mute-camera').onclick = () => api.executeCommand('toggleVideo');
+
+
+Through this code the buttons are able to call functionality from the Iframe API.
+
+Backend Server
+While the backend server does not have any influence on the custom buttons, we include a sample Node.js backend for convenience. This can be replaced with any backend of your choice.
+
+server.js
+
+const express = require('express');
+const app = express();
+const PORT = 3000;
+
+// Serve the HTML file
+app.get('/', (req, res) => {
+  res.sendFile(__dirname + '/index.html');
+});
+
+app.listen(PORT, () => {
+  console.log(`Server is running at http://localhost:${PORT}`);
+});
+
+
+Running the Application
+To run the application use the following lines of code:
+
+Run Server Commands
+
+npm init -y
+npm install express
+node server.js
+
+
+We should see following application hosted at https://localhost:3000
+
+custom buttons When the Toggle Mute Mic button is clicked, our local participant's mic icon toggles on the top right. When the Toggle Mute Camera button is clicked then the video feed is toggled on off, signified by the black screen appearing momentarily.
+
+Conclusion
+In this tutorial we covered how to add custom buttons outside of the Iframe API's interface. You may also wish to make changes to the actual iframe API (such as disabling buttons) which can easily be done using the toolbarButtons option in configOverwrite for example. Additionally, you can call different functions from the Iframe API. Feel free
+Setting up audio/video devices
+You can set the initial media devices for the call using the following:
+
+const options = {
+    ...
+    devices: {
+        audioInput: '\<deviceLabel\>',
+        audioOutput: '\<deviceLabel\>',
+        videoInput: '\<deviceLabel\>'
+    },
+    ...
+};
+const api = new JitsiMeetExternalAPI(domain, options);
+
+
+You can get the media devices by using WebApi's navigator.mediaDevices.enumerateDevices().
+Prejoin page
+The prejoin page is displayed before joining a meeting and it allows you to enter a display name and select certain video/audio devices and gives you the option to mute/unmute devices before joining. Since for JaaS joing a meeting is always authenticated because of the JWT, we might not want our users to change their display name since it is already encoded into the JWT. Also since we use the IFrame API in order to embed the meeting in our application, we can manage the selected audio/video devices and their muted state from within our application. In order to achieve this, we set prejoinPageEnabled which will disable the prejoin page, and we can pass the devices and the mute state from our application:
+
+const options = {
+    ...,
+    configOverwrite: {
+      ...
+      // disable the prejoin page
+      prejoinPageEnabled: false,
+      ...,
+      //optionally we can control the mute state on join from the emebedding application
+      startWithAudioMuted: [true/false],
+      startWithVideoMuted: [true/false]
+    },
+    ...,
+    // optionally, we can have the meeting select the devices we want
+    devices: {
+      audioInput: '\<deviceLabel\>',
+      audioOutput: '\<deviceLabel\>',
+      videoInput: '\<deviceLabel\>'
+    },
+    ...
+};
+const api = new JitsiMeetExternalAPI(domain, options);
+Meeting security
+A moderator has the option to secure a meeting either by adding a pincode or by enabling lobby, or both. Any new meeting participant will initially join the lobby page and he needs to ask for permission to join the meeting through a button on the UI. The moderator receives a notification with the user name and an option to either allow or disallow that user to join the ongoing meeting.
+
+The pincode and the lobby features are controled from the shield icon on the meeting UI:
+
+1895
+ecording
+Overview
+JaaS allows meeting recording, but it only stores it for 24 hours. In order to preserve the recording, you must listen for RECORDING_UPLOADED event on a webhook and download the recording from the preAuthenticatedLink of the payload. In normal cases the recording will be uploaded within a minute of the room ending.
+
+A recording session is limited to a maximum of 6 hours. If there is a need for a longer recording, simply start recording/streaming again using start recording event
+
+Video Demo
+This quick video demo will take you through how recording works within JaaS, including receiving the necessary webhooks for downloading the recordings and chat transcripts, viewing a sample recording file and viewing a chat transcript.
+
+
+Advanced branding
+Advanced branding allows you to configure elements on your meeting's UI per-room.
+
+Configuring the advanced branding consist in setting up an endpoint on your backend which will serve the branding data payload.
+
+You need to authenticate your endpoint with an Authorization header. The string token set in the authorization section of advanced branding will be present on all requests to your service as the Authorization header value.
+Your endpoint should process the room/conference name which you will receive as a query parameter in the request: GET [your_endpoint]?conference=[AppID]/[room_name] and it should return the branding data payload for that specific conference as json, or a default (could be empty) payload in case you don't want any branding or you want a default generic branding applied to it.
+This will result in the room from the conference query parameter having applied the branding configuration corresponding to the settings you have on your response payload.
+
+Note:
+
+In case you setup an advanced branding URL, your global Branding configurator settings will be ignored, even when your advanced branding endpoint fails to respond or errors out.
+
+Video Demo
+Please see the video below for an example of Advanced Branding used to modify room properties based on the room name.
+
+
+Whiteboard
+Overview
+JaaS (Jitsi as a Service) has an integrated whiteboard feature, providing users with a collaborative, visual workspace. This tool is designed to enhance remote communication by allowing participants to brainstorm, illustrate concepts, and share ideas in real-time.
+
+Features
+Real-Time Collaboration: Multiple users can draw, write, and annotate on the whiteboard simultaneously.
+Easy Access: Access the whiteboard directly from your JaaS meeting interface.
+Versatile Tools: Use a variety of drawing tools, shapes, and text options to create detailed diagrams and notes.
+Save and Share: Save your whiteboard sessions and share them with participants after the meeting.
+Accessing the Whiteboard
+Start or Join a Meeting
+Begin by starting a new meeting or joining an existing one on the JaaS platform.
+
+Open the Whiteboard
+In the meeting interface, click on the More Actions / Triple Dot Menu Icon in the toolbar and then the Show Whiteboard option.
+
+image This will open a new whiteboard session for the current participant.
+
+Open Whiteboard
+
+Whiteboard Tools
+There are several tools available including:
+
+Arrow Tool: Select and move the different shapes and objects in the whiteboard.
+JaaS Whiteboard Arrow Tool
+
+Square Tool: Create a square with various line and background color options.
+Square Tool
+
+Diamond Tool: Create a Diamond with various line and background color options.
+Diamond Tool
+
+Circle Tool: Create a Circle with various line and backround color options.
+Circle Shape
+
+Arrow Tool: Creates an arrow, can be connected to various shapes for drawing diagrams.
+Arrow Shape
+
+Line Tool: Creates a line which can also be connected to various shapes for drawing diagrams.
+Line Tool
+
+Pen Tool: Allows freeform drawing with your cursor of any shape.
+Pen Tool
+
+Text Tool: Insert text into the whiteboard either by itself or as part of a shape for diagrams.
+Text Tool
+
+Real Time Collaboration
+All participants in the call can open the whiteboard and collaborate on a diagram in real time. This includes resizing and editing the shapes others draw as well as adding your own shapes. The changes will be reflected on real time on other participants screens.
+
+The GIF shows two separate participants connected to the same room. They are able to use the whiteboard feature simultaneously and see each other&#39;s changes in real-time.The GIF shows two separate participants connected to the same room. They are able to use the whiteboard feature simultaneously and see each other's changes in real-time.
+
+Saving the Diagram
+The whiteboard allows you to save either the entire diagram or a partial diagram through the Save Button. You can use the Arrow Tool to select only a portion of the diagram to save as an image. The image can be downloaded to your browser as either a .png or .svg file.
+
+Save Tool
+
+Known Limitations
+Here are some of the known limitations of the Whiteboard feature.
+
+The maximum number of participants in a meeting that can collaborate on a whiteboard is 25.
+You can only save the whiteboard in PNG or SVG format, and you cannot reuse it in another meeting.
+FAQ
+Here are some commnly asked questions with the Whiteboarding feature.
+
+Issue	Recommendation
+No whiteboard visible in meeting?	Check to see that you have administrator privileges in the room. If you are moderator, ensure you click Show Whiteboard in the more actions / triple dot menu as shown in the Open Whiteboard section above.
+How do I hide the whiteboard?	Open the More Actions / Triple Dot menu again and click Hide Whiteboard which should be located in the same place as Open Whiteboard was.
+How do I share a PDF file in the whiteboard?	Currently the whiteboard does not support sharing PDF sharing.
+Overview
+Features
+Accessing the Whiteboard
+Start or Join a Meeting
+Open the Whiteboard
+Whiteboard Tools
+Real Time Collaboration
+Saving the Diagram
+Known Limitations
+FAQ
+8x8 API License Agreement·8x8 SDK License Agreement
+© 2026 by 8x8. All rights r
+PSTN Dial In/Out
+PSTN Dial In
+Jaas has capabilities for joining meetings using PSTN/Telephony (Telephone Dialing) audio.
+
+Dial In from a JaaS Room
+First enter a JaaS Room and then obtain a DID to call into. Open the Triple Dot Menu > Invite People, The DID for your detected country should be shown in the pop up box. If you need to obtain a different countries DID you can click More Numbers.
+
+did list Note the PIN Code shared as well which will be used in the next step.
+
+image Share the Dial-in Phone Number and PIN Code to the person you would like to invite to the JaaS room. They should dial the DID and they will be asked to key in the PIN code for the meeting from the previous step.
+
+image
+
+Once they enter the PIN Code, they should be connected via Audio to the JaaS Room.
+
+API Usage
+There may be cases when you wish to programmatically send out the PIN Code and DID List. The following two sections will take you through how to obtain these via API.
+
+Retrieving Meeting ID and PIN Code via API
+You can get the meeting id using following API. Please replace {Meeting-Name} with the meeting you want to use. {App-Id} should be replaced with your Jaas app id.
+
+https://8x8.vc/v1/_jaas/vmms-conference-mapper/v1/access?conference={Meeting-Name}@conference.{App-Id}.8x8.vc
+
+The API response will contain the following information.
+
+{
+  "message": "Successfully retrieved conference mapping",
+  "id": "1111111111111",
+  "conference": "{Meeting-Name}@conference.{App-Id}.8x8.vc",
+  "url": "https://8x8.vc/{App-Id}/{Meeting-Name}",
+  "fqn": "{App-Id}/{Meeting-Name}",
+  "name": "{Meeting-Name}",
+  "tenant": "{App-Id}",
+  "hasPasscode": false
+}
+
+
+The id from the response is the meeting's pin code. You can do this upfront so you can properly edit your invites.
+
+Retrieving DID List via API
+The list of DID can be fetched using this API: [https://8x8.vc/v1/_jaas/vmms-conference-mapper/access/v1/dids](https://8x8.vc/v1/_jaas/vmms-conference-mapper/access/v1/dids) We recommend using the API for fetching the DID for each invite, because we sometimes add new numbers in new countries.
+
+The API response will be a list of DIDs which can be shared to the person that should dial in.
+
+[
+  {
+    "countryCode": "US",
+    "tollFree": false,
+    "formattedNumber": "+1 456-221-4739"
+  },
+  ....
+]
+
+
+PSTN Dial Out
+JaaS will also allow you to dial a phone number directly from a JaaS room to invite them to join in audio-only mode.
+
+Prerequisites
+There are a few prerequisites before using this feature:
+
+JaaS Account with a billing method added (to access Paid/Premium Features).
+Ensure that the JWT that you generate for your user contains the user permissions for outbound-call. Below is a snippet of the features with outbound call enabled.
+{
+  ...
+  "context": {
+    "features": {
+      "livestreaming": true,
+      "outbound-call": true,
+      "sip-outbound-call": true,
+      "transcription": true,
+      "recording": true
+    },
+    ...
+}
+
+
+Add this line of code to your configuration to enable SIP Dial Out:
+interfaceConfigOverwrite: {
+  ENABLE_DIAL_OUT: true
+},
+
+
+Dial Out from a JaaS Room
+Simply enter a JaaS room and navigate to the Triple Dot Menu > Invite People
+
+Afterwards enter the number that you would like to dial in the Invite your Contacts box.
+
+PSTN Dial Out This should dial the number and when the callee picks up, they will be added in audio-only mode to the JaaS Room.
+
+Billing / Usage
+In order to see the usage and charges associated with PSTN Dial In and Out in the JaaS Dashboard, please see:
+
+Billing Section to determine the usage and charges in p
+SIP Dial In/Out
+Introduction
+JaaS SIP Dial In/Out feature allows users to connect with participants on traditional phone networks, extending the flexibility and reach of Jitsi conferences. This feature is particularly useful for hybrid meetings involving both online and phone participants.
+
+SIP Dial In
+This section covers how to use a SIP device to connect to a JaaS call through SIP. We use Zoom as an example of a typical SIP Device.
+
+Prerequisites
+JaaS Account with a billing method added (to access Paid/Premium Features).
+
+A SIP Device (Zoom is used as the example in this section of the tutorial)
+
+Note for Zoom, the host account that creates the Zoom room will need access to the H.323 or SIP Room Connector paid add-on.
+Ensure that the JWT that you generate for your user contains the user permissions for sip-outbound-call. Below is a snippet of the features with SIP outbound call enabled.
+
+{
+  ...
+  "context": {
+    "features": {
+      "livestreaming": true,
+      "outbound-call": true,
+      "sip-outbound-call": true,
+      "transcription": true,
+      "recording": true
+    },
+    ...
+}
+
+SIP Dial In - Video Call
+Video Walkthrough
+This video will take you through a walkthrough of this section.
+
+
+JaaS Room and PIN
+Create or Join a JaaS Room. Afterwards obtain the PIN from the Triple Dot > Invite People Menu.
+
+This GIF shows the process to obtain the PIN CodeThis GIF shows the process to obtain the PIN Code
+
+The PIN should be available from the popup below.
+
+image
+
+Note down the PIN for this room which will be used when connecting through Zoom in the next step.
+
+Connecting Through Zoom
+Start your Zoom Client and join a meeting room. Navigate to Participants > Invite > Room System > Call Out as shown below.
+
+📘 Room System not Showing?
+
+If you do not have the Room System option then the Zoom host may not have H.323 or SIP Room Connector paid add-on.
+
+This GIF shows how to access the menu to call a SIP Room System.This GIF shows how to access the menu to call a SIP Room System.
+
+Enter the following into the IP address or URI field above based on the PIN Code you noted down early.
+
+For a combined audio and videoexperience: pinCode@video.8x8.vc
+For audio only: pinCode@audio.8x8.vc
+
+For our example above it should be the following value, however you should substitute the PIN Code for your room.
+2407322930@video.8x8.vc
+
+image
+
+After inputting the PIN Code, hit the Call button. You should see the SIP call connect successfully and then a participant named VIMS join the Zoom Room. Admit the participant in the Zoom Room.
+
+On the JaaS Room you should see a participant named Zoom######### join the room. Both participants should have Video and Audio enabled.
+
+📘 Zoom Popup
+
+Our Test Zoom environment has AI Companion on which generates a popup for the first few seconds after joining the room. This pop-up disappears after a few seconds.
+
+This GIF shows the remaining process to connect through Zoom via SIPThis GIF shows the remaining process to connect through Zoom via SIP
+
+After completing these steps, congratulations you have now successfully connected Zoom to JaaS via SIP with video/audio enabled.
+
+SIP Dial In - Audio Call
+This section outlines how to make a call via a softphone such as Bria to a JaaS room for an audio only call.
+
+Video Walkthrough
+This video will take you through the steps mentioned in this section to connect a softphone to a JaaS room.
+
+
+JaaS PIN Code
+The first step is to obtain the PIN Code from the JaaS Room
+
+image The PIN Code will be available from the "Invite more people" popup.
+
+image
+
+Dial in to the JaaS room using Bria with the SIP address pinCode@audio.8x8.vc where pinCode is replaced by your JaaS Room's pin code.
+
+In our example above the SIP address is 2407322930@audio.8x8.vc, however your PIN Code will be different.
+
+image
+
+image
+
+SIP Dial Out
+From the JaaS room, it is possible to dial out to a SIP Address such as a softphone to invite them to join the room.
+
+Prerequisites
+There are a few prerequisites before using this feature:
+
+JaaS Account with a billing method added (to access Paid/Premium Features).
+
+A SIP Softphone to receive the call (Bria is used in the tutorial).
+
+Ensure that the JWT that you generate for your user contains the user permissions for sip-outbound-call. Below is a snippet of the features with SIP outbound call enabled.
+
+{
+  ...
+  "context": {
+    "features": {
+      "livestreaming": true,
+      "outbound-call": true,
+      "sip-outbound-call": true,
+      "transcription": true,
+      "recording": true
+    },
+    ...
+}
+    
+
+Add this line of code to your configuration to enable SIP Dial Out:
+
+interfaceConfigOverwrite: {
+  ENABLE_DIAL_OUT: true
+},
+
+Making a Call
+After the required setup, go to your JaaS meeting and then open Triple Dot Menu > Invite People. In the dialog box that opens, proceed to enter the SIP address in the Invite your contacts box. This should result in a dialog box showing that you have invited that SIP address.
+
+sip dial out
+
+The softphone connected to that SIP Address should ring as shown, when you pick up the call you will be connected to the JaaS Room. The softphone can choose to connect to the call over audio-only or video+audio.
+
+image
+
+Connected Call - Video Mode
+If the call is connected through video, both the softphone participant and the JaaS participant can see each other on their respective screens.
+
+image
+
+Connected Call - Audio-Only Mode
+If the call is connected via audio-only, then an audio-only participant will join the JaaS room to represent the softphone. Both the JaaS participant and the softphone participant will be able to hear and speak to each other.
+
+image
+
+Video Walkthrough
+Video Call
+This Video will show how it is possible to call from a JaaS (Jitsi as a Service) Room out to a softphone in Video Mode.
+
+
+Audio Call
+This Video will show how it is possible to call from a JaaS (Jitsi as a Service) Room out to a softphone in Audio-Only Mode.
+
+
+Billing / Usage
+In order to see the usage and charges associated with SIP Dial In and Out in the JaaS Dashboard, please see:
+
+Billing Section to determine the usage and charges in past months.
+Activity Section to determine the current months usage.
+Transcription and Translation
+Overview
+This documentation outlines the transcription and translation capabilities provided by JaaS. These features are designed to enhance the functionality of video conferencing by converting spoken language into text and translating this text into various languages in real-time.
+
+Prerequisites
+These are the requirements to start using these features:
+
+Transcription and Translation are paid add-ons which require a billing / payment method to be added to your JaaS Account.
+The current user's JWT should enable transcription to be able to use the feature. This will enable both transcription and translation.
+ "features": {
+      "livestreaming": true,
+      "outbound-call": true,
+      "sip-outbound-call": false,
+      "transcription": true,
+      "recording": true
+    },
+
+
+Video Demo
+This is a companion video demo of transcription and translation.
+
+
+Using Transcription / Translation
+In order to use the Transcription feature, navigate to the Triple Dot Menu / More Options Button then the Subtitles option within that menu. This only turns on translation for the current user. Other users will have to enable subtitles through the same process. Whenever any participant speaks in the room, a subtitle will appear at the bottom for the users who have enabled the feature.
+
+image By default the transcription will be in the same language as your interface, however you can choose to change it to a different language within the same Subtitles menu.
+
+jaas subtitle languages In order to use a different language you can change the language in the subtitle's menu.
+
+jaas translation example Here is an example where a user is speaking in English and their words are automatically translated to Spanish which is the language set in the subtitle menu.
+
+jaas spanish translation
+
+Overview
+Prerequisites
+Video Demo
+Using Transcription / Translation
+8x8 API License Agreement·8x8 SDK License Agreement
+© 2026 by 8x8. All rights reser
+Livestreaming
+Overview
+The livestreaming feature in JaaS allows users to broadcast their video conferences to a larger audience by streaming to platforms like YouTube or any other platform that accepts an RTMP stream.
+
+How to Livestream to YouTube
+Prerequisites
+These are the requirements to start using livestreaming:
+
+Livestreaming is a paid add-on which require a billing / payment method to be added to your JaaS Account.
+The current user's JWT should enable livestreaming to be able to use the feature.
+ "features": {
+      "livestreaming": true,
+      "outbound-call": true,
+      "sip-outbound-call": false,
+      "transcription": true,
+      "recording": true
+    },
+
+
+If you plan to stream to YouTube, you will need a YouTube account in order to start a Livestream on YouTube to send the RTMP stream to. If you are planning to stream on another platform, ensure that it supports an RTMP stream and has a stream key.
+Demo Video
+This is an accompany video guide which covers how to stream to YouTube using JaaS.
+
+
+Livestream Menu
+To access the livestream menu within a JaaS call, go to the Triple Dot Menu and navigate to Start live stream option.
+
+image
+
+Once you open this menu item you should see this box. If you see the warning below, this is due to your YouTube/Google Account not having live streaming setup. You can either select a different account with live streaming set up or you can use the Live Stream Key covered in the section Option 1) Streaming via Stream Key.
+
+image
+
+If you do have a Live stream setup you should see the box populated as below where it will allow you to select a live stream.
+
+image
+
+Regardless of whether you choose between a live stream or a Live stream key, the next sections will cover what you will need
+
+Streaming to YouTube
+Once you are logged into your YouTube account, navigate to the Create > Go Live option.
+
+image
+
+You can navigate to the Stream option to start a new stream immediately. Alternatively you can schedule a stream at a later date/time.
+
+image
+
+Regardless once it is time to start your stream, you should see the page below, select yout stream settings. Either create a new stream key or select an existing stream key.
+
+Ensure that you copy your Stream Key from this page.
+
+image Once you obtain the stream key, paste it into the Live stream key text box and click Start Live Stream.
+
+image
+
+This should result in a few dialog boxes being shown confirming that the livestream and also a red globe indicator at the top of the JaaS Room indicating the livestream is active.
+
+image image
+
+Viewing the YouTube Livestream
+From YouTube Studio when you are logged in as a YouTube Channel Owner / Manager you should be able to see a preview of the stream from the same page.
+
+image
+
+If your stream is public, this stream should be visible from your YouTube channel at this point for your regular YouTube viewers.image
+
+Streaming to a Custom RTMP Endpoint (Twitch)
+This section will cover how it is possible to stream to a custom RTMP endpoint by using Twitch as an example.
+
+Prerequisites
+These are the requirements to start using livestreaming:
+
+Livestreaming is a paid add-on which require a billing / payment method to be added to your JaaS Account.
+The current user's JWT should enable livestreaming to be able to use the feature.
+ "features": {
+      "livestreaming": true,
+      "outbound-call": true,
+      "sip-outbound-call": false,
+      "transcription": true,
+      "recording": true
+    },
+
+
+An RTMP Endpoint. If you plan to stream to Twitch you can follow the steps below to obtain your Twitch RTMP endpoint.
+Demo Video
+This is an accompany video guide which covers how to stream to Twitch via RTMP.
+
+
+Livestream Menu
+First access the livestreaming menu from Triple Dot Menu > Start Live Stream
+
+image
+
+Input Livestream RTMP Endpoint
+image
+
+Now in the Live stream key, instead of a YouTube stream key as in the previous section, we will enter an RTMP endpoint.
+
+Since we are using Twitch as an example, you can obtain the RTMP endpoint by visiting their page to find out the RTMP endpoint closest to you for the best performance. It should follow a format similar to rtmp://{region}.contribute.live-video.net/app/{stream_key}
+
+For {region} simply select the closest region on the page above. The {stream_key} can be obtained from Twitch under your Creator Dashboard > Settings > Stream > Primary Stream Key.
+
+image
+
+Starting Livestream on Twitch
+Once you have the full RTMP endpoint simply enter it into the Live stream key field and hit Start live streamto begin the stream.
+
+📘 Warnings
+
+There may be some warnings displayed regarding the Live Stream key which you can ignore. It should work with a valid RTMP endpoint provided.
+
+image
+
+Afterwards your Livestream should be available on your Twitch page.
+
+image
+
+Live streaming FAQ
+Question	Answer
+How long does live streaming session last?	Live streaming does not automatically stop, however recording will stop automatically after 6 hours.
+Am I limited to Twitch for RTMP?	You can send to any livestreaming service that supports RTMP ingest.
+My Stream has a delay	There will be some stream delay between the JaaS Room and the YouTube Livestream which is part of the streaming process. If you are streaming to YouTube, you can choose different streaming latency settings on YouTube to help reduce this delay. Other live streaming platforms may also have an similar option.
+Overview
+How to Livestream to YouTube
+Prerequisites
+Demo Video
+Livestream Menu
+Streaming to YouTube
+Viewing the YouTube Livestream
+Streaming to a Custom RTMP Endpoint (Twitch)
+Prerequisites
+Demo Video
+Livestream Menu
+Input Livestream RTMP Endpoint
+Starting Livestream on Twitch
+Live streaming FAQ
+8x8 API Lice
+
