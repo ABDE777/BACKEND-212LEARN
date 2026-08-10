@@ -24,6 +24,7 @@ model User {
   deletedAt    DateTime?
   restoreOtp      String?   @db.VarChar(255)
   restoreOtpExp   DateTime?
+  phone          String?   @db.VarChar(50)
 
   // Relations
   coursesInstructed CourseInstructor[]
@@ -41,8 +42,47 @@ model User {
   groupsTaught      Group[]        @relation("GroupFormateur")
   groupsCreated     Group[]        @relation("GroupCreator")
   groupMemberships  GroupStudent[]
+  studentProfile    StudentProfile?
+  instructorProfile InstructorProfile?
 
   @@map("users")
+}
+
+// ─── Student Profile ───────────────────────────────────────────────────────────
+
+model StudentProfile {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @unique @db.Uuid
+  school         String   @db.VarChar(255)
+  fieldOfStudy   String   @db.VarChar(255)
+  educationLevel String   @db.VarChar(50)
+  academicYear   String   @db.VarChar(50)
+  group          String?  @db.VarChar(50)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("student_profiles")
+}
+
+// ─── Instructor Profile ────────────────────────────────────────────────────────
+
+model InstructorProfile {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @unique @db.Uuid
+  specialization  String   @db.VarChar(255)
+  organization    String?  @db.VarChar(255)
+  experienceYears Int
+  teachingMode    String   @db.VarChar(50)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("instructor_profiles")
 }
 
 // ─── Module 2: Cours & Catalogue (Course) ────────────────────────────────────
@@ -220,6 +260,12 @@ model Payment {
   // Wafacash robust validation fields
   mtcn                 String?   @db.VarChar(50)
   receiptUrl           String?   @db.VarChar(500)
+  
+  // Bank Transfer (Virement) fields
+  rib                  String?   @db.VarChar(50) // RIB submitted by user
+  transferReceiptUrl   String?   @db.VarChar(500) // Transfer receipt image
+  
+  // Common verification fields
   verifiedBy           String?   @db.Uuid
   verifiedAt           DateTime?
   notes                String?   @db.Text

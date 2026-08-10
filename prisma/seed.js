@@ -38,6 +38,8 @@ async function clearAll() {
   await prisma.courseInstructor.deleteMany();
   await prisma.course.deleteMany();
   await prisma.category.deleteMany();
+  await prisma.instructorProfile.deleteMany();
+  await prisma.studentProfile.deleteMany();
   await prisma.user.deleteMany();
 }
 
@@ -69,6 +71,17 @@ async function main() {
       role: 'instructor',
       isVerified: true,
       bio: 'Lead web development instructor',
+      phone: '+212600000001',
+    },
+  });
+
+  await prisma.instructorProfile.create({
+    data: {
+      userId: instructor.id,
+      specialization: 'Web Development',
+      organization: '212Learn',
+      experienceYears: 5,
+      teachingMode: 'online',
     },
   });
 
@@ -80,6 +93,18 @@ async function main() {
       passwordHash,
       role: 'student',
       isVerified: true,
+      phone: '+212600000002',
+    },
+  });
+
+  await prisma.studentProfile.create({
+    data: {
+      userId: student1.id,
+      school: 'ISFO Sidi Maarouf',
+      fieldOfStudy: 'Développement Digital',
+      educationLevel: 'Bac+2',
+      academicYear: '2025-2026',
+      group: 'DDI203',
     },
   });
 
@@ -91,6 +116,18 @@ async function main() {
       passwordHash,
       role: 'student',
       isVerified: true,
+      phone: '+212600000003',
+    },
+  });
+
+  await prisma.studentProfile.create({
+    data: {
+      userId: student2.id,
+      school: 'ISFO Sidi Maarouf',
+      fieldOfStudy: 'Développement Digital',
+      educationLevel: 'Bac+2',
+      academicYear: '2025-2026',
+      group: 'DDI204',
     },
   });
 

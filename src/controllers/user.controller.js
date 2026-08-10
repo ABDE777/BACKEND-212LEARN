@@ -7,7 +7,7 @@ import { validateUUID } from '../utils/validation.js';
 const USER_SELECT = {
   id: true, firstName: true, lastName: true, email: true,
   role: true, isVerified: true, avatar: true, bio: true,
-  createdAt: true, lastLogin: true, deletedAt: true,
+  createdAt: true, lastLogin: true, deletedAt: true, phone: true,
 };
 
 const SORTABLE_FIELDS = ['createdAt', 'firstName', 'lastName', 'email', 'role'];
@@ -40,10 +40,29 @@ export const getAllUsers = async (req, res, next) => {
 
     const [total, users] = await Promise.all([
       prisma.user.count({ where }),
-      prisma.user.findMany({ where, select: USER_SELECT, orderBy, ...(skip !== undefined && { skip }), ...(limit !== null && { take: limit }) }),
+      prisma.user.findMany({ 
+        where, 
+        select: USER_SELECT, 
+        orderBy, 
+        ...(skip !== undefined && { skip }), 
+        ...(limit !== null && { take: limit }),
+        include: {
+          studentProfile: true,
+          instructorProfile: true,
+        }
+      }),
     ]);
 
-    res.status(200).json(successResponse({ users }, paginationMeta(total, page, limit)));
+    // Attach profile data to each user based on role
+    const usersWithProfiles = users.map(user => ({
+      ...user,
+      profile: user.role === 'student' ? user.studentProfile : 
+               user.role === 'instructor' ? user.instructorProfile : null,
+      studentProfile: undefined,
+      instructorProfile: undefined,
+    }));
+
+    res.status(200).json(successResponse({ users: usersWithProfiles }, paginationMeta(total, page, limit)));
   } catch (error) {
     next(error);
   }
@@ -57,11 +76,24 @@ export const getUser = async (req, res, next) => {
     const user = await prisma.user.findUnique({
       where: { id: req.params.id },
       select: USER_SELECT,
+      include: {
+        studentProfile: true,
+        instructorProfile: true,
+      }
     });
 
     if (!user) return next(new AppError('User not found.', 404, 'NOT_FOUND'));
 
-    res.status(200).json(successResponse({ user }));
+    // Attach profile data based on role
+    const userWithProfile = {
+      ...user,
+      profile: user.role === 'student' ? user.studentProfile : 
+               user.role === 'instructor' ? user.instructorProfile : null,
+      studentProfile: undefined,
+      instructorProfile: undefined,
+    };
+
+    res.status(200).json(successResponse({ user: userWithProfile }));
   } catch (error) {
     next(error);
   }

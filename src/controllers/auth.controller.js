@@ -17,7 +17,7 @@ const signToken = (id) =>
 const USER_PUBLIC_FIELDS = {
   id: true, firstName: true, lastName: true, email: true,
   role: true, avatar: true, bio: true, isVerified: true,
-  createdAt: true, updatedAt: true, lastLogin: true,
+  createdAt: true, updatedAt: true, lastLogin: true, phone: true,
 };
 
 const sendTokenResponse = (user, statusCode, res) => {
@@ -34,23 +34,73 @@ const sendTokenResponse = (user, statusCode, res) => {
 // POST /api/v1/auth/register
 export const register = async (req, res, next) => {
   try {
-    const { firstName, lastName, email, password } = req.body;
+    const { 
+      firstName, 
+      lastName, 
+      email, 
+      password, 
+      role = 'student',
+      phone,
+      studentProfile,
+      instructorProfile
+    } = req.body;
 
-    validateRequired(req.body, ['firstName', 'lastName', 'email', 'password']);
+    validateRequired(req.body, ['firstName', 'lastName', 'email', 'password', 'role']);
     validateEmail(email);
 
     if (String(password).length < 8) {
       return next(new AppError('Password must be at least 8 characters.', 400, 'VALIDATION_ERROR'));
     }
 
+    if (!['student', 'instructor'].includes(role)) {
+      return next(new AppError('Invalid role. Only student and instructor roles are allowed for public registration.', 400, 'VALIDATION_ERROR'));
+    }
+
+    if (role === 'student' && !studentProfile) {
+      return next(new AppError('Student profile information is required.', 400, 'VALIDATION_ERROR'));
+    }
+
+    if (role === 'instructor' && !instructorProfile) {
+      return next(new AppError('Instructor profile information is required.', 400, 'VALIDATION_ERROR'));
+    }
+
     const passwordHash = await bcrypt.hash(password, 12);
 
+    const userData = {
+      firstName, 
+      lastName, 
+      email, 
+      passwordHash,
+      role,
+      phone: phone || null,
+      isVerified: false,
+    };
+
+    if (role === 'student' && studentProfile) {
+      userData.studentProfile = {
+        create: {
+          school: studentProfile.school,
+          fieldOfStudy: studentProfile.fieldOfStudy,
+          educationLevel: studentProfile.educationLevel,
+          academicYear: studentProfile.academicYear,
+          group: studentProfile.group || null,
+        }
+      };
+    }
+
+    if (role === 'instructor' && instructorProfile) {
+      userData.instructorProfile = {
+        create: {
+          specialization: instructorProfile.specialization,
+          organization: instructorProfile.organization || null,
+          experienceYears: instructorProfile.experienceYears,
+          teachingMode: instructorProfile.teachingMode,
+        }
+      };
+    }
+
     const user = await prisma.user.create({
-      data: {
-        firstName, lastName, email, passwordHash,
-        role: 'student',
-        isVerified: false,
-      },
+      data: userData,
       select: { ...USER_PUBLIC_FIELDS, passwordHash: true, deletedAt: true },
     });
 
@@ -108,9 +158,37 @@ export const login = async (req, res, next) => {
 };
 
 // GET /api/v1/auth/me
-export const getMe = (req, res) => {
-  const { passwordHash, deletedAt, ...safeUser } = req.user;
-  res.status(200).json(successResponse({ user: safeUser }));
+export const getMe = async (req, res, next) => {
+  try {
+    const { passwordHash, deletedAt, ...safeUser } = req.user;
+    
+    // Fetch profile data based on role
+    let profileData = null;
+    if (safeUser.role === 'student') {
+      const studentProfile = await prisma.studentProfile.findUnique({
+        where: { userId: safeUser.id },
+      });
+      if (studentProfile) {
+        profileData = { ...studentProfile };
+      }
+    } else if (safeUser.role === 'instructor') {
+      const instructorProfile = await prisma.instructorProfile.findUnique({
+        where: { userId: safeUser.id },
+      });
+      if (instructorProfile) {
+        profileData = { ...instructorProfile };
+      }
+    }
+    
+    res.status(200).json(successResponse({ 
+      user: { 
+        ...safeUser, 
+        profile: profileData 
+      } 
+    }));
+  } catch (error) {
+    next(error);
+  }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
