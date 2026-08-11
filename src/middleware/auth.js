@@ -36,7 +36,17 @@ export const protect = async (req, res, next) => {
       return next(new AppError('This account has been deactivated.', 401, 'ACCOUNT_DEACTIVATED'));
     }
 
-    // 4) Grant access to protected route (mount user on request)
+    // 4) Reject tokens issued before the user's last password change, so a
+    // stolen/leaked token stops working as soon as the password is changed
+    // instead of staying valid for the rest of its 7-day lifetime.
+    if (currentUser.passwordChangedAt) {
+      const passwordChangedAtSeconds = Math.floor(currentUser.passwordChangedAt.getTime() / 1000);
+      if (decoded.iat < passwordChangedAtSeconds) {
+        return next(new AppError('Your password was changed. Please log in again.', 401, 'PASSWORD_CHANGED'));
+      }
+    }
+
+    // 5) Grant access to protected route (mount user on request)
     req.user = currentUser;
     next();
   } catch (error) {

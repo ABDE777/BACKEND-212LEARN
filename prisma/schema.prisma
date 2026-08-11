@@ -25,6 +25,7 @@ model User {
   restoreOtp      String?   @db.VarChar(255)
   restoreOtpExp   DateTime?
   phone          String?   @db.VarChar(50)
+  passwordChangedAt DateTime?
 
   // Relations
   coursesInstructed CourseInstructor[]
