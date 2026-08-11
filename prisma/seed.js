@@ -2,12 +2,24 @@
  * Lean test seed for 212LEARN.
  * Creates only enough data to exercise auth, curriculum, paywall, quiz, and admin flows.
  *
- * All accounts use password: password123
+ * This seed calls clearAll() which DELETES every row — it is for local/dev databases
+ * only and refuses to run when NODE_ENV=production unless SEED_FORCE=true.
+ *
+ * The admin password is NEVER hardcoded: set SEED_ADMIN_PASSWORD (and optionally
+ * SEED_ADMIN_EMAIL), or a strong random one is generated and printed once.
+ * The non-admin demo accounts use SEED_TEST_PASSWORD (default 'password123', dev only).
  */
 import prisma from '../src/config/prisma.js';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
-const PASSWORD = 'password123';
+// Dev-only shared password for the non-admin demo accounts.
+const PASSWORD = process.env.SEED_TEST_PASSWORD || 'password123';
+
+// Admin credentials come from the environment; no known default is ever used.
+const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL || 'admin@212learn.com';
+const ADMIN_PASSWORD_FROM_ENV = process.env.SEED_ADMIN_PASSWORD;
+const ADMIN_PASSWORD = ADMIN_PASSWORD_FROM_ENV || crypto.randomBytes(18).toString('base64url');
 
 async function clearAll() {
   console.log('🧹 Clearing tables...');
@@ -44,18 +56,25 @@ async function clearAll() {
 }
 
 async function main() {
+  // Safety guard: clearAll() below DELETES every row. Never wipe a production DB.
+  if (process.env.NODE_ENV === 'production' && process.env.SEED_FORCE !== 'true') {
+    console.error('❌ Refusing to seed: NODE_ENV=production. This WIPES all data. Set SEED_FORCE=true to override.');
+    process.exit(1);
+  }
+
   console.log('🌱 Seeding lean test data...');
   await clearAll();
 
   const passwordHash = await bcrypt.hash(PASSWORD, 10);
+  const adminPasswordHash = await bcrypt.hash(ADMIN_PASSWORD, 12);
 
   // ── Users ──────────────────────────────────────────────────────────────────
   const admin = await prisma.user.create({
     data: {
       firstName: 'Admin',
       lastName: '212',
-      email: 'admin@212learn.com',
-      passwordHash,
+      email: ADMIN_EMAIL,
+      passwordHash: adminPasswordHash,
       role: 'admin',
       isVerified: true,
       bio: 'Platform administrator',
@@ -388,8 +407,15 @@ async function main() {
   });
 
   console.log('\n✅ Seed complete (lean test dataset)\n');
-  console.log('Accounts (password for all: password123)');
-  console.log('  admin@212learn.com');
+  console.log('Admin account:');
+  console.log(`  ${ADMIN_EMAIL}`);
+  if (!ADMIN_PASSWORD_FROM_ENV) {
+    console.log(`  ⚠️  Generated admin password (shown ONCE — save it now): ${ADMIN_PASSWORD}`);
+    console.log('     Set SEED_ADMIN_PASSWORD to choose your own next time.');
+  } else {
+    console.log('  (password from SEED_ADMIN_PASSWORD)');
+  }
+  console.log(`\nDemo accounts (password: ${PASSWORD}):`);
   console.log('  instructor@212learn.com');
   console.log('  student1@212learn.com  → PAID on React Essentials');
   console.log('  student2@212learn.com  → PENDING Wafacash (ref WFC-TESTPEND)');

@@ -2,7 +2,7 @@ import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { validateUUID, validateRequired } from '../utils/validation.js';
-import { resolveValidCoupon, applyCouponDiscount } from '../utils/coupon.js';
+import { resolveValidCoupon, applyCouponDiscount, consumeCouponUsage } from '../utils/coupon.js';
 import crypto from 'crypto';
 
 // ─── Webhook Signature Verification ─────────────────────────────────────────────
@@ -148,7 +148,6 @@ export const requestWafacashPayment = async (req, res, next) => {
 export const submitWafacashTransfer = async (req, res, next) => {
   try {
     const { paymentReference, mtcn } = req.body;
-    const { demo } = req.query;
 
     validateRequired(req.body, ['paymentReference', 'mtcn']);
 
@@ -183,19 +182,28 @@ export const submitWafacashTransfer = async (req, res, next) => {
       return next(new AppError('This payment has already been verified and completed.', 409, 'CONFLICT'));
     }
 
-    // Determine if auto-approve is allowed (only in dev, never in production)
-    const isDev = process.env.NODE_ENV !== 'production';
-    const autoApprove = isDev && (demo === 'true' || process.env.WAFACASH_AUTO_APPROVE === 'true');
+    // Auto-approve is a DEV-ONLY convenience gated solely by a server env flag and is
+    // HARD-DISABLED in production. It never reads any client-supplied value (the old
+    // ?demo=true query param is gone) so a student cannot self-approve their payment.
+    const autoApprove =
+      process.env.NODE_ENV !== 'production' &&
+      process.env.WAFACASH_AUTO_APPROVE === 'true';
 
-    const updatedPayment = await prisma.payment.update({
-      where: { id: payment.id },
-      data: {
-        status:     autoApprove ? 'PAID' : 'WAITING_VERIFICATION',
-        mtcn:       cleanMtcn,
-        receiptUrl: receiptUrl || payment.receiptUrl,
-        paidAt:     autoApprove ? new Date() : null,
-        notes:      autoApprove ? 'Demo Mode Auto-Approval' : null,
-      },
+    const updatedPayment = await prisma.$transaction(async (tx) => {
+      // Dev auto-approve becomes PAID here, so count the coupon usage atomically too.
+      if (autoApprove && payment.couponId) {
+        await consumeCouponUsage(tx, payment.couponId);
+      }
+      return tx.payment.update({
+        where: { id: payment.id },
+        data: {
+          status:     autoApprove ? 'PAID' : 'WAITING_VERIFICATION',
+          mtcn:       cleanMtcn,
+          receiptUrl: receiptUrl || payment.receiptUrl,
+          paidAt:     autoApprove ? new Date() : null,
+          notes:      autoApprove ? 'Demo Mode Auto-Approval' : null,
+        },
+      });
     });
 
     res.status(200).json(
@@ -306,6 +314,11 @@ export const verifyPayment = async (req, res, next) => {
 
       if (lockedPayment.status === 'PAID') {
         throw new AppError('Payment already processed by another request.', 409, 'CONFLICT');
+      }
+
+      // Count the coupon usage only on actual approval, atomically (enforces maxUsage).
+      if (action === 'approve' && lockedPayment.couponId) {
+        await consumeCouponUsage(tx, lockedPayment.couponId);
       }
 
       return await tx.payment.update({

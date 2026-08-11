@@ -93,52 +93,61 @@ export const getUser = async (req, res, next) => {
   }
 };
 
+// Fields a user may change about themselves via PATCH /users/me.
+// SECURITY: this is a strict ALLOW-LIST. Anything not listed here — role,
+// isVerified, email, passwordHash, passwordChangedAt, deletedAt, restoreOtp,
+// lastLogin, and the admin-assigned profile `group` — is deliberately ignored so
+// a user cannot self-verify, self-escalate, or hijack their login identity
+// (mass-assignment). Email changes must go through a separate re-validated flow.
+const USER_EDITABLE_FIELDS = ['firstName', 'lastName', 'bio', 'phone', 'avatar'];
+const STUDENT_PROFILE_EDITABLE_FIELDS = [
+  'situation', 'school', 'fieldOfStudy', 'educationLevel',
+  'academicYearStart', 'academicYearEnd', 'companyName', 'department',
+  'position', 'sector', 'experienceYears', 'interests',
+  'learningObjective', 'currentLevel', 'isSelfDirected',
+];
+const INSTRUCTOR_PROFILE_EDITABLE_FIELDS = [
+  'situation', 'specialization', 'organization', 'department',
+  'position', 'sector', 'experienceYears', 'teachingMode', 'teachingDomains',
+];
+
+// Copy only allow-listed keys that are actually present in the body.
+const pickAllowed = (body, allowed) => {
+  const out = {};
+  for (const key of allowed) {
+    if (Object.prototype.hasOwnProperty.call(body, key)) out[key] = body[key];
+  }
+  return out;
+};
+
 // PATCH /api/v1/users/me
 export const updateMe = async (req, res, next) => {
   try {
-    // Block attempts to escalate role or change password through this endpoint
-    const { password, role, passwordHash, ...allowed } = req.body;
+    const body = req.body || {};
+    const isStudentLike = req.user.role === 'student' || req.user.role === 'employee';
 
-    // Extract profile-specific fields.
-    // NOTE: 'group' is intentionally excluded — it's admin/instructor-assigned only
-    // (see register() in auth.controller.js) and must not be self-editable here.
-    const studentProfileFields = ['school', 'fieldOfStudy', 'educationLevel', 'academicYearStart', 'academicYearEnd', 'isSelfDirected'];
-    const instructorProfileFields = ['specialization', 'organization', 'experienceYears', 'teachingMode'];
+    const userData = pickAllowed(body, USER_EDITABLE_FIELDS);
+    const profileData = isStudentLike
+      ? pickAllowed(body, STUDENT_PROFILE_EDITABLE_FIELDS)
+      : req.user.role === 'instructor'
+        ? pickAllowed(body, INSTRUCTOR_PROFILE_EDITABLE_FIELDS)
+        : {};
 
-    const studentProfileData = {};
-    const instructorProfileData = {};
-    const userData = {};
-
-    Object.keys(allowed).forEach(key => {
-      if (studentProfileFields.includes(key)) {
-        studentProfileData[key] = allowed[key];
-      } else if (instructorProfileFields.includes(key)) {
-        instructorProfileData[key] = allowed[key];
-      } else {
-        userData[key] = allowed[key];
+    // Update user + profile atomically so they can't drift apart.
+    await prisma.$transaction(async (tx) => {
+      if (Object.keys(userData).length > 0) {
+        await tx.user.update({ where: { id: req.user.id }, data: userData });
+      }
+      if (Object.keys(profileData).length > 0) {
+        if (isStudentLike) {
+          await tx.studentProfile.update({ where: { userId: req.user.id }, data: profileData });
+        } else if (req.user.role === 'instructor') {
+          await tx.instructorProfile.update({ where: { userId: req.user.id }, data: profileData });
+        }
       }
     });
 
-    // Update user basic info
-    const user = await prisma.user.update({
-      where: { id: req.user.id },
-      data: userData,
-    });
-
-    // Update profile based on role
-    if ((req.user.role === 'student' || req.user.role === 'employee') && Object.keys(studentProfileData).length > 0) {
-      await prisma.studentProfile.update({
-        where: { userId: req.user.id },
-        data: studentProfileData,
-      });
-    } else if (req.user.role === 'instructor' && Object.keys(instructorProfileData).length > 0) {
-      await prisma.instructorProfile.update({
-        where: { userId: req.user.id },
-        data: instructorProfileData,
-      });
-    }
-
-    // Fetch updated user with profile
+    // Return the fresh user + profile using the shared select allow-list (no secrets).
     const updatedUser = await prisma.user.findUnique({
       where: { id: req.user.id },
       select: USER_SELECT,
