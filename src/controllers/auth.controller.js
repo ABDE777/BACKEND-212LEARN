@@ -22,7 +22,7 @@ const USER_PUBLIC_FIELDS = {
 
 const sendTokenResponse = (user, statusCode, res) => {
   const token = signToken(user.id);
-  const { passwordHash, deletedAt, studentProfile, instructorProfile, ...safeUser } = user;
+  const { passwordHash, deletedAt, restoreOtp, restoreOtpExp, studentProfile, instructorProfile, ...safeUser } = user;
 
   // Include profile data based on role
   const profileData = safeUser.role === 'student' || safeUser.role === 'employee' ? studentProfile :
@@ -192,7 +192,7 @@ export const login = async (req, res, next) => {
 // GET /api/v1/auth/me
 export const getMe = async (req, res, next) => {
   try {
-    const { passwordHash, deletedAt, studentProfile, instructorProfile, ...safeUser } = req.user;
+    const { passwordHash, deletedAt, restoreOtp, restoreOtpExp, studentProfile, instructorProfile, ...safeUser } = req.user;
     
     // Include profile data based on role (already fetched by auth middleware)
     const profileData = safeUser.role === 'student' || safeUser.role === 'employee' ? studentProfile :
@@ -245,7 +245,7 @@ export const changePassword = async (req, res, next) => {
     const passwordHash = await bcrypt.hash(newPassword, 12);
     await prisma.user.update({
       where: { id: user.id },
-      data: { passwordHash },
+      data: { passwordHash, passwordChangedAt: new Date() },
     });
 
     res.status(200).json(successResponse({ message: 'Password updated successfully.' }));
@@ -354,7 +354,7 @@ export const resetPassword = async (req, res, next) => {
     const passwordHash = await bcrypt.hash(newPassword, 12);
     await prisma.user.update({
       where: { id: user.id },
-      data: { passwordHash },
+      data: { passwordHash, passwordChangedAt: new Date() },
     });
 
     res.status(200).json(successResponse({ message: 'Password reset successfully. You can now log in.' }));

@@ -42,11 +42,13 @@ function cleanupMemoryStore(windowMs) {
 }
 
 function clientKey(req, prefix) {
-  const forwarded = req.headers['x-forwarded-for'];
-  const ip = (Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(',')[0])?.trim()
-    || req.ip
-    || req.socket?.remoteAddress
-    || 'unknown';
+  // req.ip is trust-proxy-aware (see app.set('trust proxy', ...) in index.js): with
+  // exactly one trusted hop configured, Express takes the IP the platform's edge
+  // proxy appended to X-Forwarded-For, not whatever a client puts in that header.
+  // Do NOT parse req.headers['x-forwarded-for'] directly here — a client can set
+  // that header to any value, which previously let requests dodge rate limiting
+  // by sending a different fake IP on every request.
+  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
   return `${prefix}:${ip}`;
 }
 

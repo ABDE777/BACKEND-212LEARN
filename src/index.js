@@ -50,6 +50,12 @@ try {
 const app  = express();
 const PORT = process.env.PORT || 5000;
 
+// Trust exactly one hop (Vercel's edge / the platform's reverse proxy).
+// This makes Express recompute req.ip from X-Forwarded-For itself, taking the
+// address the proxy appended rather than whatever a client puts in the header —
+// required so rate limiting can't be bypassed by spoofing X-Forwarded-For.
+app.set('trust proxy', 1);
+
 // ── API version prefix ────────────────────────────────────────────────────────
 const V1 = '/api/v1';
 

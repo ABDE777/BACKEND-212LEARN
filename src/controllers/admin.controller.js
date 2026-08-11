@@ -730,7 +730,7 @@ export const restoreUser = async (req, res, next) => {
 
     const restoredUser = await prisma.user.update({
       where: { id: userId },
-      data: { deletedAt: null },
+      data: { deletedAt: null, restoreOtp: null, restoreOtpExp: null },
       select: {
         id: true,
         firstName: true,

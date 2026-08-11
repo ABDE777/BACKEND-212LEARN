@@ -8,6 +8,8 @@ const USER_SELECT = {
   id: true, firstName: true, lastName: true, email: true,
   role: true, isVerified: true, avatar: true, bio: true,
   createdAt: true, lastLogin: true, deletedAt: true, phone: true,
+  studentProfile: true,
+  instructorProfile: true,
 };
 
 const SORTABLE_FIELDS = ['createdAt', 'firstName', 'lastName', 'email', 'role'];
@@ -42,13 +44,10 @@ export const getAllUsers = async (req, res, next) => {
       prisma.user.count({ where }),
       prisma.user.findMany({
         where,
+        select: USER_SELECT,
         orderBy,
         ...(skip !== undefined && { skip }),
         ...(limit !== null && { take: limit }),
-        include: {
-          studentProfile: true,
-          instructorProfile: true,
-        }
       }),
     ]);
 
@@ -74,10 +73,7 @@ export const getUser = async (req, res, next) => {
 
     const user = await prisma.user.findUnique({
       where: { id: req.params.id },
-      include: {
-        studentProfile: true,
-        instructorProfile: true,
-      }
+      select: USER_SELECT,
     });
 
     if (!user) return next(new AppError('User not found.', 404, 'NOT_FOUND'));
@@ -103,8 +99,10 @@ export const updateMe = async (req, res, next) => {
     // Block attempts to escalate role or change password through this endpoint
     const { password, role, passwordHash, ...allowed } = req.body;
 
-    // Extract profile-specific fields
-    const studentProfileFields = ['school', 'fieldOfStudy', 'educationLevel', 'academicYear', 'group', 'isSelfDirected'];
+    // Extract profile-specific fields.
+    // NOTE: 'group' is intentionally excluded — it's admin/instructor-assigned only
+    // (see register() in auth.controller.js) and must not be self-editable here.
+    const studentProfileFields = ['school', 'fieldOfStudy', 'educationLevel', 'academicYearStart', 'academicYearEnd', 'isSelfDirected'];
     const instructorProfileFields = ['specialization', 'organization', 'experienceYears', 'teachingMode'];
 
     const studentProfileData = {};
@@ -143,10 +141,7 @@ export const updateMe = async (req, res, next) => {
     // Fetch updated user with profile
     const updatedUser = await prisma.user.findUnique({
       where: { id: req.user.id },
-      include: {
-        studentProfile: true,
-        instructorProfile: true,
-      },
+      select: USER_SELECT,
     });
 
     const userWithProfile = {
@@ -204,6 +199,7 @@ export const uploadAvatar = async (req, res, next) => {
     const user = await prisma.user.update({
       where: { id: req.user.id },
       data: { avatar: req.file.path },
+      select: USER_SELECT,
     });
 
     res.status(200).json(successResponse({ user }));
