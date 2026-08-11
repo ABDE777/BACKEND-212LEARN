@@ -5,6 +5,7 @@ import {
   updateCoupon,
   deleteCoupon,
   validateCoupon,
+  getCouponUsage,
 } from '../controllers/coupon.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
 
@@ -102,5 +103,24 @@ router.post('/', protect, restrictTo('admin'), createCoupon);
  */
 router.patch('/:id', protect, restrictTo('admin'), updateCoupon);
 router.delete('/:id', protect, restrictTo('admin'), deleteCoupon);
+
+/**
+ * @swagger
+ * /coupons/{id}/usage:
+ *   get:
+ *     summary: Get coupon usage details (admin)
+ *     tags: [Coupons]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: List of payments that used this coupon
+ */
+router.get('/:id/usage', protect, restrictTo('admin'), getCouponUsage);
 
 export default router;

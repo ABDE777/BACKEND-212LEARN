@@ -78,10 +78,15 @@ async function main() {
   await prisma.instructorProfile.create({
     data: {
       userId: instructor.id,
+      situation: 'employed',
       specialization: 'Web Development',
       organization: '212Learn',
+      department: 'IT',
+      position: 'Lead Web Development Instructor',
+      sector: 'Technology',
       experienceYears: 5,
       teachingMode: 'online',
+      teachingDomains: 'JavaScript, React, Node.js, PHP',
     },
   });
 
@@ -100,11 +105,14 @@ async function main() {
   await prisma.studentProfile.create({
     data: {
       userId: student1.id,
+      situation: 'student',
       school: 'ISFO Sidi Maarouf',
       fieldOfStudy: 'Développement Digital',
       educationLevel: 'Bac+2',
-      academicYear: '2025-2026',
-      group: 'DDI203',
+      academicYearStart: new Date('2025-09-01'),
+      academicYearEnd: new Date('2026-06-30'),
+      group: null,
+      isSelfDirected: false,
     },
   });
 
@@ -123,11 +131,19 @@ async function main() {
   await prisma.studentProfile.create({
     data: {
       userId: student2.id,
-      school: 'ISFO Sidi Maarouf',
-      fieldOfStudy: 'Développement Digital',
-      educationLevel: 'Bac+2',
-      academicYear: '2025-2026',
-      group: 'DDI204',
+      situation: 'employee',
+      school: null,
+      fieldOfStudy: null,
+      educationLevel: null,
+      academicYearStart: null,
+      academicYearEnd: null,
+      companyName: 'ABC Maroc',
+      department: 'IT',
+      position: 'Développeur Web',
+      sector: 'Technologie',
+      experienceYears: 2,
+      group: null,
+      isSelfDirected: false,
     },
   });
 
@@ -336,6 +352,9 @@ async function main() {
       code: 'TEST10',
       discount: 10,
       expirationDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+      maxUsage: 100,
+      currentUsage: 0,
+      isActive: true,
     },
   });
 

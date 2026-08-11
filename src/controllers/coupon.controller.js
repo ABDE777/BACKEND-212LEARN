@@ -41,8 +41,11 @@ export const createCoupon = async (req, res, next) => {
     const code = String(req.body.code).trim().toUpperCase();
     const discount = Number(req.body.discount);
     const expirationDate = validateDate(req.body.expirationDate, 'expirationDate');
+    const maxUsage = req.body.maxUsage !== undefined ? Number(req.body.maxUsage) : 100;
+    const isActive = req.body.isActive !== undefined ? Boolean(req.body.isActive) : true;
 
     validateNumberRange(discount, { min: 0, max: 100 }, 'discount');
+    validateNumberRange(maxUsage, { min: 1, max: 10000 }, 'maxUsage');
 
     if (expirationDate <= new Date()) {
       return next(new AppError('expirationDate must be in the future.', 400, 'VALIDATION_ERROR'));
@@ -54,7 +57,7 @@ export const createCoupon = async (req, res, next) => {
     }
 
     const coupon = await prisma.coupon.create({
-      data: { code, discount, expirationDate },
+      data: { code, discount, expirationDate, maxUsage, currentUsage: 0, isActive },
     });
 
     res.status(201).json(successResponse({
@@ -96,6 +99,16 @@ export const updateCoupon = async (req, res, next) => {
 
     if (req.body.expirationDate !== undefined) {
       data.expirationDate = validateDate(req.body.expirationDate, 'expirationDate');
+    }
+
+    if (req.body.maxUsage !== undefined) {
+      const maxUsage = Number(req.body.maxUsage);
+      validateNumberRange(maxUsage, { min: coupon.currentUsage, max: 10000 }, 'maxUsage');
+      data.maxUsage = maxUsage;
+    }
+
+    if (req.body.isActive !== undefined) {
+      data.isActive = Boolean(req.body.isActive);
     }
 
     const updated = await prisma.coupon.update({
@@ -167,6 +180,51 @@ export const validateCoupon = async (req, res, next) => {
     }
 
     res.status(200).json(successResponse(preview));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /api/v1/coupons/:id/usage  (admin)
+// Returns all payments that used this coupon
+export const getCouponUsage = async (req, res, next) => {
+  try {
+    validateUUID(req.params.id, 'couponId');
+
+    const coupon = await prisma.coupon.findUnique({
+      where: { id: req.params.id },
+    });
+
+    if (!coupon) {
+      return next(new AppError('Coupon not found.', 404, 'NOT_FOUND'));
+    }
+
+    const payments = await prisma.payment.findMany({
+      where: { couponId: req.params.id },
+      include: {
+        enrollment: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
+            course: {
+              select: {
+                id: true,
+                title: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.status(200).json(successResponse({ payments }));
   } catch (error) {
     next(error);
   }

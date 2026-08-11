@@ -40,11 +40,10 @@ export const getAllUsers = async (req, res, next) => {
 
     const [total, users] = await Promise.all([
       prisma.user.count({ where }),
-      prisma.user.findMany({ 
-        where, 
-        select: USER_SELECT, 
-        orderBy, 
-        ...(skip !== undefined && { skip }), 
+      prisma.user.findMany({
+        where,
+        orderBy,
+        ...(skip !== undefined && { skip }),
         ...(limit !== null && { take: limit }),
         include: {
           studentProfile: true,
@@ -75,7 +74,6 @@ export const getUser = async (req, res, next) => {
 
     const user = await prisma.user.findUnique({
       where: { id: req.params.id },
-      select: USER_SELECT,
       include: {
         studentProfile: true,
         instructorProfile: true,
@@ -105,13 +103,59 @@ export const updateMe = async (req, res, next) => {
     // Block attempts to escalate role or change password through this endpoint
     const { password, role, passwordHash, ...allowed } = req.body;
 
-    const user = await prisma.user.update({
-      where: { id: req.user.id },
-      data: allowed,
-      select: USER_SELECT,
+    // Extract profile-specific fields
+    const studentProfileFields = ['school', 'fieldOfStudy', 'educationLevel', 'academicYear', 'group', 'isSelfDirected'];
+    const instructorProfileFields = ['specialization', 'organization', 'experienceYears', 'teachingMode'];
+
+    const studentProfileData = {};
+    const instructorProfileData = {};
+    const userData = {};
+
+    Object.keys(allowed).forEach(key => {
+      if (studentProfileFields.includes(key)) {
+        studentProfileData[key] = allowed[key];
+      } else if (instructorProfileFields.includes(key)) {
+        instructorProfileData[key] = allowed[key];
+      } else {
+        userData[key] = allowed[key];
+      }
     });
 
-    res.status(200).json(successResponse({ user }));
+    // Update user basic info
+    const user = await prisma.user.update({
+      where: { id: req.user.id },
+      data: userData,
+    });
+
+    // Update profile based on role
+    if ((req.user.role === 'student' || req.user.role === 'employee') && Object.keys(studentProfileData).length > 0) {
+      await prisma.studentProfile.update({
+        where: { userId: req.user.id },
+        data: studentProfileData,
+      });
+    } else if (req.user.role === 'instructor' && Object.keys(instructorProfileData).length > 0) {
+      await prisma.instructorProfile.update({
+        where: { userId: req.user.id },
+        data: instructorProfileData,
+      });
+    }
+
+    // Fetch updated user with profile
+    const updatedUser = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      include: {
+        studentProfile: true,
+        instructorProfile: true,
+      },
+    });
+
+    const userWithProfile = {
+      ...updatedUser,
+      studentProfile: (updatedUser.role === 'student' || updatedUser.role === 'employee') ? updatedUser.studentProfile : null,
+      instructorProfile: updatedUser.role === 'instructor' ? updatedUser.instructorProfile : null,
+    };
+
+    res.status(200).json(successResponse({ user: userWithProfile }));
   } catch (error) {
     next(error);
   }
@@ -160,7 +204,6 @@ export const uploadAvatar = async (req, res, next) => {
     const user = await prisma.user.update({
       where: { id: req.user.id },
       data: { avatar: req.file.path },
-      select: USER_SELECT,
     });
 
     res.status(200).json(successResponse({ user }));

@@ -51,15 +51,26 @@ model User {
 // ─── Student Profile ───────────────────────────────────────────────────────────
 
 model StudentProfile {
-  id             String   @id @default(uuid()) @db.Uuid
-  userId         String   @unique @db.Uuid
-  school         String   @db.VarChar(255)
-  fieldOfStudy   String   @db.VarChar(255)
-  educationLevel String   @db.VarChar(50)
-  academicYear   String   @db.VarChar(50)
-  group          String?  @db.VarChar(50)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @unique @db.Uuid
+  situation         String   @default("student") @db.VarChar(50)
+  school            String?  @db.VarChar(255)
+  fieldOfStudy      String?  @db.VarChar(255)
+  educationLevel    String?  @db.VarChar(50)
+  academicYearStart DateTime?
+  academicYearEnd   DateTime?
+  companyName       String?  @db.VarChar(255)
+  department        String?  @db.VarChar(255)
+  position          String?  @db.VarChar(255)
+  sector            String?  @db.VarChar(255)
+  experienceYears   Int?
+  interests         String?  @db.Text
+  learningObjective String?  @db.Text
+  currentLevel      String?  @db.VarChar(50)
+  group             String?  @db.VarChar(50)
+  isSelfDirected    Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -72,10 +83,15 @@ model StudentProfile {
 model InstructorProfile {
   id              String   @id @default(uuid()) @db.Uuid
   userId          String   @unique @db.Uuid
+  situation       String   @default("employed") @db.VarChar(50)
   specialization  String   @db.VarChar(255)
   organization    String?  @db.VarChar(255)
+  department      String?  @db.VarChar(255)
+  position        String?  @db.VarChar(255)
+  sector          String?  @db.VarChar(255)
   experienceYears Int
   teachingMode    String   @db.VarChar(50)
+  teachingDomains String?  @db.Text
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -320,6 +336,9 @@ model Coupon {
   code           String   @unique @db.VarChar(50)
   discount       Decimal  @db.Decimal(5, 2)
   expirationDate DateTime
+  maxUsage       Int      @default(100)
+  currentUsage   Int      @default(0)
+  isActive       Boolean  @default(true)
 
   // Relations
   payments Payment[]

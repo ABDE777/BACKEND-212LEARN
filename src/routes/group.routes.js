@@ -1,0 +1,175 @@
+import { Router } from 'express';
+import {
+  getAllGroups,
+  getGroup,
+  createGroup,
+  updateGroup,
+  deleteGroup,
+  addStudentToGroup,
+  removeStudentFromGroup,
+} from '../controllers/group.controller.js';
+import { protect, restrictTo } from '../middleware/auth.js';
+
+const router = Router();
+
+/**
+ * @swagger
+ * /groups:
+ *   get:
+ *     summary: List all groups (admin)
+ *     tags: [Groups]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: search
+ *         schema: { type: string }
+ *       - in: query
+ *         name: courseId
+ *         schema: { type: string, format: uuid }
+ *       - in: query
+ *         name: formateurId
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Paginated groups
+ *   post:
+ *     summary: Create a group (admin)
+ *     tags: [Groups]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name, formateurId]
+ *             properties:
+ *               name: { type: string, example: "Groupe A" }
+ *               description: { type: string }
+ *               courseId: { type: string, format: uuid }
+ *               formateurId: { type: string, format: uuid }
+ *     responses:
+ *       201:
+ *         description: Group created
+ */
+router.get('/', protect, restrictTo('admin'), getAllGroups);
+router.post('/', protect, restrictTo('admin'), createGroup);
+
+/**
+ * @swagger
+ * /groups/{id}:
+ *   get:
+ *     summary: Get a group by ID (admin)
+ *     tags: [Groups]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Group details
+ *   patch:
+ *     summary: Update a group (admin)
+ *     tags: [Groups]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name: { type: string }
+ *               description: { type: string }
+ *               courseId: { type: string, format: uuid }
+ *               formateurId: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Updated group
+ *   delete:
+ *     summary: Delete a group (admin)
+ *     tags: [Groups]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       204:
+ *         description: Deleted
+ */
+router.get('/:id', protect, restrictTo('admin'), getGroup);
+router.patch('/:id', protect, restrictTo('admin'), updateGroup);
+router.delete('/:id', protect, restrictTo('admin'), deleteGroup);
+
+/**
+ * @swagger
+ * /groups/{id}/students:
+ *   post:
+ *     summary: Add a student to a group (admin)
+ *     tags: [Groups]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [userId]
+ *             properties:
+ *               userId: { type: string, format: uuid }
+ *     responses:
+ *       201:
+ *         description: Student added
+ */
+router.post('/:id/students', protect, restrictTo('admin'), addStudentToGroup);
+
+/**
+ * @swagger
+ * /groups/{id}/students/{userId}:
+ *   delete:
+ *     summary: Remove a student from a group (admin)
+ *     tags: [Groups]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       204:
+ *         description: Student removed
+ */
+router.delete('/:id/students/:userId', protect, restrictTo('admin'), removeStudentFromGroup);
+
+export default router;

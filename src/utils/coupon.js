@@ -19,8 +19,16 @@ export const resolveValidCoupon = async (code) => {
     throw new AppError(`Coupon code "${code}" is invalid.`, 400, 'VALIDATION_ERROR');
   }
 
+  if (!coupon.isActive) {
+    throw new AppError(`Coupon code "${code}" is inactive.`, 400, 'VALIDATION_ERROR');
+  }
+
   if (new Date(coupon.expirationDate) < new Date()) {
     throw new AppError(`Coupon code "${code}" has expired.`, 400, 'VALIDATION_ERROR');
+  }
+
+  if (coupon.currentUsage >= coupon.maxUsage) {
+    throw new AppError(`Coupon code "${code}" has reached its maximum usage limit.`, 400, 'VALIDATION_ERROR');
   }
 
   return {
@@ -28,6 +36,8 @@ export const resolveValidCoupon = async (code) => {
     code: coupon.code,
     discount: Number(coupon.discount),
     expirationDate: coupon.expirationDate,
+    maxUsage: coupon.maxUsage,
+    currentUsage: coupon.currentUsage,
   };
 };
 

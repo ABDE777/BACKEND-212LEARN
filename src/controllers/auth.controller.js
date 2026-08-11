@@ -22,11 +22,21 @@ const USER_PUBLIC_FIELDS = {
 
 const sendTokenResponse = (user, statusCode, res) => {
   const token = signToken(user.id);
-  const { passwordHash, deletedAt, ...safeUser } = user;
+  const { passwordHash, deletedAt, studentProfile, instructorProfile, ...safeUser } = user;
+
+  // Include profile data based on role
+  const profileData = safeUser.role === 'student' || safeUser.role === 'employee' ? studentProfile :
+                      safeUser.role === 'instructor' ? instructorProfile : null;
+
+  const userWithProfile = {
+    ...safeUser,
+    studentProfile: (safeUser.role === 'student' || safeUser.role === 'employee') ? profileData : null,
+    instructorProfile: safeUser.role === 'instructor' ? profileData : null,
+  };
 
   // Success envelope + token at top level (JWT should not be buried in data)
   res.status(statusCode).json({
-    ...successResponse({ user: safeUser }),
+    ...successResponse({ user: userWithProfile }),
     token,
   });
 };
@@ -52,12 +62,12 @@ export const register = async (req, res, next) => {
       return next(new AppError('Password must be at least 8 characters.', 400, 'VALIDATION_ERROR'));
     }
 
-    if (!['student', 'instructor'].includes(role)) {
-      return next(new AppError('Invalid role. Only student and instructor roles are allowed for public registration.', 400, 'VALIDATION_ERROR'));
+    if (!['student', 'instructor', 'employee'].includes(role)) {
+      return next(new AppError('Invalid role. Only student, instructor, and employee roles are allowed for public registration.', 400, 'VALIDATION_ERROR'));
     }
 
-    if (role === 'student' && !studentProfile) {
-      return next(new AppError('Student profile information is required.', 400, 'VALIDATION_ERROR'));
+    if ((role === 'student' || role === 'employee') && !studentProfile) {
+      return next(new AppError('Profile information is required.', 400, 'VALIDATION_ERROR'));
     }
 
     if (role === 'instructor' && !instructorProfile) {
@@ -76,14 +86,25 @@ export const register = async (req, res, next) => {
       isVerified: false,
     };
 
-    if (role === 'student' && studentProfile) {
+    if ((role === 'student' || role === 'employee') && studentProfile) {
       userData.studentProfile = {
         create: {
-          school: studentProfile.school,
-          fieldOfStudy: studentProfile.fieldOfStudy,
-          educationLevel: studentProfile.educationLevel,
-          academicYear: studentProfile.academicYear,
-          group: studentProfile.group || null,
+          situation: studentProfile.situation || 'student',
+          school: studentProfile.school || null,
+          fieldOfStudy: studentProfile.fieldOfStudy || null,
+          educationLevel: studentProfile.educationLevel || null,
+          academicYearStart: studentProfile.academicYearStart || null,
+          academicYearEnd: studentProfile.academicYearEnd || null,
+          companyName: studentProfile.companyName || null,
+          department: studentProfile.department || null,
+          position: studentProfile.position || null,
+          sector: studentProfile.sector || null,
+          experienceYears: studentProfile.experienceYears || null,
+          interests: studentProfile.interests || null,
+          learningObjective: studentProfile.learningObjective || null,
+          currentLevel: studentProfile.currentLevel || null,
+          group: null, // Always null - assigned by admin/instructor later
+          isSelfDirected: studentProfile.isSelfDirected || false,
         }
       };
     }
@@ -91,17 +112,25 @@ export const register = async (req, res, next) => {
     if (role === 'instructor' && instructorProfile) {
       userData.instructorProfile = {
         create: {
+          situation: instructorProfile.situation || 'employed',
           specialization: instructorProfile.specialization,
           organization: instructorProfile.organization || null,
+          department: instructorProfile.department || null,
+          position: instructorProfile.position || null,
+          sector: instructorProfile.sector || null,
           experienceYears: instructorProfile.experienceYears,
           teachingMode: instructorProfile.teachingMode,
+          teachingDomains: instructorProfile.teachingDomains || null,
         }
       };
     }
 
     const user = await prisma.user.create({
       data: userData,
-      select: { ...USER_PUBLIC_FIELDS, passwordHash: true, deletedAt: true },
+      include: {
+        studentProfile: true,
+        instructorProfile: true,
+      },
     });
 
     sendTokenResponse(user, 201, res);
@@ -120,7 +149,10 @@ export const login = async (req, res, next) => {
 
     const user = await prisma.user.findUnique({
       where: { email },
-      select: { ...USER_PUBLIC_FIELDS, passwordHash: true, deletedAt: true },
+      include: {
+        studentProfile: true,
+        instructorProfile: true,
+      },
     });
 
     if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
@@ -160,30 +192,17 @@ export const login = async (req, res, next) => {
 // GET /api/v1/auth/me
 export const getMe = async (req, res, next) => {
   try {
-    const { passwordHash, deletedAt, ...safeUser } = req.user;
+    const { passwordHash, deletedAt, studentProfile, instructorProfile, ...safeUser } = req.user;
     
-    // Fetch profile data based on role
-    let profileData = null;
-    if (safeUser.role === 'student') {
-      const studentProfile = await prisma.studentProfile.findUnique({
-        where: { userId: safeUser.id },
-      });
-      if (studentProfile) {
-        profileData = { ...studentProfile };
-      }
-    } else if (safeUser.role === 'instructor') {
-      const instructorProfile = await prisma.instructorProfile.findUnique({
-        where: { userId: safeUser.id },
-      });
-      if (instructorProfile) {
-        profileData = { ...instructorProfile };
-      }
-    }
+    // Include profile data based on role (already fetched by auth middleware)
+    const profileData = safeUser.role === 'student' || safeUser.role === 'employee' ? studentProfile :
+                        safeUser.role === 'instructor' ? instructorProfile : null;
     
     res.status(200).json(successResponse({ 
       user: { 
         ...safeUser, 
-        profile: profileData 
+        studentProfile: (safeUser.role === 'student' || safeUser.role === 'employee') ? profileData : null,
+        instructorProfile: safeUser.role === 'instructor' ? profileData : null,
       } 
     }));
   } catch (error) {

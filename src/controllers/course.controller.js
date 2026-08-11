@@ -193,6 +193,28 @@ export const getCourse = async (req, res, next) => {
     
     const includeDetails = canViewUnpublished;
     
+    // Fetch groups linked to this course to get their formateurs
+    const groups = await prisma.group.findMany({
+      where: { courseId: req.params.id },
+      include: {
+        formateur: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            avatar: true,
+            bio: true,
+          },
+        },
+      },
+    });
+
+    // Extract unique formateurs from groups
+    const groupFormateurs = groups
+      .map(g => g.formateur)
+      .filter(f => f !== null)
+      .filter((f, index, self) => index === self.findIndex(f2 => f2.id === f.id));
+
     const course = await prisma.course.findUnique({
       where: { id: req.params.id },
       include: {
@@ -205,42 +227,37 @@ export const getCourse = async (req, res, next) => {
                 firstName: true,
                 lastName: true,
                 avatar: true,
-                ...(includeDetails && { bio: true }),
               },
             },
           },
         },
-        ...(includeDetails && {
-          sections: {
-            orderBy: { position: 'asc' },
-            include: { lessons: { orderBy: { position: 'asc' } } },
-          },
-        }),
-        reviews: {
-          take: 10,
-          orderBy: { reviewDate: 'desc' },
-          include: {
-            user: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                avatar: true,
-              },
-            },
-          },
+        _count: {
+          select: { enrollments: true, reviews: true },
         },
-        _count: { select: { enrollments: true, reviews: true, ...(includeDetails && { sections: true }) } },
       },
     });
 
-    if (!course || course.deletedAt) {
+    if (!course) {
       return next(new AppError('Course not found.', 404, 'NOT_FOUND'));
     }
 
-    if (course.status !== 'published' && !canViewUnpublished) {
-      return next(new AppError('Course not found.', 404, 'NOT_FOUND'));
+    // Merge course instructors with group formateurs
+    const allInstructors = [...course.instructors];
+    
+    // Add group formateurs as instructors if they're not already in the list
+    for (const formateur of groupFormateurs) {
+      const alreadyExists = allInstructors.some(
+        instructor => instructor.user.id === formateur.id
+      );
+      if (!alreadyExists) {
+        allInstructors.push({
+          user: formateur,
+          isGroupInstructor: true,
+        });
+      }
     }
+
+    course.instructors = allInstructors;
 
     res.status(200).json(successResponse({ course }));
   } catch (error) {
