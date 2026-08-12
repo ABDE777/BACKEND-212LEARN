@@ -3,6 +3,7 @@ import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { validateUUID, validateRequired } from '../utils/validation.js';
 import { resolveValidCoupon, applyCouponDiscount, consumeCouponUsage } from '../utils/coupon.js';
+import { isOurCloudinaryUrl } from '../config/cloudinary.js';
 
 // Helper to generate a unique Transfer Reference
 const generateTransferReference = () => {
@@ -141,10 +142,14 @@ export const submitTransferDetails = async (req, res, next) => {
       return next(new AppError('RIB must be exactly 24 digits.', 400, 'VALIDATION_ERROR'));
     }
 
-    // Resolve transfer receipt image URL
+    // Resolve transfer receipt image URL. A file upload yields a trusted Cloudinary
+    // URL; a client-supplied transferReceiptUrl must be one of OUR Cloudinary URLs,
+    // otherwise an attacker could store an arbitrary phishing link admins later click.
     let transferReceiptUrl = req.body.transferReceiptUrl || null;
     if (req.file) {
       transferReceiptUrl = req.file.path; // Cloudinary secure URL injected by multer storage
+    } else if (transferReceiptUrl && !isOurCloudinaryUrl(transferReceiptUrl)) {
+      return next(new AppError('transferReceiptUrl must be a file uploaded to our Cloudinary account.', 400, 'VALIDATION_ERROR'));
     }
 
     // Find the payment request — must belong to the authenticated student

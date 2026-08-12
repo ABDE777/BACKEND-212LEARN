@@ -95,13 +95,15 @@ app.use(
 app.use(express.json({ limit: '1mb' }));
 app.use(process.env.NODE_ENV === 'development' ? morgan('dev') : morgan('combined'));
 
-// ── Public Routes (no auth required) ───────────────────────────────────────────
-app.use(`${V1}/stats`, statsRoutes);
-
 // ── Security Hardening Middlewares ───────────────────────────────────────────
 app.use(preventParameterPollution); // Protect against HTTP Parameter Pollution
 app.use(xssSanitizer);              // Sanitize input body/query/params from XSS scripts
 app.use(rateLimiter(900000, 150, 'Too many requests from this IP. Please try again later.', { prefix: 'global' }));
+
+// ── Public Routes (no auth required) ───────────────────────────────────────────
+// Mounted AFTER the security block so these unauthenticated DB-backed endpoints
+// still get HPP protection, input sanitizing, and the global rate limiter.
+app.use(`${V1}/stats`, statsRoutes);
 
 const docsEnabled =
   process.env.ENABLE_API_DOCS === 'true' ||

@@ -39,6 +39,13 @@ export const errorHandler = (err, req, res, next) => {
     return res.status(401).json(errorResponse('Token expired.', 'TOKEN_EXPIRED'));
   }
 
+  // ── Prisma: bad query / unknown field (validation) ────────────────────────
+  // Return a generic 400 — never echo the raw Prisma message (it leaks schema
+  // column/relation names).
+  if (err.name === 'PrismaClientValidationError') {
+    return res.status(400).json(errorResponse('Invalid request data.', 'VALIDATION_ERROR'));
+  }
+
   // ── Multer / upload size errors ───────────────────────────────────────────
   if (err.code === 'LIMIT_FILE_SIZE') {
     return res.status(413).json(
@@ -55,10 +62,18 @@ export const errorHandler = (err, req, res, next) => {
     );
   }
 
-  // ── Operational errors (thrown by AppError) ───────────────────────────────
-  const body = errorResponse(err.message || 'Internal Server Error', err.code || 'INTERNAL_ERROR');
+  // ── Operational errors (thrown by AppError) vs. unexpected ────────────────
+  // Only trust the message of operational errors we raised on purpose. For any
+  // other error (raw Prisma/library/runtime error) return a generic message in
+  // production so internal details — DB host, driver internals — never leak.
+  const isDev = process.env.NODE_ENV === 'development';
+  const safeMessage = (err.isOperational || isDev)
+    ? (err.message || 'Internal Server Error')
+    : 'Internal Server Error';
 
-  if (process.env.NODE_ENV === 'development') {
+  const body = errorResponse(safeMessage, err.code || 'INTERNAL_ERROR');
+
+  if (isDev) {
     body.stack = err.stack;
   }
 

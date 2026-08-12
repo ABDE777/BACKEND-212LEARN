@@ -3,6 +3,7 @@ import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { validateUUID, validateRequired } from '../utils/validation.js';
 import { resolveValidCoupon, applyCouponDiscount, consumeCouponUsage } from '../utils/coupon.js';
+import { isOurCloudinaryUrl } from '../config/cloudinary.js';
 import crypto from 'crypto';
 
 // ─── Webhook Signature Verification ─────────────────────────────────────────────
@@ -156,10 +157,14 @@ export const submitWafacashTransfer = async (req, res, next) => {
       return next(new AppError('MTCN transfer code must be exactly 10 digits.', 400, 'VALIDATION_ERROR'));
     }
 
-    // Resolve receipt image URL
+    // Resolve receipt image URL. A file upload yields a trusted Cloudinary URL;
+    // a client-supplied receiptUrl must be one of OUR Cloudinary URLs, otherwise an
+    // attacker could store an arbitrary phishing link that admins later click.
     let receiptUrl = req.body.receiptUrl || null;
     if (req.file) {
       receiptUrl = req.file.path; // Cloudinary secure URL injected by multer storage
+    } else if (receiptUrl && !isOurCloudinaryUrl(receiptUrl)) {
+      return next(new AppError('receiptUrl must be a file uploaded to our Cloudinary account.', 400, 'VALIDATION_ERROR'));
     }
 
     // Find the payment request — must belong to the authenticated student
