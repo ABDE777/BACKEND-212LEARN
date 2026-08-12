@@ -224,6 +224,7 @@ export const getCouponUsage = async (req, res, next) => {
       // Payment has no createdAt column; order most-recently-paid first (nulls last
       // for still-pending payments), matching the other payment listings' intent.
       orderBy: { paidAt: { sort: 'desc', nulls: 'last' } },
+      take: 500, // cap unbounded admin read
     });
 
     res.status(200).json(successResponse({ payments }));

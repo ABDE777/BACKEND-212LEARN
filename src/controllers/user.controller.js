@@ -2,7 +2,7 @@ import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse, paginationMeta, parsePagination, parseSort } from '../utils/response.js';
 import { cloudinary } from '../config/cloudinary.js';
-import { validateUUID } from '../utils/validation.js';
+import { validateUUID, validateHttpUrl } from '../utils/validation.js';
 
 const USER_SELECT = {
   id: true, firstName: true, lastName: true, email: true,
@@ -54,7 +54,7 @@ export const getAllUsers = async (req, res, next) => {
     // Attach profile data to each user based on role
     const usersWithProfiles = users.map(user => ({
       ...user,
-      profile: user.role === 'student' ? user.studentProfile : 
+      profile: (user.role === 'student' || user.role === 'employee') ? user.studentProfile :
                user.role === 'instructor' ? user.instructorProfile : null,
       studentProfile: undefined,
       instructorProfile: undefined,
@@ -81,7 +81,7 @@ export const getUser = async (req, res, next) => {
     // Attach profile data based on role
     const userWithProfile = {
       ...user,
-      profile: user.role === 'student' ? user.studentProfile : 
+      profile: (user.role === 'student' || user.role === 'employee') ? user.studentProfile :
                user.role === 'instructor' ? user.instructorProfile : null,
       studentProfile: undefined,
       instructorProfile: undefined,
@@ -127,6 +127,10 @@ export const updateMe = async (req, res, next) => {
     const isStudentLike = req.user.role === 'student' || req.user.role === 'employee';
 
     const userData = pickAllowed(body, USER_EDITABLE_FIELDS);
+    // Reject dangerous URL schemes (javascript:/data:) in the avatar field.
+    if (userData.avatar) {
+      validateHttpUrl(userData.avatar, 'avatar');
+    }
     const profileData = isStudentLike
       ? pickAllowed(body, STUDENT_PROFILE_EDITABLE_FIELDS)
       : req.user.role === 'instructor'

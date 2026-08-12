@@ -49,7 +49,7 @@ router.patch('/verify', protect, restrictTo('admin'), verifyPayment); // PATCH f
  *                 type: string
  *                 example: "WELCOME20"
  *     responses:
- *       211:
+ *       201:
  *         description: Request initialized - Payment state is set to PENDING
  * 
  * /payments/wafacash/submit:

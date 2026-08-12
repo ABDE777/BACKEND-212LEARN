@@ -85,8 +85,10 @@ export const getCourseMeetings = async (req, res, next) => {
       return next(new AppError('Course not found.', 404, 'NOT_FOUND'));
     }
 
-    // Check if user is enrolled (for students) or instructor/admin
-    const isInstructorOrAdmin = req.user.role === 'instructor' || req.user.role === 'admin';
+    // Admins have unconditional access. Instructors need access to THIS course
+    // (being an instructor of some other course must not grant it). Students need
+    // an enrollment.
+    const isAdmin = req.user.role === 'admin';
     const isInstructor = await prisma.courseInstructor.findFirst({
       where: { courseId, userId: req.user.id },
     });
@@ -100,7 +102,7 @@ export const getCourseMeetings = async (req, res, next) => {
       },
     });
 
-    if (!isInstructorOrAdmin && !isInstructor && !isEnrolled) {
+    if (!isAdmin && !isInstructor && !isEnrolled) {
       return next(new AppError('You do not have access to this course.', 403, 'FORBIDDEN'));
     }
 

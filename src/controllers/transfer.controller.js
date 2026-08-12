@@ -246,6 +246,7 @@ export const getPendingTransfers = async (req, res, next) => {
         },
       },
       orderBy: { id: 'desc' },
+      take: 200, // cap unbounded admin read
     });
 
     res.status(200).json(successResponse({ payments }));

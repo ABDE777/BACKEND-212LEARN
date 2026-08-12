@@ -153,6 +153,8 @@ export const refundPayment = async (req, res, next) => {
     const { paymentId } = req.params;
     const { notes } = req.body;
 
+    validateUUID(paymentId, 'paymentId');
+
     const payment = await prisma.payment.findUnique({
       where: { id: paymentId },
       include: {
@@ -171,6 +173,12 @@ export const refundPayment = async (req, res, next) => {
 
     if (payment.status === 'REFUNDED') {
       return next(new AppError('This payment has already been refunded.', 400, 'BAD_REQUEST'));
+    }
+
+    // Only a settled (PAID) payment can be refunded — refunding a PENDING/
+    // WAITING_VERIFICATION/REJECTED record is meaningless and corrupts state.
+    if (payment.status !== 'PAID') {
+      return next(new AppError(`Only PAID payments can be refunded (current status: ${payment.status}).`, 400, 'BAD_REQUEST'));
     }
 
     const updatedPayment = await prisma.payment.update({

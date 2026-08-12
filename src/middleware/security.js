@@ -1,7 +1,6 @@
 import { AppError } from './error.js';
-import DOMPurify from 'dompurify';
 
-// Server-side DOMPurify configuration (no window needed for text sanitization)
+// Hand-rolled server-side input sanitizer (no DOM dependency needed for text).
 const sanitizeValue = (value) => {
   if (typeof value === 'string') {
     // Simple server-side sanitization without DOM

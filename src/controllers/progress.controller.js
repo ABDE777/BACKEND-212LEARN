@@ -19,7 +19,26 @@ export const getQuizzesByCourse = async (req, res, next) => {
       return next(new AppError('Course not found.', 404, 'NOT_FOUND'));
     }
 
-    // Fetch all quizzes nested under the course's sections → lessons
+    // Non-published courses (draft/archived) are only visible to admins, the
+    // course's own instructors, or enrolled users — never to the public.
+    if (course.status !== 'published') {
+      let allowed = req.user?.role === 'admin';
+      if (!allowed && req.user) {
+        const [asInstructor, asEnrolled] = await Promise.all([
+          prisma.courseInstructor.findFirst({ where: { courseId: req.params.courseId, userId: req.user.id } }),
+          prisma.enrollment.findUnique({ where: { userId_courseId: { userId: req.user.id, courseId: req.params.courseId } } }),
+        ]);
+        allowed = Boolean(asInstructor || asEnrolled);
+      }
+      if (!allowed) {
+        return next(new AppError('Course not found.', 404, 'NOT_FOUND'));
+      }
+    }
+
+    // Fetch all quizzes nested under the course's sections → lessons.
+    // Scope attempts strictly to the current user; guests (no req.user) get an
+    // impossible userId so lastAttempt is never another user's score.
+    const attemptsUserId = req.user?.id ?? '00000000-0000-0000-0000-000000000000';
     const sections = await prisma.section.findMany({
       where: { courseId: req.params.courseId },
       orderBy: { position: 'asc' },
@@ -31,7 +50,7 @@ export const getQuizzesByCourse = async (req, res, next) => {
               include: {
                 questions: true,
                 attempts: {
-                  where: req.user ? { userId: req.user.id } : undefined,
+                  where: { userId: attemptsUserId },
                   orderBy: { attemptDate: 'desc' },
                   take: 1,
                 },

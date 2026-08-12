@@ -21,11 +21,12 @@ const verifyWebhookSignature = (payload, signature, secret) => {
     .update(JSON.stringify(payload))
     .digest('hex');
 
-  // Use timing-safe comparison to prevent timing attacks
-  return crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expectedSignature)
-  );
+  // Use timing-safe comparison to prevent timing attacks. Guard the lengths first
+  // because timingSafeEqual throws on unequal-length buffers (which would surface
+  // as a 500 instead of a clean rejection).
+  const sigBuf = Buffer.from(String(signature));
+  const expBuf = Buffer.from(expectedSignature);
+  return sigBuf.length === expBuf.length && crypto.timingSafeEqual(sigBuf, expBuf);
 };
 
 // Helper to generate a unique Wafacash Reference
@@ -261,6 +262,7 @@ export const getPendingPayments = async (req, res, next) => {
         },
       },
       orderBy: { id: 'desc' },
+      take: 200, // cap unbounded admin read
     });
 
     res.status(200).json(successResponse({ payments }));
@@ -304,6 +306,10 @@ export const verifyPayment = async (req, res, next) => {
 
     if (!payment) {
       return next(new AppError('Payment record not found.', 404, 'NOT_FOUND'));
+    }
+
+    if (payment.provider !== 'wafacash') {
+      return next(new AppError('This is not a Wafacash payment.', 400, 'BAD_REQUEST'));
     }
 
     if (payment.status === 'PAID') {

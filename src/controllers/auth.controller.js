@@ -4,10 +4,15 @@ import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
-import { validateRequired, validateEmail } from '../utils/validation.js';
+import { validateRequired, validateEmail, validatePassword } from '../utils/validation.js';
 import { sendPasswordResetEmail, sendAccountRestoreOtpEmail } from '../utils/email.js';
 import { getJwtSecret } from '../config/jwt.js';
 import { logAuditEvent } from '../utils/audit.js';
+
+// A fixed bcrypt hash used to equalize timing when an email is not found, so a
+// login attempt takes the same time whether or not the account exists (defeats
+// user-enumeration via response timing). Computed once at module load.
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync('timing-equalizer-not-a-real-password', 12);
 
 const signToken = (id) =>
   jwt.sign({ id }, getJwtSecret(), {
@@ -58,9 +63,7 @@ export const register = async (req, res, next) => {
     validateRequired(req.body, ['firstName', 'lastName', 'email', 'password', 'role']);
     validateEmail(email);
 
-    if (String(password).length < 8) {
-      return next(new AppError('Password must be at least 8 characters.', 400, 'VALIDATION_ERROR'));
-    }
+    validatePassword(password);
 
     if (!['student', 'instructor', 'employee'].includes(role)) {
       return next(new AppError('Invalid role. Only student, instructor, and employee roles are allowed for public registration.', 400, 'VALIDATION_ERROR'));
@@ -155,7 +158,14 @@ export const login = async (req, res, next) => {
       },
     });
 
-    if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    // Always run a bcrypt compare — against a dummy hash when the user doesn't
+    // exist — so the response time is the same for unknown vs. known emails
+    // (prevents user-enumeration via timing).
+    const passwordMatches = user
+      ? await bcrypt.compare(password, user.passwordHash)
+      : await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
+
+    if (!user || !passwordMatches) {
       return next(new AppError('Incorrect email or password.', 401, 'INVALID_CREDENTIALS'));
     }
 
@@ -219,9 +229,7 @@ export const changePassword = async (req, res, next) => {
     validateRequired(req.body, ['currentPassword', 'newPassword']);
     const { currentPassword, newPassword } = req.body;
 
-    if (newPassword.length < 8) {
-      return next(new AppError('New password must be at least 8 characters.', 400, 'VALIDATION_ERROR'));
-    }
+    validatePassword(newPassword, 'New password');
 
     if (currentPassword === newPassword) {
       return next(new AppError('New password cannot be the same as your old password.', 400, 'VALIDATION_ERROR'));
@@ -308,9 +316,7 @@ export const resetPassword = async (req, res, next) => {
       return next(new AppError('Reset token is required.', 400, 'VALIDATION_ERROR'));
     }
 
-    if (newPassword.length < 8) {
-      return next(new AppError('New password must be at least 8 characters.', 400, 'VALIDATION_ERROR'));
-    }
+    validatePassword(newPassword, 'New password');
 
     // Decode the token without verifying yet to get the user id
     let decoded;

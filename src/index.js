@@ -62,7 +62,23 @@ const V1 = '/api/v1';
 // ── Security & utility middlewares ────────────────────────────────────────────
 app.use(requestId);
 app.use(accessLogger);
-app.use(helmet({ contentSecurityPolicy: false })); // CSP disabled so Swagger UI renders
+// Content-Security-Policy tuned to keep Swagger UI working (it injects inline
+// styles/scripts) while still constraining the API's HTML surface: no framing
+// (clickjacking), no plugins, and connections/images limited to self + data URIs.
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'https:'],
+      connectSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+      baseUri: ["'self'"],
+    },
+  },
+}));
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
@@ -185,7 +201,7 @@ app.use(`${V1}/groups`,      groupRoutes);
 app.use(`${V1}`,             progressRoutes); // /courses/:id/quizzes, /lessons/:id/progress, /users/:id/achievements
 app.use(`${V1}`,             quizRoutes);     // /lessons/:id/quizzes, /quizzes/:id, /quizzes/:id/attempts
 app.use(`${V1}`,             reviewRoutes);   // /courses/:id/reviews, /users/:id/notifications
-app.use(`${V1}`,             analyticsRoutes); // /instructor/analytics/*, /courses/:id/meetings
+app.use(`${V1}`,             analyticsRoutes); // /instructor/analytics/*
 app.use(`${V1}`,             meetingRoutes);   // /courses/:id/meetings, /meetings/*
 app.use(`${V1}`,             adminRoutes);     // /admin/*
 
