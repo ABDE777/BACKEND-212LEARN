@@ -64,7 +64,7 @@ model StudentProfile {
   department        String?  @db.VarChar(255)
   position          String?  @db.VarChar(255)
   sector            String?  @db.VarChar(255)
-  experienceYears   Int?
+  experienceYears   String?  @db.VarChar(10) // range token: <1, 1-2, 3-5, 6-10, >10
   interests         String?  @db.Text
   learningObjective String?  @db.Text
   currentLevel      String?  @db.VarChar(50)
@@ -85,12 +85,13 @@ model InstructorProfile {
   id              String   @id @default(uuid()) @db.Uuid
   userId          String   @unique @db.Uuid
   situation       String   @default("employed") @db.VarChar(50)
-  specialization  String   @db.VarChar(255)
+  expertiseDomain String?  @db.VarChar(255) // "Domaine d'expertise" (e.g. Développement Web)
+  specialization  String   @db.VarChar(255) // "Spécialité" (e.g. React & Node.js)
   organization    String?  @db.VarChar(255)
   department      String?  @db.VarChar(255)
   position        String?  @db.VarChar(255)
   sector          String?  @db.VarChar(255)
-  experienceYears Int
+  experienceYears String   @db.VarChar(10) // range token: <1, 1-2, 3-5, 6-10, >10
   teachingMode    String   @db.VarChar(50)
   teachingDomains String?  @db.Text
   createdAt       DateTime @default(now())
