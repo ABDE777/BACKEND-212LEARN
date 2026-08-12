@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyCouponDiscount } from '../../src/utils/coupon.js';
+import { applyCouponDiscount, consumeCouponUsage } from '../../src/utils/coupon.js';
 import { AppError } from '../../src/middleware/error.js';
 import { successResponse, paginationMeta, parsePagination } from '../../src/utils/response.js';
 
@@ -17,6 +17,32 @@ describe('applyCouponDiscount', () => {
 
   it('rejects invalid prices', () => {
     assert.throws(() => applyCouponDiscount(-5, 10), AppError);
+  });
+});
+
+describe('consumeCouponUsage', () => {
+  const makeTx = (affectedRows) => ({
+    // Mimic Prisma's tagged-template $executeRaw, returning the affected row count.
+    $executeRaw: async () => affectedRows,
+  });
+
+  it('succeeds when the atomic update affected a row (still under maxUsage)', async () => {
+    await assert.doesNotReject(() => consumeCouponUsage(makeTx(1), 'coupon-id'));
+  });
+
+  it('throws when no row was affected (limit reached)', async () => {
+    await assert.rejects(() => consumeCouponUsage(makeTx(0), 'coupon-id'), (err) => {
+      assert.ok(err instanceof AppError);
+      assert.equal(err.statusCode, 400);
+      return true;
+    });
+  });
+
+  it('is a no-op when no couponId is provided', async () => {
+    let called = false;
+    const tx = { $executeRaw: async () => { called = true; return 1; } };
+    await consumeCouponUsage(tx, null);
+    assert.equal(called, false);
   });
 });
 

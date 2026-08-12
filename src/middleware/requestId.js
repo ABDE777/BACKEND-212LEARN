@@ -13,6 +13,15 @@ export const requestId = (req, res, next) => {
 };
 
 /**
+ * Redact secrets that appear as URL path segments so they never reach the logs.
+ * Currently: the single-use password-reset token in /auth/reset-password/<token>.
+ */
+const redactSensitivePath = (url) => {
+  if (!url) return url;
+  return url.replace(/(\/auth\/reset-password\/)[^/?#]+/i, '$1[REDACTED]');
+};
+
+/**
  * Lightweight structured access logger (JSON lines).
  * Skips noisy health checks.
  */
@@ -26,7 +35,7 @@ export const accessLogger = (req, res, next) => {
       msg: 'request',
       requestId: req.requestId,
       method: req.method,
-      path: req.originalUrl || req.url,
+      path: redactSensitivePath(req.originalUrl || req.url),
       status: res.statusCode,
       durationMs: Date.now() - started,
     };

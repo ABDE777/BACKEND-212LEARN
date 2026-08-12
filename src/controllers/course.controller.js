@@ -8,7 +8,7 @@ import {
   parseSort,
 } from '../utils/response.js';
 import { ensureCourseManager } from '../utils/authorization.js';
-import { validateUUID, validateRequired, validateEnum } from '../utils/validation.js';
+import { validateUUID, validateRequired, validateEnum, validateHttpUrl } from '../utils/validation.js';
 import { getJwtSecret } from '../config/jwt.js';
 
 const SORTABLE_FIELDS = ['createdAt', 'title', 'price', 'duration'];
@@ -296,6 +296,10 @@ export const createCourse = async (req, res, next) => {
       validateEnum(level, ['beginner', 'intermediate', 'advanced'], 'level');
     }
 
+    if (thumbnail) {
+      validateHttpUrl(thumbnail, 'thumbnail');
+    }
+
     // Determine instructor ID: use provided instructorId or default to current user
     const targetInstructorId = instructorId || req.user.id;
 
@@ -371,6 +375,10 @@ export const updateCourse = async (req, res, next) => {
     
     if (level) {
       validateEnum(level, ['beginner', 'intermediate', 'advanced'], 'level');
+    }
+
+    if (thumbnail) {
+      validateHttpUrl(thumbnail, 'thumbnail');
     }
 
     await ensureCourseManager(req.user, req.params.id);

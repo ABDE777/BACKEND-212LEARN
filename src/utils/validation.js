@@ -43,6 +43,24 @@ export const validateEmail = (email) => {
 };
 
 /**
+ * Validate password strength.
+ * Requires at least 8 characters and a mix of letters and numbers — a light
+ * baseline that rejects the weakest passwords without frustrating users.
+ * @param {string} password
+ * @param {string} fieldName - Name of the field for error messages
+ * @throws {AppError} If the password is too weak
+ */
+export const validatePassword = (password, fieldName = 'Password') => {
+  const pw = String(password ?? '');
+  if (pw.length < 8) {
+    throw new AppError(`${fieldName} must be at least 8 characters.`, 400, 'VALIDATION_ERROR');
+  }
+  if (!/[a-zA-Z]/.test(pw) || !/[0-9]/.test(pw)) {
+    throw new AppError(`${fieldName} must contain both letters and numbers.`, 400, 'VALIDATION_ERROR');
+  }
+};
+
+/**
  * Validate enum value
  * @param {*} value - Value to check
  * @param {string[]} allowedValues - Array of allowed values
@@ -97,6 +115,28 @@ export const validateURL = (url, fieldName = 'URL') => {
   } catch {
     throw new AppError(`Invalid ${fieldName} format.`, 400, 'VALIDATION_ERROR');
   }
+};
+
+/**
+ * Validate that a value is an http(s) URL.
+ * Rejects dangerous schemes like javascript: and data:, which the input
+ * sanitizer does not strip and which become XSS sinks if the frontend renders
+ * the value into an href/src (e.g. course thumbnails, avatars).
+ * @param {string} url
+ * @param {string} fieldName - Name of the field for error messages
+ * @throws {AppError} If the URL is missing, malformed, or not http(s)
+ */
+export const validateHttpUrl = (url, fieldName = 'URL') => {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new AppError(`Invalid ${fieldName} format.`, 400, 'VALIDATION_ERROR');
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new AppError(`${fieldName} must be an http(s) URL.`, 400, 'VALIDATION_ERROR');
+  }
+  return parsed;
 };
 
 /**

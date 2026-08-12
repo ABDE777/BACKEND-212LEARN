@@ -12,6 +12,16 @@ import {
 } from '../controllers/quiz.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
 import { checkEnrollment } from '../middleware/enrollment.js';
+import { rateLimiter } from '../middleware/security.js';
+
+// AI quiz generation calls a paid third-party LLM (Groq). Cap it per user so a
+// compromised or abusive instructor account can't drive unbounded provider cost.
+const aiQuizLimit = rateLimiter(
+  60 * 60 * 1000,
+  20,
+  'AI quiz generation limit reached. Please try again later.',
+  { prefix: 'ai-quiz', keyBy: (req) => req.user?.id || null }
+);
 
 const router = Router();
 
@@ -85,7 +95,7 @@ router.post('/lessons/:lessonId/quizzes', protect, restrictTo('instructor', 'adm
  *       503:
  *         description: AI not configured (missing GROQ_API_KEY) or provider unavailable
  */
-router.post('/lessons/:lessonId/quizzes/generate-ai', protect, restrictTo('instructor', 'admin'), generateAIQuiz);
+router.post('/lessons/:lessonId/quizzes/generate-ai', protect, restrictTo('instructor', 'admin'), aiQuizLimit, generateAIQuiz);
 
 // ─── Instructor: Manage Questions ─────────────────────────────────────────────
 

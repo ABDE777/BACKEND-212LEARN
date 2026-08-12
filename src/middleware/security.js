@@ -1,7 +1,6 @@
 import { AppError } from './error.js';
-import DOMPurify from 'dompurify';
 
-// Server-side DOMPurify configuration (no window needed for text sanitization)
+// Hand-rolled server-side input sanitizer (no DOM dependency needed for text).
 const sanitizeValue = (value) => {
   if (typeof value === 'string') {
     // Simple server-side sanitization without DOM
@@ -109,6 +108,11 @@ function memoryIncr(key, windowMs) {
  * @param {object} [options]
  * @param {string} [options.prefix] - key prefix (e.g. 'auth', 'global')
  * @param {boolean} [options.enforceInDev] - also enforce in development (default false)
+ * @param {(req) => (string|null)} [options.keyBy] - derive the bucket key from the
+ *        request (e.g. the target account email) instead of the client IP. When it
+ *        returns a falsy value the limiter is skipped for that request. Use this for
+ *        per-account throttling (password reset / OTP) so an attacker cannot spread
+ *        an attack on one account across many IPs.
  */
 export const rateLimiter = (
   windowMs = 60000,
@@ -116,7 +120,7 @@ export const rateLimiter = (
   message = 'Too many requests. Please try again later.',
   options = {}
 ) => {
-  const { prefix = 'rl', enforceInDev = false } = options;
+  const { prefix = 'rl', enforceInDev = false, keyBy = null } = options;
 
   return async (req, res, next) => {
     try {
@@ -137,7 +141,14 @@ export const rateLimiter = (
         }
       }
 
-      const key = clientKey(req, prefix);
+      let key;
+      if (keyBy) {
+        const sub = keyBy(req);
+        if (!sub) return next(); // nothing to key on for this request → skip
+        key = `${prefix}:${String(sub).trim().toLowerCase()}`;
+      } else {
+        key = clientKey(req, prefix);
+      }
       let count = await upstashIncr(key, windowMs);
       if (count === null) {
         count = memoryIncr(key, windowMs);

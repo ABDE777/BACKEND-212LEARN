@@ -13,6 +13,16 @@ const authRateLimit = rateLimiter(
   { prefix: 'auth' }
 );
 
+// Per-ACCOUNT throttle for password-reset / account-recovery: max 5 attempts per
+// email per 15 min. This is keyed by the target email (not the caller IP), so an
+// attacker cannot email-bomb one account or brute-force its OTP by rotating IPs.
+const accountRecoveryLimit = rateLimiter(
+  15 * 60 * 1000,
+  5,
+  'Too many password reset or account recovery attempts for this account. Please try again later.',
+  { prefix: 'auth-acct', keyBy: (req) => req.body?.email || null }
+);
+
 /**
  * @swagger
  * /auth/register:
@@ -120,7 +130,7 @@ router.get('/me', protect, getMe);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post('/forgot-password', authRateLimit, forgotPassword);
+router.post('/forgot-password', authRateLimit, accountRecoveryLimit, forgotPassword);
 
 /**
  * @swagger
@@ -196,7 +206,7 @@ router.post('/reset-password/:token', authRateLimit, resetPassword);
  *       400:
  *         description: Invalid or expired OTP
  */
-router.post('/restore-account', authRateLimit, restoreAccountWithOtp);
+router.post('/restore-account', authRateLimit, accountRecoveryLimit, restoreAccountWithOtp);
 
 export default router;
 

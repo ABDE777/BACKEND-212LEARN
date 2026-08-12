@@ -42,6 +42,32 @@ export const resolveValidCoupon = async (code) => {
 };
 
 /**
+ * Atomically consume one use of a coupon, enforcing its maxUsage limit.
+ *
+ * The increment and the limit check happen in a SINGLE SQL statement
+ * (`SET currentUsage = currentUsage + 1 WHERE currentUsage < maxUsage`), so there
+ * is no check-then-act race: concurrent redemptions can never push currentUsage
+ * past maxUsage. Prisma's updateMany can't compare two columns, hence the raw
+ * statement. Call this at the moment a payment becomes PAID, inside that payment's
+ * transaction, so a rollback also rolls back the usage.
+ *
+ * @param {import('@prisma/client').Prisma.TransactionClient} tx  active transaction client
+ * @param {string} couponId  UUID of the coupon to consume
+ * @throws {AppError} 400 if the coupon has already reached its maximum usage
+ */
+export const consumeCouponUsage = async (tx, couponId) => {
+  if (!couponId) return;
+  const affected = await tx.$executeRaw`
+    UPDATE "coupons"
+    SET "currentUsage" = "currentUsage" + 1
+    WHERE "id" = ${couponId}::uuid AND "currentUsage" < "maxUsage"
+  `;
+  if (affected === 0) {
+    throw new AppError('This coupon has reached its maximum usage limit.', 400, 'VALIDATION_ERROR');
+  }
+};
+
+/**
  * Apply a percent discount to a price.
  * Coupon.discount is stored as a percentage (e.g. 20 = 20% off).
  */

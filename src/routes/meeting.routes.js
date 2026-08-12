@@ -14,7 +14,13 @@ import { protect, restrictTo } from '../middleware/auth.js';
 
 const router = Router();
 
-// All meeting routes require authentication except webhook
+// Jitsi/JaaS webhook — server-to-server, authenticated by HMAC signature, NOT by a
+// user JWT. It MUST be registered before router.use(protect); otherwise the real
+// JaaS server (which has no user token) is rejected while any logged-in user could
+// reach it. Signature verification happens inside meetingWebhook (fails closed).
+router.post('/meetings/webhook', meetingWebhook);
+
+// All remaining meeting routes require authentication.
 router.use(protect);
 
 // ── Course Meetings ────────────────────────────────────────────────────────
@@ -237,8 +243,5 @@ router.delete('/meetings/:id', restrictTo('instructor', 'admin'), deleteMeeting)
  *         description: Meeting not found
  */
 router.get('/meetings/:id/join', getMeetingJoinInfo);
-
-// Webhook route (no auth required for Jitsi webhook)
-router.post('/meetings/webhook', meetingWebhook);
 
 export default router;

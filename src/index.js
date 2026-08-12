@@ -62,7 +62,23 @@ const V1 = '/api/v1';
 // ── Security & utility middlewares ────────────────────────────────────────────
 app.use(requestId);
 app.use(accessLogger);
-app.use(helmet({ contentSecurityPolicy: false })); // CSP disabled so Swagger UI renders
+// Content-Security-Policy tuned to keep Swagger UI working (it injects inline
+// styles/scripts) while still constraining the API's HTML surface: no framing
+// (clickjacking), no plugins, and connections/images limited to self + data URIs.
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'https:'],
+      connectSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+      baseUri: ["'self'"],
+    },
+  },
+}));
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
@@ -95,13 +111,15 @@ app.use(
 app.use(express.json({ limit: '1mb' }));
 app.use(process.env.NODE_ENV === 'development' ? morgan('dev') : morgan('combined'));
 
-// ── Public Routes (no auth required) ───────────────────────────────────────────
-app.use(`${V1}/stats`, statsRoutes);
-
 // ── Security Hardening Middlewares ───────────────────────────────────────────
 app.use(preventParameterPollution); // Protect against HTTP Parameter Pollution
 app.use(xssSanitizer);              // Sanitize input body/query/params from XSS scripts
 app.use(rateLimiter(900000, 150, 'Too many requests from this IP. Please try again later.', { prefix: 'global' }));
+
+// ── Public Routes (no auth required) ───────────────────────────────────────────
+// Mounted AFTER the security block so these unauthenticated DB-backed endpoints
+// still get HPP protection, input sanitizing, and the global rate limiter.
+app.use(`${V1}/stats`, statsRoutes);
 
 const docsEnabled =
   process.env.ENABLE_API_DOCS === 'true' ||
@@ -183,7 +201,7 @@ app.use(`${V1}/groups`,      groupRoutes);
 app.use(`${V1}`,             progressRoutes); // /courses/:id/quizzes, /lessons/:id/progress, /users/:id/achievements
 app.use(`${V1}`,             quizRoutes);     // /lessons/:id/quizzes, /quizzes/:id, /quizzes/:id/attempts
 app.use(`${V1}`,             reviewRoutes);   // /courses/:id/reviews, /users/:id/notifications
-app.use(`${V1}`,             analyticsRoutes); // /instructor/analytics/*, /courses/:id/meetings
+app.use(`${V1}`,             analyticsRoutes); // /instructor/analytics/*
 app.use(`${V1}`,             meetingRoutes);   // /courses/:id/meetings, /meetings/*
 app.use(`${V1}`,             adminRoutes);     // /admin/*
 

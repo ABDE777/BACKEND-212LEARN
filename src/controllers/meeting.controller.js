@@ -14,21 +14,25 @@ import crypto from 'crypto';
 const verifyJaasWebhook = (req) => {
   const secret = process.env.JAAS_WEBHOOK_SECRET;
   const signature = req.headers['x-jaas-signature'] || req.headers['x-webhook-signature'];
-  
+
+  // Fail CLOSED: if no secret is configured we cannot verify anything, so reject.
+  // (Previously this returned true, letting any caller drive meeting state.)
   if (!secret) {
-    // Not configured yet - log a warning instead of hard-failing
-    console.warn('JAAS_WEBHOOK_SECRET not configured, skipping webhook signature verification');
-    return true;
+    console.error('JAAS_WEBHOOK_SECRET not configured — rejecting unverifiable webhook.');
+    return false;
   }
-  
+
   if (!signature) {
     return false;
   }
-  
+
   const expected = crypto.createHmac('sha256', secret).update(JSON.stringify(req.body)).digest('hex');
-  
+
   try {
-    return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+    const sigBuf = Buffer.from(String(signature), 'hex');
+    const expBuf = Buffer.from(expected, 'hex');
+    // Length guard: timingSafeEqual throws on unequal lengths.
+    return sigBuf.length === expBuf.length && crypto.timingSafeEqual(sigBuf, expBuf);
   } catch {
     return false;
   }
@@ -81,8 +85,10 @@ export const getCourseMeetings = async (req, res, next) => {
       return next(new AppError('Course not found.', 404, 'NOT_FOUND'));
     }
 
-    // Check if user is enrolled (for students) or instructor/admin
-    const isInstructorOrAdmin = req.user.role === 'instructor' || req.user.role === 'admin';
+    // Admins have unconditional access. Instructors need access to THIS course
+    // (being an instructor of some other course must not grant it). Students need
+    // an enrollment.
+    const isAdmin = req.user.role === 'admin';
     const isInstructor = await prisma.courseInstructor.findFirst({
       where: { courseId, userId: req.user.id },
     });
@@ -96,7 +102,7 @@ export const getCourseMeetings = async (req, res, next) => {
       },
     });
 
-    if (!isInstructorOrAdmin && !isInstructor && !isEnrolled) {
+    if (!isAdmin && !isInstructor && !isEnrolled) {
       return next(new AppError('You do not have access to this course.', 403, 'FORBIDDEN'));
     }
 

@@ -1,6 +1,8 @@
 // ─── Fast In-Memory & Redis Response Cache ─────────────────────────────────────
 // Caches public API responses (categories, published courses, stats) for high speed.
 
+import crypto from 'crypto';
+
 const memoryCache = new Map();
 
 /**
@@ -14,15 +16,20 @@ export const cacheMiddleware = (ttlSeconds = 60) => {
       return next();
     }
 
-    // Skip cache for authorized requests with sensitive user headers if needed,
-    // or include authorization token in cache key
+    // Include the full authorization token in the cache key (hashed, so two
+    // different tokens can't collide the way slicing the last 12 chars could),
+    // and mark responses private so a shared/CDN cache (e.g. Vercel edge) never
+    // serves one user's cached response to another.
     const authHeader = req.headers.authorization || '';
-    const cacheKey = `${req.originalUrl || req.url}__auth:${authHeader.slice(-12)}`;
+    const authHash = authHeader
+      ? crypto.createHash('sha256').update(authHeader).digest('hex')
+      : 'anon';
+    const cacheKey = `${req.originalUrl || req.url}__auth:${authHash}`;
 
     const cached = memoryCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       res.setHeader('X-Cache', 'HIT');
-      res.setHeader('Cache-Control', `public, max-age=${ttlSeconds}`);
+      res.setHeader('Cache-Control', `private, max-age=${ttlSeconds}`);
       return res.status(cached.status).json(cached.body);
     }
 
@@ -37,7 +44,7 @@ export const cacheMiddleware = (ttlSeconds = 60) => {
         });
       }
       res.setHeader('X-Cache', 'MISS');
-      res.setHeader('Cache-Control', `public, max-age=${ttlSeconds}`);
+      res.setHeader('Cache-Control', `private, max-age=${ttlSeconds}`);
       return originalJson(body);
     };
 

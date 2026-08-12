@@ -2,7 +2,8 @@ import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { validateUUID, validateRequired } from '../utils/validation.js';
-import { resolveValidCoupon, applyCouponDiscount } from '../utils/coupon.js';
+import { resolveValidCoupon, applyCouponDiscount, consumeCouponUsage } from '../utils/coupon.js';
+import { isOurCloudinaryUrl } from '../config/cloudinary.js';
 import crypto from 'crypto';
 
 // ─── Webhook Signature Verification ─────────────────────────────────────────────
@@ -20,11 +21,12 @@ const verifyWebhookSignature = (payload, signature, secret) => {
     .update(JSON.stringify(payload))
     .digest('hex');
 
-  // Use timing-safe comparison to prevent timing attacks
-  return crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expectedSignature)
-  );
+  // Use timing-safe comparison to prevent timing attacks. Guard the lengths first
+  // because timingSafeEqual throws on unequal-length buffers (which would surface
+  // as a 500 instead of a clean rejection).
+  const sigBuf = Buffer.from(String(signature));
+  const expBuf = Buffer.from(expectedSignature);
+  return sigBuf.length === expBuf.length && crypto.timingSafeEqual(sigBuf, expBuf);
 };
 
 // Helper to generate a unique Wafacash Reference
@@ -148,7 +150,6 @@ export const requestWafacashPayment = async (req, res, next) => {
 export const submitWafacashTransfer = async (req, res, next) => {
   try {
     const { paymentReference, mtcn } = req.body;
-    const { demo } = req.query;
 
     validateRequired(req.body, ['paymentReference', 'mtcn']);
 
@@ -157,10 +158,14 @@ export const submitWafacashTransfer = async (req, res, next) => {
       return next(new AppError('MTCN transfer code must be exactly 10 digits.', 400, 'VALIDATION_ERROR'));
     }
 
-    // Resolve receipt image URL
+    // Resolve receipt image URL. A file upload yields a trusted Cloudinary URL;
+    // a client-supplied receiptUrl must be one of OUR Cloudinary URLs, otherwise an
+    // attacker could store an arbitrary phishing link that admins later click.
     let receiptUrl = req.body.receiptUrl || null;
     if (req.file) {
       receiptUrl = req.file.path; // Cloudinary secure URL injected by multer storage
+    } else if (receiptUrl && !isOurCloudinaryUrl(receiptUrl)) {
+      return next(new AppError('receiptUrl must be a file uploaded to our Cloudinary account.', 400, 'VALIDATION_ERROR'));
     }
 
     // Find the payment request — must belong to the authenticated student
@@ -183,19 +188,28 @@ export const submitWafacashTransfer = async (req, res, next) => {
       return next(new AppError('This payment has already been verified and completed.', 409, 'CONFLICT'));
     }
 
-    // Determine if auto-approve is allowed (only in dev, never in production)
-    const isDev = process.env.NODE_ENV !== 'production';
-    const autoApprove = isDev && (demo === 'true' || process.env.WAFACASH_AUTO_APPROVE === 'true');
+    // Auto-approve is a DEV-ONLY convenience gated solely by a server env flag and is
+    // HARD-DISABLED in production. It never reads any client-supplied value (the old
+    // ?demo=true query param is gone) so a student cannot self-approve their payment.
+    const autoApprove =
+      process.env.NODE_ENV !== 'production' &&
+      process.env.WAFACASH_AUTO_APPROVE === 'true';
 
-    const updatedPayment = await prisma.payment.update({
-      where: { id: payment.id },
-      data: {
-        status:     autoApprove ? 'PAID' : 'WAITING_VERIFICATION',
-        mtcn:       cleanMtcn,
-        receiptUrl: receiptUrl || payment.receiptUrl,
-        paidAt:     autoApprove ? new Date() : null,
-        notes:      autoApprove ? 'Demo Mode Auto-Approval' : null,
-      },
+    const updatedPayment = await prisma.$transaction(async (tx) => {
+      // Dev auto-approve becomes PAID here, so count the coupon usage atomically too.
+      if (autoApprove && payment.couponId) {
+        await consumeCouponUsage(tx, payment.couponId);
+      }
+      return tx.payment.update({
+        where: { id: payment.id },
+        data: {
+          status:     autoApprove ? 'PAID' : 'WAITING_VERIFICATION',
+          mtcn:       cleanMtcn,
+          receiptUrl: receiptUrl || payment.receiptUrl,
+          paidAt:     autoApprove ? new Date() : null,
+          notes:      autoApprove ? 'Demo Mode Auto-Approval' : null,
+        },
+      });
     });
 
     res.status(200).json(
@@ -248,6 +262,7 @@ export const getPendingPayments = async (req, res, next) => {
         },
       },
       orderBy: { id: 'desc' },
+      take: 200, // cap unbounded admin read
     });
 
     res.status(200).json(successResponse({ payments }));
@@ -293,6 +308,10 @@ export const verifyPayment = async (req, res, next) => {
       return next(new AppError('Payment record not found.', 404, 'NOT_FOUND'));
     }
 
+    if (payment.provider !== 'wafacash') {
+      return next(new AppError('This is not a Wafacash payment.', 400, 'BAD_REQUEST'));
+    }
+
     if (payment.status === 'PAID') {
       return next(new AppError('This payment is already approved and paid.', 409, 'CONFLICT'));
     }
@@ -306,6 +325,11 @@ export const verifyPayment = async (req, res, next) => {
 
       if (lockedPayment.status === 'PAID') {
         throw new AppError('Payment already processed by another request.', 409, 'CONFLICT');
+      }
+
+      // Count the coupon usage only on actual approval, atomically (enforces maxUsage).
+      if (action === 'approve' && lockedPayment.couponId) {
+        await consumeCouponUsage(tx, lockedPayment.couponId);
       }
 
       return await tx.payment.update({

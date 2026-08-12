@@ -6,6 +6,8 @@ import {
   validateEmail,
   validateEnum,
   validateNumberRange,
+  validatePassword,
+  validateHttpUrl,
 } from '../../src/utils/validation.js';
 import { AppError } from '../../src/middleware/error.js';
 
@@ -51,5 +53,20 @@ describe('validation utils', () => {
     assert.doesNotThrow(() => validateNumberRange(5, { min: 1, max: 20 }, 'questionCount'));
     assert.throws(() => validateNumberRange(0, { min: 1, max: 20 }, 'questionCount'), AppError);
     assert.throws(() => validateNumberRange(21, { min: 1, max: 20 }, 'questionCount'), AppError);
+  });
+
+  it('enforces password strength (length + letters & numbers)', () => {
+    assert.doesNotThrow(() => validatePassword('password123'));
+    assert.throws(() => validatePassword('short1'), AppError);        // too short
+    assert.throws(() => validatePassword('alllettershere'), AppError); // no digit
+    assert.throws(() => validatePassword('12345678'), AppError);       // no letter
+  });
+
+  it('accepts only http(s) URLs and rejects dangerous schemes', () => {
+    assert.doesNotThrow(() => validateHttpUrl('https://res.cloudinary.com/x/y.png', 'thumbnail'));
+    assert.doesNotThrow(() => validateHttpUrl('http://example.com', 'thumbnail'));
+    assert.throws(() => validateHttpUrl('javascript:alert(1)', 'thumbnail'), AppError);
+    assert.throws(() => validateHttpUrl('data:text/html,<script>', 'thumbnail'), AppError);
+    assert.throws(() => validateHttpUrl('not a url', 'thumbnail'), AppError);
   });
 });
