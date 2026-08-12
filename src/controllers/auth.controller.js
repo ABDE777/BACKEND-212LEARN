@@ -5,6 +5,7 @@ import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { validateRequired, validateEmail, validatePassword } from '../utils/validation.js';
+import { validateLearnerProfile, validateInstructorProfile } from '../utils/registrationValidation.js';
 import { sendPasswordResetEmail, sendAccountRestoreOtpEmail } from '../utils/email.js';
 import { getJwtSecret } from '../config/jwt.js';
 import { logAuditEvent } from '../utils/audit.js';
@@ -69,7 +70,9 @@ export const register = async (req, res, next) => {
       return next(new AppError('Invalid role. Only student, instructor, and employee roles are allowed for public registration.', 400, 'VALIDATION_ERROR'));
     }
 
-    if ((role === 'student' || role === 'employee') && !studentProfile) {
+    const isLearner = role === 'student' || role === 'employee';
+
+    if (isLearner && !studentProfile) {
       return next(new AppError('Profile information is required.', 400, 'VALIDATION_ERROR'));
     }
 
@@ -77,22 +80,31 @@ export const register = async (req, res, next) => {
       return next(new AppError('Instructor profile information is required.', 400, 'VALIDATION_ERROR'));
     }
 
+    // Enforce the situation-specific required fields + value enums that the
+    // registration form declares (throws AppError on any violation).
+    let learnerSelfDirected = false;
+    if (isLearner) {
+      ({ isSelfDirected: learnerSelfDirected } = validateLearnerProfile(studentProfile));
+    } else if (role === 'instructor') {
+      validateInstructorProfile(instructorProfile);
+    }
+
     const passwordHash = await bcrypt.hash(password, 12);
 
     const userData = {
-      firstName, 
-      lastName, 
-      email, 
+      firstName,
+      lastName,
+      email,
       passwordHash,
       role,
       phone: phone || null,
       isVerified: false,
     };
 
-    if ((role === 'student' || role === 'employee') && studentProfile) {
+    if (isLearner && studentProfile) {
       userData.studentProfile = {
         create: {
-          situation: studentProfile.situation || 'student',
+          situation: studentProfile.situation,
           school: studentProfile.school || null,
           fieldOfStudy: studentProfile.fieldOfStudy || null,
           educationLevel: studentProfile.educationLevel || null,
@@ -107,7 +119,7 @@ export const register = async (req, res, next) => {
           learningObjective: studentProfile.learningObjective || null,
           currentLevel: studentProfile.currentLevel || null,
           group: null, // Always null - assigned by admin/instructor later
-          isSelfDirected: studentProfile.isSelfDirected || false,
+          isSelfDirected: learnerSelfDirected,
         }
       };
     }
@@ -115,7 +127,8 @@ export const register = async (req, res, next) => {
     if (role === 'instructor' && instructorProfile) {
       userData.instructorProfile = {
         create: {
-          situation: instructorProfile.situation || 'employed',
+          situation: instructorProfile.situation,
+          expertiseDomain: instructorProfile.expertiseDomain || null,
           specialization: instructorProfile.specialization,
           organization: instructorProfile.organization || null,
           department: instructorProfile.department || null,

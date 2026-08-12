@@ -107,7 +107,7 @@ const STUDENT_PROFILE_EDITABLE_FIELDS = [
   'learningObjective', 'currentLevel', 'isSelfDirected',
 ];
 const INSTRUCTOR_PROFILE_EDITABLE_FIELDS = [
-  'situation', 'specialization', 'organization', 'department',
+  'situation', 'expertiseDomain', 'specialization', 'organization', 'department',
   'position', 'sector', 'experienceYears', 'teachingMode', 'teachingDomains',
 ];
 

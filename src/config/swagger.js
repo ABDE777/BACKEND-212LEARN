@@ -88,12 +88,66 @@ const options = {
         // ─── Auth ────────────────────────────────────────────────────────────
         RegisterInput: {
           type: 'object',
-          required: ['firstName', 'lastName', 'email', 'password'],
+          required: ['firstName', 'lastName', 'email', 'password', 'role'],
+          description:
+            'Public registration. `role` = student|instructor|employee (admin is never allowed). ' +
+            'Learners (student/employee) send `studentProfile`; instructors send `instructorProfile`. ' +
+            'Required profile fields depend on `situation`. `group` is ignored — it is always null at ' +
+            'registration and assigned later by an admin/instructor.',
           properties: {
             firstName: { type: 'string', example: 'Mohamed' },
             lastName:  { type: 'string', example: 'Alaoui' },
             email:     { type: 'string', format: 'email', example: 'mohamed@212learning.ma' },
-            password:  { type: 'string', format: 'password', minLength: 8, example: 'SecurePass123!' },
+            phone:     { type: 'string', example: '+212 6 12 34 56 78' },
+            password:  { type: 'string', format: 'password', minLength: 8, description: 'Min 8 chars with letters and numbers.', example: 'SecurePass123' },
+            role:      { type: 'string', enum: ['student', 'instructor', 'employee'], example: 'student' },
+            studentProfile:    { $ref: '#/components/schemas/StudentProfileInput' },
+            instructorProfile: { $ref: '#/components/schemas/InstructorProfileInput' },
+          },
+        },
+        StudentProfileInput: {
+          type: 'object',
+          description:
+            'Learner profile. Required fields by situation — student: school, fieldOfStudy, ' +
+            'educationLevel, currentLevel, academicYearStart, academicYearEnd; employee: companyName, ' +
+            'department, position, sector, experienceYears; student_employee: both; self_directed: ' +
+            'interests, learningObjective, currentLevel.',
+          required: ['situation'],
+          properties: {
+            situation:         { type: 'string', enum: ['student', 'employee', 'student_employee', 'self_directed'] },
+            school:            { type: 'string', example: 'ISFO Sidi Maarouf' },
+            fieldOfStudy:      { type: 'string', example: 'Développement Digital' },
+            educationLevel:    { type: 'string', enum: ['college', 'lycee', 'bac', 'bac+1', 'bac+2', 'bac+3', 'bac+4', 'bac+5', 'autre'] },
+            currentLevel:      { type: 'string', enum: ['beginner', 'intermediate', 'advanced'] },
+            academicYearStart: { type: 'string', format: 'date', example: '2025-09-01' },
+            academicYearEnd:   { type: 'string', format: 'date', example: '2026-06-30' },
+            companyName:       { type: 'string', example: 'ABC Maroc' },
+            department:        { type: 'string', example: 'IT' },
+            position:          { type: 'string', example: 'Développeur Web' },
+            sector:            { type: 'string', example: 'Technologie' },
+            experienceYears:   { type: 'string', enum: ['<1', '1-2', '3-5', '6-10', '>10'] },
+            interests:         { type: 'string', example: 'Développement Web, IA, Cybersécurité' },
+            learningObjective: { type: 'string', example: 'Apprendre React et devenir développeur frontend.' },
+          },
+        },
+        InstructorProfileInput: {
+          type: 'object',
+          description:
+            'Instructor profile. Common required: expertiseDomain, specialization, experienceYears, ' +
+            'teachingMode, teachingDomains. employed also requires organization, position, sector; ' +
+            'freelance and unemployed require no company.',
+          required: ['situation', 'expertiseDomain', 'specialization', 'experienceYears', 'teachingMode', 'teachingDomains'],
+          properties: {
+            situation:       { type: 'string', enum: ['employed', 'freelance', 'unemployed'] },
+            expertiseDomain: { type: 'string', description: "Domaine d'expertise", example: 'Développement Web' },
+            specialization:  { type: 'string', description: 'Spécialité', example: 'React & Node.js' },
+            organization:    { type: 'string', example: '212Learn' },
+            department:      { type: 'string', example: 'IT' },
+            position:        { type: 'string', example: 'Lead Developer' },
+            sector:          { type: 'string', example: 'Technologie' },
+            experienceYears: { type: 'string', enum: ['<1', '1-2', '3-5', '6-10', '>10'] },
+            teachingMode:    { type: 'string', enum: ['online', 'onsite', 'hybrid'] },
+            teachingDomains: { type: 'string', example: 'JavaScript, React, Node.js, PHP' },
           },
         },
         LoginInput: {
