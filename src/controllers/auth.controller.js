@@ -38,6 +38,7 @@ const sendTokenResponse = (user, statusCode, res) => {
     ...safeUser,
     studentProfile: (safeUser.role === 'student' || safeUser.role === 'employee') ? profileData : null,
     instructorProfile: safeUser.role === 'instructor' ? profileData : null,
+    profile: profileData, // role-agnostic alias so every endpoint exposes `profile`
   };
 
   // Success envelope + token at top level (JWT should not be buried in data)
@@ -221,12 +222,13 @@ export const getMe = async (req, res, next) => {
     const profileData = safeUser.role === 'student' || safeUser.role === 'employee' ? studentProfile :
                         safeUser.role === 'instructor' ? instructorProfile : null;
     
-    res.status(200).json(successResponse({ 
-      user: { 
-        ...safeUser, 
+    res.status(200).json(successResponse({
+      user: {
+        ...safeUser,
         studentProfile: (safeUser.role === 'student' || safeUser.role === 'employee') ? profileData : null,
         instructorProfile: safeUser.role === 'instructor' ? profileData : null,
-      } 
+        profile: profileData, // role-agnostic alias so every endpoint exposes `profile`
+      }
     }));
   } catch (error) {
     next(error);

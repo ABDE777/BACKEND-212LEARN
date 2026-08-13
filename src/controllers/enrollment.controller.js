@@ -7,6 +7,7 @@ import {
   parsePagination,
 } from '../utils/response.js';
 import { validateUUID, validateRequired } from '../utils/validation.js';
+import { PAYMENT_STATUS } from '../constants/payment.js';
 
 // GET /api/v1/enrollments?page=1&limit=20
 export const getMyCourses = async (req, res, next) => {
@@ -126,7 +127,7 @@ export const enrollInCourse = async (req, res, next) => {
             currency: 'MAD',
             provider: 'free',
             transactionReference: reference,
-            status: 'PAID',
+            status: PAYMENT_STATUS.PAID,
             paidAt: new Date(),
           },
         },

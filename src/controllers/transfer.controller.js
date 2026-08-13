@@ -4,6 +4,7 @@ import { successResponse } from '../utils/response.js';
 import { validateUUID, validateRequired } from '../utils/validation.js';
 import { resolveValidCoupon, applyCouponDiscount, consumeCouponUsage } from '../utils/coupon.js';
 import { isOurCloudinaryUrl } from '../config/cloudinary.js';
+import { PAYMENT_STATUS } from '../constants/payment.js';
 
 // Helper to generate a unique Transfer Reference
 const generateTransferReference = () => {
@@ -92,7 +93,7 @@ export const requestTransferPayment = async (req, res, next) => {
           currency:             'MAD',
           provider:             'transfer',
           transactionReference: reference,
-          status:               'PENDING',
+          status:               PAYMENT_STATUS.PENDING,
           couponId:             coupon?.id || null,
         },
       });
@@ -187,7 +188,7 @@ export const submitTransferDetails = async (req, res, next) => {
       return tx.payment.update({
         where: { id: payment.id },
         data: {
-          status:             autoApprove ? 'PAID' : 'WAITING_VERIFICATION',
+          status:             autoApprove ? PAYMENT_STATUS.PAID : PAYMENT_STATUS.WAITING_VERIFICATION,
           rib:                cleanRib,
           transferReceiptUrl: transferReceiptUrl || payment.transferReceiptUrl,
           paidAt:             autoApprove ? new Date() : null,
@@ -300,7 +301,7 @@ export const verifyTransferPayment = async (req, res, next) => {
       return await tx.payment.update({
         where: { id: paymentId },
         data: {
-          status:     action === 'approve' ? 'PAID' : 'REJECTED',
+          status:     action === 'approve' ? PAYMENT_STATUS.PAID : PAYMENT_STATUS.REJECTED,
           paidAt:     action === 'approve' ? new Date() : null,
           verifiedBy: req.user.id,
           verifiedAt: new Date(),

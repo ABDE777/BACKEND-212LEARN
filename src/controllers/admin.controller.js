@@ -9,6 +9,7 @@ import { validateUUID, validateRequired, validateEmail, validateEnum } from '../
 import { sendPasswordResetEmail } from '../utils/email.js';
 import { getJwtSecret } from '../config/jwt.js';
 import { linkFormateurToCourse } from '../utils/groupSync.js';
+import { PAYMENT_STATUS } from '../constants/payment.js';
 
 // ─── GET /api/v1/admin/users/pending-kyc ─────────────────────────────────────
 // Retrieve all instructors awaiting KYC verification.
@@ -185,7 +186,7 @@ export const refundPayment = async (req, res, next) => {
     const updatedPayment = await prisma.payment.update({
       where: { id: paymentId },
       data: {
-        status: 'REFUNDED',
+        status: PAYMENT_STATUS.REFUNDED,
         notes: notes ? `${payment.notes || ''}\n[Refund Notes]: ${notes}` : payment.notes,
       },
     });

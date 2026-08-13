@@ -177,3 +177,35 @@ export const markAllNotificationsRead = async (req, res, next) => {
     next(error);
   }
 };
+
+// ─── PATCH /api/v1/users/:userId/notifications/:notificationId ────────────────
+// Mark a single notification as read (owner or admin).
+export const markNotificationRead = async (req, res, next) => {
+  try {
+    const { userId, notificationId } = req.params;
+    validateUUID(userId, 'userId');
+    validateUUID(notificationId, 'notificationId');
+
+    if (req.user.id !== userId && req.user.role !== 'admin') {
+      return next(new AppError('Forbidden.', 403, 'FORBIDDEN'));
+    }
+
+    // The notification must belong to this user.
+    const notification = await prisma.notification.findFirst({
+      where: { id: notificationId, userId },
+      select: { id: true },
+    });
+    if (!notification) {
+      return next(new AppError('Notification not found.', 404, 'NOT_FOUND'));
+    }
+
+    const updated = await prisma.notification.update({
+      where: { id: notificationId },
+      data:  { isRead: true },
+    });
+
+    res.status(200).json(successResponse({ notification: updated }));
+  } catch (error) {
+    next(error);
+  }
+};
