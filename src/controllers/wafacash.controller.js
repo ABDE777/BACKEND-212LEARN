@@ -4,6 +4,7 @@ import { successResponse } from '../utils/response.js';
 import { validateUUID, validateRequired } from '../utils/validation.js';
 import { resolveValidCoupon, applyCouponDiscount, consumeCouponUsage } from '../utils/coupon.js';
 import { isOurCloudinaryUrl } from '../config/cloudinary.js';
+import { PAYMENT_STATUS } from '../constants/payment.js';
 import crypto from 'crypto';
 
 // ─── Webhook Signature Verification ─────────────────────────────────────────────
@@ -116,7 +117,7 @@ export const requestWafacashPayment = async (req, res, next) => {
           currency:             'MAD',
           provider:             'wafacash',
           transactionReference: reference,
-          status:               'PENDING',
+          status:               PAYMENT_STATUS.PENDING,
           couponId:             coupon?.id || null,
         },
       });
@@ -203,7 +204,7 @@ export const submitWafacashTransfer = async (req, res, next) => {
       return tx.payment.update({
         where: { id: payment.id },
         data: {
-          status:     autoApprove ? 'PAID' : 'WAITING_VERIFICATION',
+          status:     autoApprove ? PAYMENT_STATUS.PAID : PAYMENT_STATUS.WAITING_VERIFICATION,
           mtcn:       cleanMtcn,
           receiptUrl: receiptUrl || payment.receiptUrl,
           paidAt:     autoApprove ? new Date() : null,
@@ -335,7 +336,7 @@ export const verifyPayment = async (req, res, next) => {
       return await tx.payment.update({
         where: { id: paymentId },
         data: {
-          status:     action === 'approve' ? 'PAID' : 'REJECTED',
+          status:     action === 'approve' ? PAYMENT_STATUS.PAID : PAYMENT_STATUS.REJECTED,
           paidAt:     action === 'approve' ? new Date() : null,
           verifiedBy: req.user.id,
           verifiedAt: new Date(),
