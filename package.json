@@ -12,6 +12,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "prisma:seed": "node prisma/seed.js",
+    "db:check": "node scripts/db-check.js",
     "db:setup": "prisma generate && prisma migrate deploy && node prisma/seed.js",
     "db:reset": "prisma migrate reset --force",
     "test": "npm run test:unit",
