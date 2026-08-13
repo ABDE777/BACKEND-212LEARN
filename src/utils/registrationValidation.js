@@ -31,6 +31,25 @@ const validateOptionalEnum = (value, allowed, fieldName) => {
 };
 
 /**
+ * Coerce a form date into a value Prisma's DateTime column accepts.
+ * An <input type="date"> submits a date-only string ("2026-07-31"), but Prisma
+ * rejects that for a DateTime field (it demands a full ISO-8601 value), so the
+ * raw string would surface as an opaque PrismaClientValidationError. Convert it
+ * to a Date here; blank → null; an unparseable value → a clean 400.
+ * @param {*} value
+ * @param {string} fieldName
+ * @returns {Date|null}
+ */
+export const toDateOrNull = (value, fieldName) => {
+  if (isBlank(value)) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new AppError(`Invalid date for ${fieldName}.`, 400, 'VALIDATION_ERROR');
+  }
+  return date;
+};
+
+/**
  * Validate a learner (Apprenant) profile against its situation.
  * Enforces the situation enum, the per-situation required fields, and the value
  * enums. Returns the normalized isSelfDirected flag for the caller to persist.

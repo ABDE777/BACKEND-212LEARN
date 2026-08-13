@@ -5,7 +5,7 @@ import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { validateRequired, validateEmail, validatePassword } from '../utils/validation.js';
-import { validateLearnerProfile, validateInstructorProfile } from '../utils/registrationValidation.js';
+import { validateLearnerProfile, validateInstructorProfile, toDateOrNull } from '../utils/registrationValidation.js';
 import { sendPasswordResetEmail, sendAccountRestoreOtpEmail } from '../utils/email.js';
 import { getJwtSecret } from '../config/jwt.js';
 import { logAuditEvent } from '../utils/audit.js';
@@ -109,8 +109,8 @@ export const register = async (req, res, next) => {
           school: studentProfile.school || null,
           fieldOfStudy: studentProfile.fieldOfStudy || null,
           educationLevel: studentProfile.educationLevel || null,
-          academicYearStart: studentProfile.academicYearStart || null,
-          academicYearEnd: studentProfile.academicYearEnd || null,
+          academicYearStart: toDateOrNull(studentProfile.academicYearStart, 'academicYearStart'),
+          academicYearEnd: toDateOrNull(studentProfile.academicYearEnd, 'academicYearEnd'),
           companyName: studentProfile.companyName || null,
           department: studentProfile.department || null,
           position: studentProfile.position || null,

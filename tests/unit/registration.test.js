@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   validateLearnerProfile,
   validateInstructorProfile,
+  toDateOrNull,
 } from '../../src/utils/registrationValidation.js';
 import { AppError } from '../../src/middleware/error.js';
 
@@ -121,5 +122,34 @@ describe('validateInstructorProfile', () => {
   it('rejects invalid teachingMode / experience enums', () => {
     assert.throws(() => validateInstructorProfile({ ...instructorFreelanceOk, teachingMode: 'telepathy' }), AppError);
     assert.throws(() => validateInstructorProfile({ ...instructorFreelanceOk, experienceYears: '7' }), AppError);
+  });
+});
+
+describe('toDateOrNull', () => {
+  it('coerces a date-only string (from <input type="date">) to a Date', () => {
+    const d = toDateOrNull('2026-07-31', 'academicYearStart');
+    assert.ok(d instanceof Date);
+    assert.equal(d.toISOString(), '2026-07-31T00:00:00.000Z');
+  });
+
+  it('accepts a full ISO-8601 datetime', () => {
+    const d = toDateOrNull('2026-07-31T12:34:56.000Z', 'academicYearStart');
+    assert.equal(d.toISOString(), '2026-07-31T12:34:56.000Z');
+  });
+
+  it('returns null for blank/absent values', () => {
+    assert.equal(toDateOrNull(undefined, 'f'), null);
+    assert.equal(toDateOrNull(null, 'f'), null);
+    assert.equal(toDateOrNull('', 'f'), null);
+    assert.equal(toDateOrNull('   ', 'f'), null);
+  });
+
+  it('throws a clean AppError on an unparseable date', () => {
+    assert.throws(() => toDateOrNull('not-a-date', 'academicYearStart'), (e) => {
+      assert.ok(e instanceof AppError);
+      assert.equal(e.statusCode, 400);
+      assert.match(e.message, /academicYearStart/);
+      return true;
+    });
   });
 });
