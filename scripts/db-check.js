@@ -76,15 +76,29 @@ async function main() {
     if (migrations.length === 0) {
       warn('no rows in _prisma_migrations (schema may have been applied via db push)');
     }
+    // A migration_name can legitimately have several rows: a failed/rolled-back
+    // attempt followed by a successful re-apply (what `resolve --rolled-back` +
+    // `migrate deploy` leaves behind). Group by name — a later success supersedes
+    // earlier failed attempts, so only flag a name that has NO successful row.
+    const byName = new Map();
     for (const m of migrations) {
-      if (m.rolled_back_at) {
-        fail(`${m.migration_name} — ROLLED BACK / failed`);
-        problems++;
-      } else if (!m.finished_at) {
-        fail(`${m.migration_name} — not finished (in progress or failed mid-apply)`);
+      if (!byName.has(m.migration_name)) byName.set(m.migration_name, []);
+      byName.get(m.migration_name).push(m);
+    }
+    for (const [name, rows] of byName) {
+      const applied = rows.some((r) => r.finished_at && !r.rolled_back_at);
+      const superseded = rows.length - (applied ? 1 : 0);
+      if (applied) {
+        const note = superseded > 0
+          ? ` ${DIM}(superseded ${superseded} earlier failed attempt${superseded > 1 ? 's' : ''})${RESET}`
+          : '';
+        ok(`${name}${note}`);
+      } else if (rows.some((r) => r.rolled_back_at)) {
+        fail(`${name} — ROLLED BACK / failed, never re-applied`);
         problems++;
       } else {
-        ok(`${m.migration_name}`);
+        fail(`${name} — not finished (in progress or failed mid-apply)`);
+        problems++;
       }
     }
   } catch (err) {
