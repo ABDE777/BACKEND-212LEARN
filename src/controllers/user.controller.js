@@ -3,6 +3,7 @@ import { AppError } from '../middleware/error.js';
 import { successResponse, paginationMeta, parsePagination, parseSort } from '../utils/response.js';
 import { cloudinary } from '../config/cloudinary.js';
 import { validateUUID, validateHttpUrl } from '../utils/validation.js';
+import { toDateOrNull } from '../utils/registrationValidation.js';
 
 const USER_SELECT = {
   id: true, firstName: true, lastName: true, email: true,
@@ -136,6 +137,16 @@ export const updateMe = async (req, res, next) => {
       : req.user.role === 'instructor'
         ? pickAllowed(body, INSTRUCTOR_PROFILE_EDITABLE_FIELDS)
         : {};
+
+    // Coerce date-only strings (<input type="date">) to Date for the DateTime
+    // columns, so Prisma doesn't reject them as an opaque validation error.
+    if (isStudentLike) {
+      for (const field of ['academicYearStart', 'academicYearEnd']) {
+        if (Object.prototype.hasOwnProperty.call(profileData, field)) {
+          profileData[field] = toDateOrNull(profileData[field], field);
+        }
+      }
+    }
 
     // Update user + profile atomically so they can't drift apart.
     await prisma.$transaction(async (tx) => {
