@@ -8,6 +8,7 @@ import jwt from 'jsonwebtoken';
 import { validateUUID, validateRequired, validateEmail, validateEnum } from '../utils/validation.js';
 import { sendPasswordResetEmail } from '../utils/email.js';
 import { getJwtSecret } from '../config/jwt.js';
+import { linkFormateurToCourse } from '../utils/groupSync.js';
 
 // ─── GET /api/v1/admin/users/pending-kyc ─────────────────────────────────────
 // Retrieve all instructors awaiting KYC verification.
@@ -295,19 +296,6 @@ const ensureCourseExists = async (courseId) => {
   return course;
 };
 
-const ensureCourseInstructorLink = async (courseId, formateurId) => {
-  if (!courseId) return;
-
-  const existingLink = await prisma.courseInstructor.findFirst({
-    where: { courseId, userId: formateurId },
-  });
-
-  if (!existingLink) {
-    await prisma.courseInstructor.create({
-      data: { courseId, userId: formateurId, role: 'group_formateur' },
-    });
-  }
-};
 // ─── GET /api/v1/admin/groups ────────────────────────────────────────────────
 // List training groups with formateur, optional course, and student members.
 export const getGroups = async (req, res, next) => {
@@ -357,18 +345,23 @@ export const createGroup = async (req, res, next) => {
 
     const uniqueStudentIds = studentIds.length > 0 ? await ensureStudentUsers(studentIds) : [];
 
-    const group = await prisma.group.create({
-      data: {
-        name: name.trim(),
-        description: description?.trim() || null,
-        courseId: courseId || null,
-        formateurId,
-        createdById: req.user.id,
-        students: uniqueStudentIds.length > 0
-          ? { create: uniqueStudentIds.map((userId) => ({ userId })) }
-          : undefined,
-      },
-      include: GROUP_INCLUDE,
+    const group = await prisma.$transaction(async (tx) => {
+      const created = await tx.group.create({
+        data: {
+          name: name.trim(),
+          description: description?.trim() || null,
+          courseId: courseId || null,
+          formateurId,
+          createdById: req.user.id,
+          students: uniqueStudentIds.length > 0
+            ? { create: uniqueStudentIds.map((userId) => ({ userId })) }
+            : undefined,
+        },
+        include: GROUP_INCLUDE,
+      });
+      // A course-bound group makes its formateur an instructor of that course.
+      await linkFormateurToCourse(tx, created.courseId, created.formateurId);
+      return created;
     });
 
     await logAuditEvent(req.user.id, 'CREATE_GROUP', 'Group', group.id, {
@@ -402,14 +395,19 @@ export const updateGroup = async (req, res, next) => {
       await ensureCourseExists(courseId);
     }
 
-    const group = await prisma.group.update({
-      where: { id: groupId },
-      data: {
-        ...(name && { name: name.trim() }),
-        ...(description !== undefined && { description: description?.trim() || null }),
-        ...(courseId !== undefined && { courseId: courseId || null }),
-      },
-      include: GROUP_INCLUDE,
+    const group = await prisma.$transaction(async (tx) => {
+      const updated = await tx.group.update({
+        where: { id: groupId },
+        data: {
+          ...(name && { name: name.trim() }),
+          ...(description !== undefined && { description: description?.trim() || null }),
+          ...(courseId !== undefined && { courseId: courseId || null }),
+        },
+        include: GROUP_INCLUDE,
+      });
+      // If the group now points at a course, keep its formateur linked to it.
+      await linkFormateurToCourse(tx, updated.courseId, updated.formateurId);
+      return updated;
     });
 
     await logAuditEvent(req.user.id, 'UPDATE_GROUP', 'Group', groupId, {
@@ -441,10 +439,15 @@ export const assignGroupFormateur = async (req, res, next) => {
       return next(new AppError('Group not found.', 404, 'NOT_FOUND'));
     }
 
-    const group = await prisma.group.update({
-      where: { id: groupId },
-      data: { formateurId },
-      include: GROUP_INCLUDE,
+    const group = await prisma.$transaction(async (tx) => {
+      const updated = await tx.group.update({
+        where: { id: groupId },
+        data: { formateurId },
+        include: GROUP_INCLUDE,
+      });
+      // The new formateur becomes an instructor of the group's course.
+      await linkFormateurToCourse(tx, updated.courseId, updated.formateurId);
+      return updated;
     });
 
     await logAuditEvent(req.user.id, 'ASSIGN_GROUP_FORMATEUR', 'Group', group.id, {

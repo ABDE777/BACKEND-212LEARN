@@ -7,6 +7,7 @@ import {
   deleteGroup,
   addStudentToGroup,
   removeStudentFromGroup,
+  getGroupStudents,
 } from '../controllers/group.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
 
@@ -171,5 +172,26 @@ router.post('/:id/students', protect, restrictTo('admin'), addStudentToGroup);
  *         description: Student removed
  */
 router.delete('/:id/students/:userId', protect, restrictTo('admin'), removeStudentFromGroup);
+
+/**
+ * @swagger
+ * /groups/{id}/students:
+ *   get:
+ *     summary: List the students of a group (admin, or the group's own formateur)
+ *     tags: [Groups]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: The group and its students
+ *       403:
+ *         description: Not the group's formateur
+ */
+router.get('/:id/students', protect, restrictTo('instructor', 'admin'), getGroupStudents);
 
 export default router;

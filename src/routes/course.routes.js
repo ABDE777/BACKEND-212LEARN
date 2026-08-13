@@ -9,6 +9,7 @@ import {
   publishCourse,
   getCourseStudents,
 } from '../controllers/course.controller.js';
+import { getCourseGroups } from '../controllers/group.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
 import { cacheMiddleware, clearCachePattern } from '../middleware/cache.js';
 
@@ -249,5 +250,24 @@ router.post('/:id/publish', restrictTo('admin'), publishCourse);
  *         description: Course not found
  */
 router.get('/:id/students', restrictTo('instructor', 'admin'), getCourseStudents);
+
+/**
+ * @swagger
+ * /courses/{courseId}/groups:
+ *   get:
+ *     summary: List the groups taught in a course (admin sees all; instructor sees only their own)
+ *     tags: [Courses]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Groups for the course, each with a studentCount
+ */
+router.get('/:courseId/groups', restrictTo('instructor', 'admin'), getCourseGroups);
 
 export default router;

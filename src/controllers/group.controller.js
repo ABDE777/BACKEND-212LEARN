@@ -2,6 +2,7 @@ import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse, paginationMeta, parsePagination, parseSort } from '../utils/response.js';
 import { validateUUID, validateRequired } from '../utils/validation.js';
+import { linkFormateurToCourse } from '../utils/groupSync.js';
 
 const SORTABLE_FIELDS = ['createdAt', 'name', 'updatedAt'];
 
@@ -130,22 +131,27 @@ export const createGroup = async (req, res, next) => {
       }
     }
 
-    const group = await prisma.group.create({
-      data: {
-        name,
-        description,
-        courseId,
-        formateurId,
-        createdById: req.user?.id,
-      },
-      include: {
-        course: {
-          select: { id: true, title: true },
+    const group = await prisma.$transaction(async (tx) => {
+      const created = await tx.group.create({
+        data: {
+          name,
+          description,
+          courseId,
+          formateurId,
+          createdById: req.user?.id,
         },
-        formateur: {
-          select: { id: true, firstName: true, lastName: true },
+        include: {
+          course: {
+            select: { id: true, title: true },
+          },
+          formateur: {
+            select: { id: true, firstName: true, lastName: true },
+          },
         },
-      },
+      });
+      // A course-bound group makes its formateur an instructor of that course.
+      await linkFormateurToCourse(tx, created.courseId, created.formateurId);
+      return created;
     });
 
     res.status(201).json(successResponse({ group }));
@@ -197,22 +203,27 @@ export const updateGroup = async (req, res, next) => {
       }
     }
 
-    const updatedGroup = await prisma.group.update({
-      where: { id: req.params.id },
-      data: {
-        ...(name && { name }),
-        ...(description !== undefined && { description }),
-        ...(courseId !== undefined && { courseId }),
-        ...(formateurId && { formateurId }),
-      },
-      include: {
-        course: {
-          select: { id: true, title: true },
+    const updatedGroup = await prisma.$transaction(async (tx) => {
+      const updated = await tx.group.update({
+        where: { id: req.params.id },
+        data: {
+          ...(name && { name }),
+          ...(description !== undefined && { description }),
+          ...(courseId !== undefined && { courseId }),
+          ...(formateurId && { formateurId }),
         },
-        formateur: {
-          select: { id: true, firstName: true, lastName: true },
+        include: {
+          course: {
+            select: { id: true, title: true },
+          },
+          formateur: {
+            select: { id: true, firstName: true, lastName: true },
+          },
         },
-      },
+      });
+      // Keep the formateur linked to the group's course after any change.
+      await linkFormateurToCourse(tx, updated.courseId, updated.formateurId);
+      return updated;
     });
 
     res.status(200).json(successResponse({ group: updatedGroup }));
@@ -290,6 +301,77 @@ export const addStudentToGroup = async (req, res, next) => {
     });
 
     res.status(201).json(successResponse({ message: 'Student added to group successfully.' }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /api/v1/courses/:courseId/groups
+// Instructor drill-down step 1: the groups taught in a course. An admin sees every
+// group for the course; an instructor sees only the groups where they are the formateur.
+export const getCourseGroups = async (req, res, next) => {
+  try {
+    validateUUID(req.params.courseId, 'courseId');
+
+    const where = {
+      deletedAt: null,
+      courseId: req.params.courseId,
+      ...(req.user.role !== 'admin' && { formateurId: req.user.id }),
+    };
+
+    const groups = await prisma.group.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        formateur: { select: { id: true, firstName: true, lastName: true } },
+        _count: { select: { students: true } },
+      },
+    });
+
+    const result = groups.map((group) => ({
+      ...group,
+      studentCount: group._count.students,
+      _count: undefined,
+    }));
+
+    res.status(200).json(successResponse({ groups: result }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /api/v1/groups/:id/students
+// Instructor drill-down step 2: the students of a chosen group. Restricted to the
+// group's own formateur (or an admin) so an instructor can't read other groups.
+export const getGroupStudents = async (req, res, next) => {
+  try {
+    validateUUID(req.params.id, 'groupId');
+
+    const group = await prisma.group.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, name: true, courseId: true, formateurId: true, deletedAt: true },
+    });
+
+    if (!group || group.deletedAt) {
+      return next(new AppError('Group not found.', 404, 'NOT_FOUND'));
+    }
+
+    if (req.user.role !== 'admin' && group.formateurId !== req.user.id) {
+      return next(new AppError('You can only view students of groups you teach.', 403, 'FORBIDDEN'));
+    }
+
+    const memberships = await prisma.groupStudent.findMany({
+      where: { groupId: group.id },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true, email: true, avatar: true } },
+      },
+    });
+
+    res.status(200).json(successResponse({
+      group: { id: group.id, name: group.name, courseId: group.courseId },
+      students: memberships.map((m) => m.user),
+    }));
   } catch (error) {
     next(error);
   }
