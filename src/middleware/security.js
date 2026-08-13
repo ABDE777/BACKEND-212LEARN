@@ -1,7 +1,12 @@
 import { AppError } from './error.js';
 
 // Hand-rolled server-side input sanitizer (no DOM dependency needed for text).
-const sanitizeValue = (value) => {
+const sanitizeValue = (value, key = '') => {
+  // Skip sanitization for experienceYears field which contains valid enum values with < and >
+  if (key === 'experienceYears' && typeof value === 'string') {
+    return value.trim();
+  }
+  
   if (typeof value === 'string') {
     // Simple server-side sanitization without DOM
     return value
@@ -12,12 +17,12 @@ const sanitizeValue = (value) => {
       .trim();
   }
   if (Array.isArray(value)) {
-    return value.map(sanitizeValue);
+    return value.map((item, index) => sanitizeValue(item, index));
   }
   if (value !== null && typeof value === 'object') {
     const newObj = {};
     for (const key of Object.keys(value)) {
-      newObj[key] = sanitizeValue(value[key]);
+      newObj[key] = sanitizeValue(value[key], key);
     }
     return newObj;
   }

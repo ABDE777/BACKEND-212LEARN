@@ -68,6 +68,7 @@ export const validatePassword = (password, fieldName = 'Password') => {
  * @throws {AppError} If value is not in allowed values
  */
 export const validateEnum = (value, allowedValues, fieldName = 'field') => {
+  console.log('Validating:', value, 'against:', allowedValues, 'for field:', fieldName);
   if (!allowedValues.includes(value)) {
     throw new AppError(`Invalid ${fieldName}. Must be one of: ${allowedValues.join(', ')}.`, 400, 'VALIDATION_ERROR');
   }

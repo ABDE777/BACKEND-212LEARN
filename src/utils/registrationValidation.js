@@ -80,7 +80,9 @@ export const validateLearnerProfile = (profile) => {
   // Value enums (only when the value is present)
   validateOptionalEnum(profile.educationLevel, EDUCATION_LEVELS, 'educationLevel');
   validateOptionalEnum(profile.currentLevel, CURRENT_LEVELS, 'currentLevel');
-  validateOptionalEnum(profile.experienceYears, EXPERIENCE_RANGES, 'experienceYears');
+  if (profile.experienceYears) {
+    validateEnum(profile.experienceYears.trim(), EXPERIENCE_RANGES, 'experienceYears');
+  }
 
   return { isSelfDirected: situation === 'self_directed' };
 };
@@ -106,5 +108,5 @@ export const validateInstructorProfile = (profile) => {
   }
 
   validateOptionalEnum(profile.teachingMode, TEACHING_MODES, 'teachingMode');
-  validateOptionalEnum(profile.experienceYears, EXPERIENCE_RANGES, 'experienceYears');
+  validateEnum(profile.experienceYears.trim(), EXPERIENCE_RANGES, 'experienceYears');
 };
