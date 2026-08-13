@@ -4,6 +4,7 @@ import {
   getCourseReviews,
   getNotifications,
   markAllNotificationsRead,
+  markNotificationRead,
 } from '../controllers/review.controller.js';
 import { protect } from '../middleware/auth.js';
 
@@ -128,5 +129,31 @@ router.get('/users/:userId/notifications', protect, getNotifications);
  *         description: Forbidden
  */
 router.patch('/users/:userId/notifications/read-all', protect, markAllNotificationsRead);
+
+/**
+ * @swagger
+ * /users/{userId}/notifications/{notificationId}:
+ *   patch:
+ *     summary: Mark a single notification as read (owner or admin)
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *       - in: path
+ *         name: notificationId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Notification marked as read
+ *       404:
+ *         description: Notification not found
+ */
+// Must be registered AFTER /read-all so that literal path is not captured by :notificationId.
+router.patch('/users/:userId/notifications/:notificationId', protect, markNotificationRead);
 
 export default router;
