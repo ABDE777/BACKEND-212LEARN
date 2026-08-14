@@ -284,6 +284,17 @@ export const createCourse = async (req, res, next) => {
     validateRequired(req.body, ['title', 'categoryId']);
     validateUUID(categoryId, 'categoryId');
     
+    console.log('Creating course with categoryId:', categoryId);
+    
+    // Verify category exists
+    const category = await prisma.category.findUnique({
+      where: { id: categoryId },
+    });
+    console.log('Found category:', category);
+    if (!category || category.deletedAt) {
+      return next(new AppError('Category not found.', 404, 'NOT_FOUND'));
+    }
+    
     if (instructorId) {
       validateUUID(instructorId, 'instructorId');
     }
@@ -325,7 +336,7 @@ export const createCourse = async (req, res, next) => {
         title,
         description,
         categoryId,
-        price,
+        price: price !== undefined ? price : 0,
         level,
         language,
         duration,
