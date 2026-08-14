@@ -3,9 +3,12 @@ import assert from 'node:assert/strict';
 import { validatePortfolio } from '../../src/utils/portfolioValidation.js';
 import { AppError } from '../../src/middleware/error.js';
 
-// isOurCloudinaryUrl reads CLOUDINARY_CLOUD_NAME; set one for the fileUrl tests.
-process.env.CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME || 'demo212';
-const OUR_FILE = 'https://res.cloudinary.com/demo212/raw/upload/v1/212learn/pdfs/cert.pdf';
+// isOurCloudinaryUrl reads CLOUDINARY_CLOUD_NAME live. Force a known value
+// (overwriting any CI-provided one) and build the test URL from it, so the
+// "our-Cloudinary" check is deterministic regardless of the environment.
+const CLOUD = 'demo212';
+process.env.CLOUDINARY_CLOUD_NAME = CLOUD;
+const OUR_FILE = `https://res.cloudinary.com/${CLOUD}/raw/upload/v1/212learn/pdfs/cert.pdf`;
 
 describe('validatePortfolio', () => {
   it('returns only the provided keys (partial PATCH is safe)', () => {
