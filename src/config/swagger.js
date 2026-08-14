@@ -222,16 +222,66 @@ const options = {
             lastLogin:  { type: 'string', format: 'date-time', nullable: true },
             createdAt:  { type: 'string', format: 'date-time' },
             updatedAt:  { type: 'string', format: 'date-time' },
+            skills:        { $ref: '#/components/schemas/PortfolioSkills' },
+            languages:     { $ref: '#/components/schemas/PortfolioLanguages' },
+            certifications:{ $ref: '#/components/schemas/PortfolioCredentials' },
+            diplomas:      { $ref: '#/components/schemas/PortfolioCredentials' },
+            socialLinks:   { $ref: '#/components/schemas/PortfolioSocialLinks' },
+          },
+        },
+        // ─── Portfolio (learners & instructors) ──────────────────────────────
+        PortfolioSkills: {
+          type: 'array', nullable: true, maxItems: 30,
+          items: { type: 'string', maxLength: 50 },
+          example: ['React', 'Node.js', 'PostgreSQL'],
+        },
+        PortfolioLanguages: {
+          type: 'array', nullable: true, maxItems: 20,
+          items: {
+            type: 'object',
+            properties: {
+              name:  { type: 'string', example: 'Français' },
+              level: { type: 'string', nullable: true, enum: ['basic', 'intermediate', 'fluent', 'native'] },
+            },
+          },
+        },
+        PortfolioCredentials: {
+          type: 'array', nullable: true, maxItems: 20,
+          description: 'Certifications or diplomas. issuer/institution + optional Cloudinary file.',
+          items: {
+            type: 'object',
+            required: ['title'],
+            properties: {
+              title:       { type: 'string', maxLength: 150, example: 'AWS Certified Developer' },
+              issuer:      { type: 'string', nullable: true, maxLength: 150, example: 'Amazon' },
+              institution: { type: 'string', nullable: true, maxLength: 150, example: 'Université Hassan II' },
+              year:        { type: 'integer', nullable: true, example: 2024 },
+              fileUrl:     { type: 'string', format: 'uri', nullable: true, description: 'Must be an our-Cloudinary URL (PDF/image).' },
+            },
+          },
+        },
+        PortfolioSocialLinks: {
+          type: 'object', nullable: true,
+          properties: {
+            linkedin: { type: 'string', format: 'uri', example: 'https://linkedin.com/in/username' },
+            github:   { type: 'string', format: 'uri', example: 'https://github.com/username' },
+            website:  { type: 'string', format: 'uri', example: 'https://myportfolio.com' },
+            twitter:  { type: 'string', format: 'uri', example: 'https://x.com/username' },
           },
         },
         UpdateUserInput: {
           type: 'object',
-          description: 'Allowed fields for PATCH /users/me',
+          description: 'Allowed fields for PATCH /users/me (incl. portfolio: skills, languages, certifications, diplomas, socialLinks — learners & instructors)',
           properties: {
             firstName: { type: 'string', example: 'Youssef' },
             lastName:  { type: 'string', example: 'Bennani' },
             avatar:    { type: 'string', format: 'uri', example: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330' },
             bio:       { type: 'string', example: 'Full-stack developer & e-learning enthusiast.' },
+            skills:        { $ref: '#/components/schemas/PortfolioSkills' },
+            languages:     { $ref: '#/components/schemas/PortfolioLanguages' },
+            certifications:{ $ref: '#/components/schemas/PortfolioCredentials' },
+            diplomas:      { $ref: '#/components/schemas/PortfolioCredentials' },
+            socialLinks:   { $ref: '#/components/schemas/PortfolioSocialLinks' },
           },
         },
 

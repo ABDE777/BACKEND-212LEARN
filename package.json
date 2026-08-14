@@ -16,7 +16,7 @@
     "db:setup": "prisma generate && prisma migrate deploy && node prisma/seed.js",
     "db:reset": "prisma migrate reset --force",
     "test": "npm run test:unit",
-    "test:unit": "node --test tests/unit/coupon.test.js tests/unit/validation.test.js tests/unit/jwt.test.js tests/unit/cloudinary.test.js tests/unit/registration.test.js tests/unit/groupSync.test.js",
+    "test:unit": "node --test tests/unit/coupon.test.js tests/unit/validation.test.js tests/unit/jwt.test.js tests/unit/cloudinary.test.js tests/unit/registration.test.js tests/unit/groupSync.test.js tests/unit/portfolio.test.js",
     "test:integration": "node tests/integration/run.js",
     "test:sprint6": "node test/sprint6_test.js",
     "test:sprint7": "node test/sprint7_test.js",
