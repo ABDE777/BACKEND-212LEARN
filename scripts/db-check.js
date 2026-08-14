@@ -27,6 +27,8 @@ const REQUIRED_COLUMNS = [
   ['instructor_profiles', 'expertiseDomain', 'character varying'],
   ['instructor_profiles', 'experienceYears', 'character varying'],
   ['users', 'passwordChangedAt', 'timestamp'],
+  ['users', 'socialLinks', 'jsonb'],
+  ['users', 'certifications', 'jsonb'],
 ];
 
 async function main() {

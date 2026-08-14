@@ -27,6 +27,15 @@ model User {
   phone          String?   @db.VarChar(50)
   passwordChangedAt DateTime?
 
+  // Portfolio (learners & instructors) — validated/normalized in
+  // src/utils/portfolioValidation.js. `certifications` is deliberately distinct
+  // from the `certificates` relation below (platform course certificates).
+  skills         Json?  // string[]                          e.g. ["React","Node.js"]
+  languages      Json?  // [{ name, level }]                 level: basic|intermediate|fluent|native
+  certifications Json?  // [{ title, issuer, year, fileUrl }]
+  diplomas       Json?  // [{ title, institution, year, fileUrl }]
+  socialLinks    Json?  // { linkedin, github, website, twitter }
+
   // Relations
   coursesInstructed CourseInstructor[]
   enrollments       Enrollment[]

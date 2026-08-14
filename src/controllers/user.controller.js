@@ -4,11 +4,13 @@ import { successResponse, paginationMeta, parsePagination, parseSort } from '../
 import { cloudinary } from '../config/cloudinary.js';
 import { validateUUID, validateHttpUrl } from '../utils/validation.js';
 import { toDateOrNull } from '../utils/registrationValidation.js';
+import { validatePortfolio } from '../utils/portfolioValidation.js';
 
 const USER_SELECT = {
   id: true, firstName: true, lastName: true, email: true,
   role: true, isVerified: true, avatar: true, bio: true,
   createdAt: true, lastLogin: true, deletedAt: true, phone: true,
+  skills: true, languages: true, certifications: true, diplomas: true, socialLinks: true,
   studentProfile: true,
   instructorProfile: true,
 };
@@ -131,6 +133,14 @@ export const updateMe = async (req, res, next) => {
     // Reject dangerous URL schemes (javascript:/data:) in the avatar field.
     if (userData.avatar) {
       validateHttpUrl(userData.avatar, 'avatar');
+    }
+
+    // Portfolio fields (skills, languages, certifications, diplomas, socialLinks)
+    // are User columns — validate/normalize and merge into the user update. Only
+    // the keys actually present in the body are returned, so a partial PATCH
+    // leaves untouched portfolio fields alone. Available to learners & instructors.
+    if (req.user.role !== 'admin') {
+      Object.assign(userData, validatePortfolio(body));
     }
     const profileData = isStudentLike
       ? pickAllowed(body, STUDENT_PROFILE_EDITABLE_FIELDS)
