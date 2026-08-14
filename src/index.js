@@ -204,8 +204,11 @@ app.use(`${V1}`,             quizRoutes);     // /lessons/:id/quizzes, /quizzes/
 app.use(`${V1}`,             reviewRoutes);   // /courses/:id/reviews, /users/:id/notifications
 app.use(`${V1}`,             analyticsRoutes); // /instructor/analytics/*
 app.use(`${V1}`,             meetingRoutes);   // /courses/:id/meetings, /meetings/*
-app.use(`${V1}`,             adminRoutes);     // /admin/*
+// Mount BEFORE adminRoutes: adminRoutes applies a blanket restrictTo('admin') to
+// its whole router, so any unmatched /api/v1/* request that reaches it is 403'd.
+// The instructor update-request routes must match first, with their own guards.
 app.use(`${V1}`,             courseUpdateRequestRoutes); // /courses/:id/update-requests, /instructor/update-requests, /admin/update-requests
+app.use(`${V1}`,             adminRoutes);     // /admin/*
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.all('*', (req, res, next) => {

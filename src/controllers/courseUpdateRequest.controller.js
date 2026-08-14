@@ -182,10 +182,7 @@ export const approveCourseUpdateRequest = async (req, res, next) => {
     const { requestId } = req.params;
     const adminId = req.user.id;
 
-    // Verify user is admin
-    if (req.user.role !== 'ADMIN') {
-      return next(new AppError('Only admins can approve update requests', 403, 'FORBIDDEN'));
-    }
+    // Admin authorization is enforced by restrictTo('admin') on the route.
 
     const updateRequest = await prisma.courseUpdateRequest.findUnique({
       where: { id: requestId },
@@ -247,10 +244,7 @@ export const rejectCourseUpdateRequest = async (req, res, next) => {
     const { rejectionReason } = req.body;
     const adminId = req.user.id;
 
-    // Verify user is admin
-    if (req.user.role !== 'ADMIN') {
-      return next(new AppError('Only admins can reject update requests', 403, 'FORBIDDEN'));
-    }
+    // Admin authorization is enforced by restrictTo('admin') on the route.
 
     const updateRequest = await prisma.courseUpdateRequest.findUnique({
       where: { id: requestId },
