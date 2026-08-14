@@ -86,12 +86,15 @@ export const getAllCourses = async (req, res, next) => {
 
     // Resolve course visibility status:
     // Admins can see all statuses (published, draft, archived) by default or filter explicitly.
+    // Instructors can see all their own courses when requesting with instructorId=me or their own ID.
     // Guests and non-admin users default to seeing only 'published' courses.
     let targetStatus;
     if (status) {
       if (status === 'all') {
         if (currentUser && currentUser.role === 'admin') {
           targetStatus = null; // No status filter for admin -> returns published, draft, archived
+        } else if (currentUser && currentUser.role === 'instructor' && targetInstructorId === currentUser.id) {
+          targetStatus = null; // Instructors can see all their own courses
         } else {
           targetStatus = 'published';
         }
@@ -119,6 +122,8 @@ export const getAllCourses = async (req, res, next) => {
       // If no status query parameter is explicitly provided:
       if (currentUser && currentUser.role === 'admin') {
         targetStatus = null; // Return all non-deleted courses for admin
+      } else if (currentUser && currentUser.role === 'instructor' && targetInstructorId === currentUser.id) {
+        targetStatus = null; // Instructors can see all their own courses by default
       } else {
         targetStatus = 'published';
       }

@@ -32,6 +32,7 @@ import couponRoutes    from './routes/coupon.routes.js';
 import meetingRoutes   from './routes/meeting.routes.js';
 import statsRoutes     from './routes/stats.routes.js';
 import groupRoutes     from './routes/group.routes.js';
+import courseUpdateRequestRoutes from './routes/courseUpdateRequest.routes.js';
 import { xssSanitizer, preventParameterPollution, rateLimiter } from './middleware/security.js';
 import { requestId, accessLogger } from './middleware/requestId.js';
 import { validateJwtSecret } from './config/jwt.js';
@@ -204,6 +205,7 @@ app.use(`${V1}`,             reviewRoutes);   // /courses/:id/reviews, /users/:i
 app.use(`${V1}`,             analyticsRoutes); // /instructor/analytics/*
 app.use(`${V1}`,             meetingRoutes);   // /courses/:id/meetings, /meetings/*
 app.use(`${V1}`,             adminRoutes);     // /admin/*
+app.use(`${V1}`,             courseUpdateRequestRoutes); // /courses/:id/update-requests, /instructor/update-requests, /admin/update-requests
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.all('*', (req, res, next) => {

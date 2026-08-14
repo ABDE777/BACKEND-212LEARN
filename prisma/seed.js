@@ -38,6 +38,7 @@ async function clearAll() {
   await prisma.lesson.deleteMany();
   await prisma.section.deleteMany();
   await prisma.courseInstructor.deleteMany();
+  await prisma.courseUpdateRequest.deleteMany();
   await prisma.course.deleteMany();
   await prisma.category.deleteMany();
   await prisma.instructorProfile.deleteMany();
@@ -387,6 +388,20 @@ async function main() {
       userId: student1.id,
       content: 'Welcome! Your React Essentials enrollment is active.',
       isRead: false,
+    },
+  });
+
+  // ── Course Update Request (for testing instructor update workflow) ─────────────
+  await prisma.courseUpdateRequest.create({
+    data: {
+      courseId: courseReact.id,
+      instructorId: instructor.id,
+      title: 'React Essentials - Updated 2026',
+      description: 'Updated course description with new React 19 features and modern hooks.',
+      price: 349.0,
+      level: 'intermediate',
+      thumbnail: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=600&q=80',
+      status: 'PENDING',
     },
   });
 

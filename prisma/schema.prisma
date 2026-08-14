@@ -54,6 +54,8 @@ model User {
   groupMemberships  GroupStudent[]
   studentProfile    StudentProfile?
   instructorProfile InstructorProfile?
+  updateRequests    CourseUpdateRequest[]
+  reviewedRequests  CourseUpdateRequest[] @relation("CourseUpdateRequestReviewer")
 
   @@map("users")
 }
@@ -150,16 +152,17 @@ model Course {
   deletedAt   DateTime?
 
   // Relations
-  category    Category           @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  instructors CourseInstructor[]
-  sections    Section[]
-  enrollments Enrollment[]
-  cartItems   CartItem[]
-  wishlists   Wishlist[]
-  meetings    Meeting[]
-  reviews     Review[]
-  certificates Certificate[]
-  groups       Group[]
+  category           Category               @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  instructors        CourseInstructor[]
+  sections           Section[]
+  enrollments        Enrollment[]
+  cartItems          CartItem[]
+  wishlists          Wishlist[]
+  meetings           Meeting[]
+  reviews            Review[]
+  certificates       Certificate[]
+  groups             Group[]
+  updateRequests     CourseUpdateRequest[]
 
   @@index([status, deletedAt])
   @@index([categoryId])
@@ -179,6 +182,33 @@ model CourseInstructor {
   @@unique([courseId, userId])
   @@index([userId])
   @@map("course_instructors")
+}
+
+// Course Update Request - for instructors to request changes to published courses
+model CourseUpdateRequest {
+  id          String   @id @default(uuid()) @db.Uuid
+  courseId    String   @db.Uuid
+  instructorId String  @db.Uuid
+  title       String?  @db.VarChar(255)
+  description String?  @db.Text
+  price       Decimal? @db.Decimal(10, 2)
+  level       String?  @db.VarChar(50)
+  thumbnail   String?  @db.VarChar(500)
+  status      String   @default("PENDING") @db.VarChar(50) // 'PENDING', 'APPROVED', 'REJECTED'
+  reviewedBy  String?  @db.Uuid
+  reviewedAt  DateTime?
+  rejectionReason String? @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  course    Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  instructor User   @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+  reviewer  User?  @relation("CourseUpdateRequestReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([instructorId])
+  @@map("course_update_requests")
 }
 
 // ─── Module 3: Contenu Pédagogique (Content) ───────────────────────────────
