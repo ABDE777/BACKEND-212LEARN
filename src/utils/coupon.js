@@ -3,10 +3,18 @@ import { AppError } from '../middleware/error.js';
 
 /**
  * Resolve a coupon by code and ensure it is still valid.
+ *
+ * A coupon with a non-null `courseId` is scoped to that single course: it is
+ * only valid when redeemed against that course. A null `courseId` is a global
+ * coupon, valid for any course. Pass the course being purchased so the scope
+ * can be enforced (payment controllers always know it; the validate preview
+ * passes it when available).
+ *
  * @param {string} code
- * @returns {Promise<{ id: string, code: string, discount: number, expirationDate: Date }>}
+ * @param {string|null} [courseId] the course the coupon is being applied to
+ * @returns {Promise<{ id: string, code: string, discount: number, expirationDate: Date, courseId: string|null }>}
  */
-export const resolveValidCoupon = async (code) => {
+export const resolveValidCoupon = async (code, courseId = null) => {
   if (!code || typeof code !== 'string' || !code.trim()) {
     throw new AppError('Coupon code is required.', 400, 'VALIDATION_ERROR');
   }
@@ -31,6 +39,12 @@ export const resolveValidCoupon = async (code) => {
     throw new AppError(`Coupon code "${code}" has reached its maximum usage limit.`, 400, 'VALIDATION_ERROR');
   }
 
+  // Course-scoped coupon: reject if applied to a different course (or if the
+  // course context is unknown). Global coupons (null courseId) skip this.
+  if (coupon.courseId && coupon.courseId !== courseId) {
+    throw new AppError(`Coupon code "${code}" is not valid for this course.`, 400, 'VALIDATION_ERROR');
+  }
+
   return {
     id: coupon.id,
     code: coupon.code,
@@ -38,6 +52,7 @@ export const resolveValidCoupon = async (code) => {
     expirationDate: coupon.expirationDate,
     maxUsage: coupon.maxUsage,
     currentUsage: coupon.currentUsage,
+    courseId: coupon.courseId,
   };
 };
 
