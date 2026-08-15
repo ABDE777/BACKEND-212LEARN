@@ -77,7 +77,7 @@ export const addCartItem = async (req, res, next) => {
     });
 
     if (enrolled?.payment?.status === 'PAID') {
-      return next(new AppError('You already have access to this course.', 409, 'CONFLICT'));
+      return next(new AppError('Vous êtes déjà inscrit à ce cours.', 409, 'ALREADY_ENROLLED'));
     }
 
     const cart = await getOrCreateCart(req.user.id);
