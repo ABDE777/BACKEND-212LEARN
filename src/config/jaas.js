@@ -20,6 +20,25 @@ export function getJaasConfig() {
   return { appId, kid, domain };
 }
 
+// The public Jitsi instance used when JaaS is not configured. No account, no
+// JWT — rooms are open (protected only by an unguessable room slug).
+export const PUBLIC_JITSI_DOMAIN = process.env.JITSI_PUBLIC_DOMAIN || 'meet.jit.si';
+
+/** True only when every JaaS credential needed to sign a token is present. */
+export function isJaasConfigured() {
+  return Boolean(process.env.JAAS_APP_ID && process.env.JAAS_API_KEY_ID && process.env.JAAS_PRIVATE_KEY);
+}
+
+/**
+ * Whether meetings should use the free public Jitsi instead of JaaS.
+ * Forced on by JITSI_PUBLIC=true (useful when stale/invalid JaaS vars linger),
+ * and on by default whenever JaaS is not fully configured.
+ */
+export function shouldUsePublicJitsi() {
+  if (String(process.env.JITSI_PUBLIC).toLowerCase() === 'true') return true;
+  return !isJaasConfigured();
+}
+
 /**
  * Sign a JaaS JWT scoped to one user, one room, one meeting window.
  * @param {object} params
