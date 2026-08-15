@@ -3,6 +3,7 @@ import { AppError } from '../middleware/error.js';
 import { successResponse, paginationMeta, parsePagination, parseSort } from '../utils/response.js';
 import { validateUUID, validateRequired } from '../utils/validation.js';
 import { linkFormateurToCourse } from '../utils/groupSync.js';
+import { PAYMENT_STATUS } from '../constants/payment.js';
 
 const SORTABLE_FIELDS = ['createdAt', 'name', 'updatedAt'];
 
@@ -268,6 +269,12 @@ export const addStudentToGroup = async (req, res, next) => {
 
     if (!group) return next(new AppError('Group not found.', 404, 'NOT_FOUND'));
 
+    // A formateur may only assign students to the groups they teach; admins can
+    // assign to any group.
+    if (req.user.role !== 'admin' && group.formateurId !== req.user.id) {
+      return next(new AppError('You can only assign students to groups you teach.', 403, 'FORBIDDEN'));
+    }
+
     const user = await prisma.user.findUnique({
       where: { id: req.body.userId },
       select: { id: true, role: true },
@@ -277,6 +284,26 @@ export const addStudentToGroup = async (req, res, next) => {
 
     if (user.role !== 'student' && user.role !== 'employee') {
       return next(new AppError('User must be a student or employee to join a group.', 400, 'VALIDATION_ERROR'));
+    }
+
+    // The group must be bound to a course, and the student must have actually paid
+    // for that course, before they can be assigned to it.
+    if (!group.courseId) {
+      return next(new AppError('This group is not linked to a course.', 400, 'VALIDATION_ERROR'));
+    }
+
+    const enrollment = await prisma.enrollment.findUnique({
+      where: {
+        userId_courseId: {
+          userId: req.body.userId,
+          courseId: group.courseId,
+        },
+      },
+      include: { payment: true },
+    });
+
+    if (!enrollment || !enrollment.payment || enrollment.payment.status !== PAYMENT_STATUS.PAID) {
+      return next(new AppError('Student must have paid for this course to join the group.', 400, 'VALIDATION_ERROR'));
     }
 
     // Check if student is already in the group
@@ -383,6 +410,19 @@ export const removeStudentFromGroup = async (req, res, next) => {
     validateUUID(req.params.id, 'groupId');
     validateUUID(req.params.userId, 'userId');
 
+    const group = await prisma.group.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, formateurId: true },
+    });
+
+    if (!group) return next(new AppError('Group not found.', 404, 'NOT_FOUND'));
+
+    // A formateur may only remove students from the groups they teach; admins can
+    // remove from any group.
+    if (req.user.role !== 'admin' && group.formateurId !== req.user.id) {
+      return next(new AppError('You can only remove students from groups you teach.', 403, 'FORBIDDEN'));
+    }
+
     const membership = await prisma.groupStudent.findUnique({
       where: {
         groupId_userId: {
@@ -404,6 +444,40 @@ export const removeStudentFromGroup = async (req, res, next) => {
     });
 
     res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /api/v1/groups/mine
+// The authenticated student's own group memberships, with the course each group
+// belongs to and its formateur, so a student can see their group for a paid course.
+export const getMyGroups = async (req, res, next) => {
+  try {
+    const memberships = await prisma.groupStudent.findMany({
+      where: { userId: req.user.id, group: { deletedAt: null } },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        group: {
+          include: {
+            course: { select: { id: true, title: true, thumbnail: true } },
+            formateur: { select: { id: true, firstName: true, lastName: true } },
+          },
+        },
+      },
+    });
+
+    const groups = memberships
+      .filter((m) => m.group)
+      .map((m) => ({
+        groupId: m.group.id,
+        name: m.group.name,
+        description: m.group.description,
+        course: m.group.course,
+        formateur: m.group.formateur,
+      }));
+
+    res.status(200).json(successResponse({ groups }));
   } catch (error) {
     next(error);
   }

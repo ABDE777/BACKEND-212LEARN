@@ -8,6 +8,7 @@ import {
   addStudentToGroup,
   removeStudentFromGroup,
   getGroupStudents,
+  getMyGroups,
 } from '../controllers/group.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
 
@@ -63,6 +64,21 @@ const router = Router();
  */
 router.get('/', protect, restrictTo('admin'), getAllGroups);
 router.post('/', protect, restrictTo('admin'), createGroup);
+
+/**
+ * @swagger
+ * /groups/mine:
+ *   get:
+ *     summary: List the authenticated student's own group memberships
+ *     tags: [Groups]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: The student's groups with course and formateur
+ */
+// Must be declared before `/:id` so "mine" isn't captured as a group id.
+router.get('/mine', protect, getMyGroups);
 
 /**
  * @swagger
@@ -126,7 +142,7 @@ router.delete('/:id', protect, restrictTo('admin'), deleteGroup);
  * @swagger
  * /groups/{id}/students:
  *   post:
- *     summary: Add a student to a group (admin)
+ *     summary: Add a paid student to a group (admin, or the group's own formateur)
  *     tags: [Groups]
  *     security:
  *       - bearerAuth: []
@@ -148,13 +164,13 @@ router.delete('/:id', protect, restrictTo('admin'), deleteGroup);
  *       201:
  *         description: Student added
  */
-router.post('/:id/students', protect, restrictTo('admin'), addStudentToGroup);
+router.post('/:id/students', protect, restrictTo('instructor', 'admin'), addStudentToGroup);
 
 /**
  * @swagger
  * /groups/{id}/students/{userId}:
  *   delete:
- *     summary: Remove a student from a group (admin)
+ *     summary: Remove a student from a group (admin, or the group's own formateur)
  *     tags: [Groups]
  *     security:
  *       - bearerAuth: []
@@ -171,7 +187,7 @@ router.post('/:id/students', protect, restrictTo('admin'), addStudentToGroup);
  *       204:
  *         description: Student removed
  */
-router.delete('/:id/students/:userId', protect, restrictTo('admin'), removeStudentFromGroup);
+router.delete('/:id/students/:userId', protect, restrictTo('instructor', 'admin'), removeStudentFromGroup);
 
 /**
  * @swagger
