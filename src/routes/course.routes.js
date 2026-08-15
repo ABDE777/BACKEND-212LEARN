@@ -5,45 +5,13 @@ import {
   createCourse,
   updateCourse,
   deleteCourse,
-  searchCourses,
   publishCourse,
   getCourseStudents,
 } from '../controllers/course.controller.js';
 import { getCourseGroups } from '../controllers/group.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
-import { cacheMiddleware, clearCachePattern } from '../middleware/cache.js';
 
 const router = Router();
-
-/**
- * @swagger
- * /courses/search:
- *   get:
- *     summary: Full-text search across course titles and descriptions
- *     tags: [Courses]
- *     parameters:
- *       - in: query
- *         name: q
- *         required: true
- *         schema: { type: string }
- *         description: Minimum 2 characters
- *       - in: query
- *         name: page
- *         schema: { type: integer, default: 1 }
- *       - in: query
- *         name: limit
- *         schema: { type: integer, default: 20 }
- *     responses:
- *       200:
- *         description: Matching courses
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/PaginatedResponse'
- *       400:
- *         description: Query too short
- */
-router.get('/search', cacheMiddleware(30), searchCourses);
 
 /**
  * @swagger

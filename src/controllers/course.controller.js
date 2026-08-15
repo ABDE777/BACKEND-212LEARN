@@ -512,58 +512,6 @@ export const deleteCourse = async (req, res, next) => {
   }
 };
 
-// GET /api/v1/courses/search?q=react&page=1&limit=10
-export const searchCourses = async (req, res, next) => {
-  try {
-    const { q } = req.query;
-
-    if (!q || q.trim().length < 2) {
-      return next(
-        new AppError(
-          'Search query must be at least 2 characters.',
-          400,
-          'VALIDATION_ERROR'
-        )
-      );
-    }
-
-    const { page, limit, skip, isUnlimited } = parsePagination(req.query);
-
-    const where = {
-      deletedAt: null,
-      status: 'published',
-      OR: [
-        { title: { contains: q, mode: 'insensitive' } },
-        { description: { contains: q, mode: 'insensitive' } },
-      ],
-    };
-
-    const [total, courses] = await Promise.all([
-      prisma.course.count({ where }),
-      prisma.course.findMany({
-        where,
-        include: {
-          category: { select: { id: true, name: true } },
-          _count: { select: { enrollments: true, reviews: true } },
-        },
-        ...(skip !== undefined && { skip }),
-        ...(limit !== null && { take: limit }),
-      }),
-    ]);
-
-    res
-      .status(200)
-      .json(
-        successResponse(
-          { courses },
-          paginationMeta(total, page, limit, isUnlimited)
-        )
-      );
-  } catch (error) {
-    next(error);
-  }
-};
-
 // POST /api/v1/courses/:id/publish  (Admin only)
 export const publishCourse = async (req, res, next) => {
   try {
