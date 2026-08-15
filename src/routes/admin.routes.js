@@ -18,6 +18,7 @@ import {
   restoreUser,
   getAdminStats,
 } from '../controllers/admin.controller.js';
+import { getSettings, updateSettings } from '../controllers/settings.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
 
 const router = Router();
@@ -25,6 +26,10 @@ const router = Router();
 // ── Admin routes (Require admin authorization) ──────────────────────────────
 router.use(protect);
 router.use(restrictTo('admin'));
+
+// Platform settings singleton (see settings.controller.js).
+router.get('/admin/settings', getSettings);
+router.patch('/admin/settings', updateSettings);
 
 /**
  * @swagger

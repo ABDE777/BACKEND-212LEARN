@@ -11,6 +11,7 @@ import { ensureCourseManager } from '../utils/authorization.js';
 import { PAYMENT_STATUS } from '../constants/payment.js';
 import { validateUUID, validateRequired, validateEnum, validateHttpUrl } from '../utils/validation.js';
 import { getJwtSecret } from '../config/jwt.js';
+import { getAppSettings } from '../utils/settings.js';
 
 const SORTABLE_FIELDS = ['createdAt', 'title', 'price', 'duration'];
 
@@ -289,7 +290,16 @@ export const createCourse = async (req, res, next) => {
 
     validateRequired(req.body, ['title', 'categoryId']);
     validateUUID(categoryId, 'categoryId');
-    
+
+    // When KYC is required (admin setting), an unverified instructor cannot
+    // create courses. Admins are exempt.
+    if (req.user.role === 'instructor') {
+      const appSettings = await getAppSettings();
+      if (appSettings.requireKyc && !req.user.isVerified) {
+        return next(new AppError('Your instructor account must be KYC-verified before creating courses.', 403, 'KYC_REQUIRED'));
+      }
+    }
+
     console.log('Creating course with categoryId:', categoryId);
     
     // Verify category exists

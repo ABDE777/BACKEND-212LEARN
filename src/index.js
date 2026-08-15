@@ -179,9 +179,14 @@ app.get('/health', async (req, res) => {
 // ── Diagnostics (System & DB Health) ───────────────────────────────────────────
 import { getDiagnostics } from './controllers/diagnostics.controller.js';
 import { protect, restrictTo } from './middleware/auth.js';
+import { maintenanceGate } from './middleware/maintenance.js';
 
 app.get(`${V1}/diagnostics`, protect, restrictTo('admin'), getDiagnostics);
 app.get(`${V1}/admin/diagnostics`, protect, restrictTo('admin'), getDiagnostics);
+
+// Maintenance gate: when enabled in settings, blocks non-admin API traffic
+// (503) while keeping /auth and /admin available so admins can recover.
+app.use(`${V1}`, maintenanceGate);
 
 // ── API v1 Routes ─────────────────────────────────────────────────────────────
 app.use(`${V1}/auth`,        authRoutes);

@@ -3,6 +3,7 @@ import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { validateUUID, validateRequired } from '../utils/validation.js';
 import { resolveValidCoupon, applyCouponDiscount, consumeCouponUsage } from '../utils/coupon.js';
+import { getAppSettings } from '../utils/settings.js';
 import { isOurCloudinaryUrl } from '../config/cloudinary.js';
 import { PAYMENT_STATUS } from '../constants/payment.js';
 import crypto from 'crypto';
@@ -192,9 +193,10 @@ export const submitWafacashTransfer = async (req, res, next) => {
     // Auto-approve is a DEV-ONLY convenience gated solely by a server env flag and is
     // HARD-DISABLED in production. It never reads any client-supplied value (the old
     // ?demo=true query param is gone) so a student cannot self-approve their payment.
+    const appSettings = await getAppSettings();
     const autoApprove =
       process.env.NODE_ENV !== 'production' &&
-      process.env.WAFACASH_AUTO_APPROVE === 'true';
+      (process.env.WAFACASH_AUTO_APPROVE === 'true' || appSettings.wafacashAutoApprove === true);
 
     const updatedPayment = await prisma.$transaction(async (tx) => {
       // Dev auto-approve becomes PAID here, so count the coupon usage atomically too.

@@ -373,6 +373,24 @@ model Wishlist {
   @@map("wishlists")
 }
 
+// Singleton platform settings (one row, id = "app"). Editable by admins and
+// read by the registration guard, maintenance gate, payment auto-approve, and
+// the KYC gate.
+model AppSetting {
+  id                  String   @id @default("app")
+  siteName            String   @default("212 Learn")
+  supportEmail        String   @default("support@212learn.com")
+  currency            String   @default("MAD")
+  wafacashAutoApprove Boolean  @default(false)
+  requireKyc          Boolean  @default(true)
+  allowRegistrations  Boolean  @default(true)
+  maintenanceMode     Boolean  @default(false)
+  emailNotifications  Boolean  @default(true)
+  updatedAt           DateTime @updatedAt @default(now())
+
+  @@map("app_settings")
+}
+
 model Coupon {
   id             String   @id @default(uuid()) @db.Uuid
   code           String   @unique @db.VarChar(50)

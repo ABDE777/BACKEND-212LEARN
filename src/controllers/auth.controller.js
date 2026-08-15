@@ -8,6 +8,7 @@ import { validateRequired, validateEmail, validatePassword } from '../utils/vali
 import { validateLearnerProfile, validateInstructorProfile, toDateOrNull } from '../utils/registrationValidation.js';
 import { sendPasswordResetEmail, sendAccountRestoreOtpEmail } from '../utils/email.js';
 import { getJwtSecret } from '../config/jwt.js';
+import { getAppSettings } from '../utils/settings.js';
 import { logAuditEvent } from '../utils/audit.js';
 
 // A fixed bcrypt hash used to equalize timing when an email is not found, so a
@@ -51,11 +52,17 @@ const sendTokenResponse = (user, statusCode, res) => {
 // POST /api/v1/auth/register
 export const register = async (req, res, next) => {
   try {
-    const { 
-      firstName, 
-      lastName, 
-      email, 
-      password, 
+    // Respect the admin "Inscriptions ouvertes" setting.
+    const settings = await getAppSettings();
+    if (!settings.allowRegistrations) {
+      return next(new AppError('New registrations are currently closed.', 403, 'REGISTRATIONS_CLOSED'));
+    }
+
+    const {
+      firstName,
+      lastName,
+      email,
+      password,
       role = 'student',
       phone,
       studentProfile,
