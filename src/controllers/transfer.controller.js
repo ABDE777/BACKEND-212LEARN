@@ -69,7 +69,7 @@ export const requestTransferPayment = async (req, res, next) => {
     let coupon = null;
 
     if (couponCode) {
-      coupon = await resolveValidCoupon(couponCode);
+      coupon = await resolveValidCoupon(couponCode, courseId);
       discountedPrice = applyCouponDiscount(course.price, coupon.discount);
     }
 

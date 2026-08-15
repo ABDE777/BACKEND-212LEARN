@@ -163,6 +163,7 @@ model Course {
   certificates       Certificate[]
   groups             Group[]
   updateRequests     CourseUpdateRequest[]
+  coupons            Coupon[]
 
   @@index([status, deletedAt])
   @@index([categoryId])
@@ -381,9 +382,17 @@ model Coupon {
   currentUsage   Int      @default(0)
   isActive       Boolean  @default(true)
 
+  // A null courseId is a global coupon (admin); a set courseId scopes the coupon
+  // to that single course. createdById records who created it (admin/instructor).
+  courseId       String?  @db.Uuid
+  createdById    String?  @db.Uuid
+
   // Relations
   payments Payment[]
+  course   Course?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
 
+  @@index([courseId])
+  @@index([createdById])
   @@map("coupons")
 }
 

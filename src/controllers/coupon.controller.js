@@ -3,16 +3,22 @@ import { AppError } from '../middleware/error.js';
 import { successResponse, paginationMeta, parsePagination } from '../utils/response.js';
 import { validateRequired, validateNumberRange, validateDate, validateUUID } from '../utils/validation.js';
 import { resolveValidCoupon, applyCouponDiscount } from '../utils/coupon.js';
+import { ensureCourseManager } from '../utils/authorization.js';
 
-// GET /api/v1/coupons  (admin)
+// GET /api/v1/coupons  (instructor: own coupons; admin: all)
 export const listCoupons = async (req, res, next) => {
   try {
     const { page, limit, skip } = parsePagination(req.query);
 
+    // Instructors only see the coupons they created; admins see every coupon.
+    const where = req.user.role === 'admin' ? {} : { createdById: req.user.id };
+
     const [total, coupons] = await Promise.all([
-      prisma.coupon.count(),
+      prisma.coupon.count({ where }),
       prisma.coupon.findMany({
+        where,
         orderBy: { expirationDate: 'desc' },
+        include: { course: { select: { id: true, title: true } } },
         ...(skip !== undefined && { skip }),
         ...(limit !== null && { take: limit }),
       }),
@@ -51,6 +57,17 @@ export const createCoupon = async (req, res, next) => {
       return next(new AppError('expirationDate must be in the future.', 400, 'VALIDATION_ERROR'));
     }
 
+    // Course scope. Instructors must scope the coupon to a course they teach;
+    // admins may leave it global (null) or scope it to any existing course.
+    let courseId = null;
+    if (req.body.courseId !== undefined && req.body.courseId !== null && req.body.courseId !== '') {
+      validateUUID(req.body.courseId, 'courseId');
+      await ensureCourseManager(req.user, req.body.courseId); // 403 if not the instructor's course
+      courseId = req.body.courseId;
+    } else if (req.user.role !== 'admin') {
+      return next(new AppError('A course is required for instructor coupons.', 400, 'VALIDATION_ERROR'));
+    }
+
     const existing = await prisma.coupon.findUnique({ where: { code } });
     if (existing) {
       return next(new AppError(`Coupon code "${code}" already exists.`, 409, 'CONFLICT'));
@@ -59,7 +76,7 @@ export const createCoupon = async (req, res, next) => {
     let coupon;
     try {
       coupon = await prisma.coupon.create({
-        data: { code, discount, expirationDate, maxUsage, currentUsage: 0, isActive },
+        data: { code, discount, expirationDate, maxUsage, currentUsage: 0, isActive, courseId, createdById: req.user.id },
       });
     } catch (e) {
       // Two near-simultaneous creates can both clear the findUnique check, then
@@ -80,7 +97,7 @@ export const createCoupon = async (req, res, next) => {
   }
 };
 
-// PATCH /api/v1/coupons/:id  (admin)
+// PATCH /api/v1/coupons/:id  (instructor: own coupons; admin: any)
 export const updateCoupon = async (req, res, next) => {
   try {
     validateUUID(req.params.id, 'couponId');
@@ -88,6 +105,11 @@ export const updateCoupon = async (req, res, next) => {
     const coupon = await prisma.coupon.findUnique({ where: { id: req.params.id } });
     if (!coupon) {
       return next(new AppError('Coupon not found.', 404, 'NOT_FOUND'));
+    }
+
+    // Instructors may only manage the coupons they created.
+    if (req.user.role !== 'admin' && coupon.createdById !== req.user.id) {
+      return next(new AppError('You can only manage coupons you created.', 403, 'FORBIDDEN'));
     }
 
     const data = {};
@@ -136,7 +158,7 @@ export const updateCoupon = async (req, res, next) => {
   }
 };
 
-// DELETE /api/v1/coupons/:id  (admin)
+// DELETE /api/v1/coupons/:id  (instructor: own coupons; admin: any)
 export const deleteCoupon = async (req, res, next) => {
   try {
     validateUUID(req.params.id, 'couponId');
@@ -144,6 +166,11 @@ export const deleteCoupon = async (req, res, next) => {
     const coupon = await prisma.coupon.findUnique({ where: { id: req.params.id } });
     if (!coupon) {
       return next(new AppError('Coupon not found.', 404, 'NOT_FOUND'));
+    }
+
+    // Instructors may only delete the coupons they created.
+    if (req.user.role !== 'admin' && coupon.createdById !== req.user.id) {
+      return next(new AppError('You can only manage coupons you created.', 403, 'FORBIDDEN'));
     }
 
     await prisma.coupon.delete({ where: { id: coupon.id } });
@@ -159,7 +186,8 @@ export const validateCoupon = async (req, res, next) => {
   try {
     validateRequired(req.body, ['code']);
 
-    const coupon = await resolveValidCoupon(req.body.code);
+    // Pass the course so a course-scoped coupon is rejected for the wrong course.
+    const coupon = await resolveValidCoupon(req.body.code, req.body.courseId || null);
     let preview = {
       code: coupon.code,
       discountPercent: coupon.discount,
@@ -196,7 +224,7 @@ export const validateCoupon = async (req, res, next) => {
   }
 };
 
-// GET /api/v1/coupons/:id/usage  (admin)
+// GET /api/v1/coupons/:id/usage  (instructor: own coupons; admin: any)
 // Returns all payments that used this coupon
 export const getCouponUsage = async (req, res, next) => {
   try {
@@ -208,6 +236,11 @@ export const getCouponUsage = async (req, res, next) => {
 
     if (!coupon) {
       return next(new AppError('Coupon not found.', 404, 'NOT_FOUND'));
+    }
+
+    // Instructors may only view usage of the coupons they created.
+    if (req.user.role !== 'admin' && coupon.createdById !== req.user.id) {
+      return next(new AppError('You can only view usage of coupons you created.', 403, 'FORBIDDEN'));
     }
 
     const payments = await prisma.payment.findMany({

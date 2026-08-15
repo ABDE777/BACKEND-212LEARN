@@ -49,7 +49,7 @@ router.post('/validate', protect, validateCoupon);
  *       200:
  *         description: Paginated coupons
  *   post:
- *     summary: Create a coupon (admin)
+ *     summary: Create a coupon (admin global/scoped; instructor scoped to own course)
  *     tags: [Coupons]
  *     security:
  *       - bearerAuth: []
@@ -64,12 +64,13 @@ router.post('/validate', protect, validateCoupon);
  *               code: { type: string, example: WELCOME20 }
  *               discount: { type: number, example: 20, description: Percent off (0-100) }
  *               expirationDate: { type: string, format: date-time }
+ *               courseId: { type: string, format: uuid, description: Scope to a single course. Required for instructors; optional (global) for admins. }
  *     responses:
  *       201:
  *         description: Coupon created
  */
-router.get('/', protect, restrictTo('admin'), listCoupons);
-router.post('/', protect, restrictTo('admin'), createCoupon);
+router.get('/', protect, restrictTo('instructor', 'admin'), listCoupons);
+router.post('/', protect, restrictTo('instructor', 'admin'), createCoupon);
 
 /**
  * @swagger
@@ -101,8 +102,8 @@ router.post('/', protect, restrictTo('admin'), createCoupon);
  *       204:
  *         description: Deleted
  */
-router.patch('/:id', protect, restrictTo('admin'), updateCoupon);
-router.delete('/:id', protect, restrictTo('admin'), deleteCoupon);
+router.patch('/:id', protect, restrictTo('instructor', 'admin'), updateCoupon);
+router.delete('/:id', protect, restrictTo('instructor', 'admin'), deleteCoupon);
 
 /**
  * @swagger
@@ -121,6 +122,6 @@ router.delete('/:id', protect, restrictTo('admin'), deleteCoupon);
  *       200:
  *         description: List of payments that used this coupon
  */
-router.get('/:id/usage', protect, restrictTo('admin'), getCouponUsage);
+router.get('/:id/usage', protect, restrictTo('instructor', 'admin'), getCouponUsage);
 
 export default router;
