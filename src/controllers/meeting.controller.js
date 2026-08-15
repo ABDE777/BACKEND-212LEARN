@@ -325,6 +325,53 @@ export const getMeetingJoinInfo = async (req, res, next) => {
   }
 };
 
+// Title of the auto-managed section that collects recorded live sessions.
+const RECORDINGS_SECTION_TITLE = 'Sessions enregistrées';
+
+/**
+ * Store a finished live-session recording in the course "Programme" (curriculum)
+ * as a video lesson: find/create the "Sessions enregistrées" section for the
+ * course, add a lesson for this meeting, and attach the recording URL as a
+ * video Resource. Idempotent — if a Resource with this URL already exists the
+ * recording is skipped, so webhook retries don't create duplicates.
+ */
+export const saveRecordingToCurriculum = async (meeting, recordingUrl) => {
+  if (!meeting?.courseId || !recordingUrl) return;
+
+  // Already imported (webhook retry) → no-op.
+  const already = await prisma.resource.findFirst({
+    where: { url: recordingUrl, lesson: { section: { courseId: meeting.courseId } } },
+    select: { id: true },
+  });
+  if (already) return;
+
+  await prisma.$transaction(async (tx) => {
+    let section = await tx.section.findFirst({
+      where: { courseId: meeting.courseId, title: RECORDINGS_SECTION_TITLE },
+    });
+    if (!section) {
+      const sectionCount = await tx.section.count({ where: { courseId: meeting.courseId } });
+      section = await tx.section.create({
+        data: { courseId: meeting.courseId, title: RECORDINGS_SECTION_TITLE, position: sectionCount },
+      });
+    }
+
+    const lessonCount = await tx.lesson.count({ where: { sectionId: section.id } });
+    const dateLabel = new Date(meeting.meetingDate || Date.now()).toLocaleDateString('fr-FR');
+    const lesson = await tx.lesson.create({
+      data: {
+        sectionId: section.id,
+        title: `${meeting.title} — enregistrement (${dateLabel})`.slice(0, 255),
+        position: lessonCount,
+      },
+    });
+
+    await tx.resource.create({
+      data: { lessonId: lesson.id, type: 'video', url: recordingUrl },
+    });
+  });
+};
+
 // POST /api/v1/meetings/webhook - Jitsi webhook for recording updates
 export const meetingWebhook = async (req, res, next) => {
   try {
@@ -376,6 +423,8 @@ export const meetingWebhook = async (req, res, next) => {
             status: 'COMPLETED',
           },
         });
+        // Also publish the recording into the course curriculum ("Programme").
+        await saveRecordingToCurriculum(meeting, recordingUrl);
         console.log(`Webhook: Recording uploaded for meeting ${meeting.id}: ${recordingUrl}`);
         break;
 
