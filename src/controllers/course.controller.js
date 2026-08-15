@@ -8,6 +8,7 @@ import {
   parseSort,
 } from '../utils/response.js';
 import { ensureCourseManager } from '../utils/authorization.js';
+import { PAYMENT_STATUS } from '../constants/payment.js';
 import { validateUUID, validateRequired, validateEnum, validateHttpUrl } from '../utils/validation.js';
 import { getJwtSecret } from '../config/jwt.js';
 
@@ -592,9 +593,13 @@ export const getCourseStudents = async (req, res, next) => {
 
     const { page, limit, skip, isUnlimited } = parsePagination(req.query);
 
-    const where = {
-      courseId: req.params.id,
-    };
+    // Only show students who have actually PAID for the course (exclude
+    // PENDING / WAITING_VERIFICATION / REJECTED). `?paymentStatus=all` bypasses
+    // the filter; the instructor Étudiants tab sends no param → PAID only.
+    const where = { courseId: req.params.id };
+    if (req.query.paymentStatus !== 'all') {
+      where.payment = { status: PAYMENT_STATUS.PAID };
+    }
 
     const [total, enrollments] = await Promise.all([
       prisma.enrollment.count({ where }),
