@@ -320,6 +320,28 @@ export const addStudentToGroup = async (req, res, next) => {
       return next(new AppError('User is already in this group.', 400, 'VALIDATION_ERROR'));
     }
 
+    // A student may belong to at most one group per course: reject if they're
+    // already in another (non-deleted) group bound to the same course.
+    const otherGroupMembership = await prisma.groupStudent.findFirst({
+      where: {
+        userId: req.body.userId,
+        group: {
+          id: { not: group.id },
+          courseId: group.courseId,
+          deletedAt: null,
+        },
+      },
+      include: { group: { select: { name: true } } },
+    });
+
+    if (otherGroupMembership) {
+      return next(new AppError(
+        `Student is already in the group "${otherGroupMembership.group.name}" for this course. A student can only belong to one group per course.`,
+        400,
+        'VALIDATION_ERROR',
+      ));
+    }
+
     await prisma.groupStudent.create({
       data: {
         groupId: req.params.id,
