@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { getMyCourses, enrollInCourse, unenroll } from '../controllers/enrollment.controller.js';
-import { protect } from '../middleware/auth.js';
+import { protect, restrictTo } from '../middleware/auth.js';
 
 const router = Router();
 router.use(protect);
@@ -36,7 +36,7 @@ router.get('/', getMyCourses);
  * @swagger
  * /enrollments:
  *   post:
- *     summary: Enroll in a published course
+ *     summary: Enroll in a published course (learners only)
  *     tags: [Enrollments]
  *     security:
  *       - bearerAuth: []
@@ -51,6 +51,8 @@ router.get('/', getMyCourses);
  *         description: Enrolled successfully
  *       400:
  *         description: Missing courseId
+ *       403:
+ *         description: Admins and instructors cannot enroll in courses
  *       404:
  *         description: Course not found or not published
  *       409:
@@ -58,7 +60,9 @@ router.get('/', getMyCourses);
  *       401:
  *         description: Unauthorized
  */
-router.post('/', enrollInCourse);
+// Only learners may enroll — admins and instructors run/teach the platform.
+// (Paid courses already enforce this on /payments/*/request.)
+router.post('/', restrictTo('student', 'employee'), enrollInCourse);
 
 /**
  * @swagger
