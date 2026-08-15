@@ -2,12 +2,11 @@ import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { getAppSettings, updateAppSettings } from '../utils/settings.js';
 
-// Fields an admin may edit via PATCH /admin/settings. `id`/`updatedAt` excluded.
-const STRING_FIELDS = ['siteName', 'supportEmail', 'currency'];
-const BOOL_FIELDS = [
-  'wafacashAutoApprove', 'requireKyc', 'allowRegistrations',
-  'maintenanceMode', 'emailNotifications',
-];
+// Fields an admin may edit via PATCH /admin/settings — only the enforced
+// toggles. The cosmetic/auto-approve columns still exist on the row but are no
+// longer editable from the UI.
+const STRING_FIELDS = [];
+const BOOL_FIELDS = ['requireKyc', 'allowRegistrations', 'maintenanceMode'];
 
 // GET /api/v1/admin/settings
 export const getSettings = async (req, res, next) => {
