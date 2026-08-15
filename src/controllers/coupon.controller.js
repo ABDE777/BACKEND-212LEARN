@@ -56,9 +56,20 @@ export const createCoupon = async (req, res, next) => {
       return next(new AppError(`Coupon code "${code}" already exists.`, 409, 'CONFLICT'));
     }
 
-    const coupon = await prisma.coupon.create({
-      data: { code, discount, expirationDate, maxUsage, currentUsage: 0, isActive },
-    });
+    let coupon;
+    try {
+      coupon = await prisma.coupon.create({
+        data: { code, discount, expirationDate, maxUsage, currentUsage: 0, isActive },
+      });
+    } catch (e) {
+      // Two near-simultaneous creates can both clear the findUnique check, then
+      // race on the unique `code` constraint. Translate the loser's P2002 into
+      // the same friendly conflict instead of a 500.
+      if (e.code === 'P2002') {
+        return next(new AppError(`Coupon code "${code}" already exists.`, 409, 'CONFLICT'));
+      }
+      throw e;
+    }
 
     res.status(201).json(successResponse({
       ...coupon,
