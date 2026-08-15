@@ -60,6 +60,22 @@ export const getRevenueAnalytics = async (req, res, next) => {
 
     const monthly = Object.values(monthlyMap).slice(-12); // Last 12 months
     const totalRevenue = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+    const totalEnrollments = payments.length;
+
+    // Current vs previous calendar month, for a month-over-month growth figure.
+    const now = new Date();
+    const curKey  = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const prevD   = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const prevKey = `${prevD.getFullYear()}-${String(prevD.getMonth() + 1).padStart(2, '0')}`;
+    const currentMonthRevenue  = monthlyMap[curKey]?.revenue  || 0;
+    const previousMonthRevenue = monthlyMap[prevKey]?.revenue || 0;
+    let growth = 0;
+    if (previousMonthRevenue > 0) {
+      growth = Math.round(((currentMonthRevenue - previousMonthRevenue) / previousMonthRevenue) * 100);
+    } else if (currentMonthRevenue > 0) {
+      growth = 100;
+    }
+    const averageOrderValue = totalEnrollments > 0 ? totalRevenue / totalEnrollments : 0;
 
     // Top courses by revenue
     const courseRevenueMap = {};
@@ -73,6 +89,7 @@ export const getRevenueAnalytics = async (req, res, next) => {
     });
 
     const topCourses = Object.values(courseRevenueMap)
+      .map((c) => ({ ...c, revenue: Number(c.revenue.toFixed(2)) }))
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 5);
 
@@ -80,7 +97,12 @@ export const getRevenueAnalytics = async (req, res, next) => {
       successResponse({
         totalRevenue: Number(totalRevenue.toFixed(2)),
         currency: 'MAD',
-        monthly,
+        totalEnrollments,
+        currentMonthRevenue: Number(currentMonthRevenue.toFixed(2)),
+        previousMonthRevenue: Number(previousMonthRevenue.toFixed(2)),
+        growth,
+        averageOrderValue: Number(averageOrderValue.toFixed(2)),
+        monthly: monthly.map((m) => ({ ...m, revenue: Number(m.revenue.toFixed(2)) })),
         topCourses,
       })
     );
@@ -142,10 +164,18 @@ export const getStudentAnalytics = async (req, res, next) => {
 
     const uniqueStudentIds = [...new Set(enrollments.map((e) => e.userId))];
 
+    // New students this calendar month (unique users enrolled since the 1st).
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const newStudentIds = new Set(
+      enrollments.filter((e) => e.enrolledAt >= startOfMonth).map((e) => e.userId)
+    );
+
     res.status(200).json(
       successResponse({
         totalStudents: uniqueStudentIds.length,
         totalEnrollments: enrollments.length,
+        newStudentsThisMonth: newStudentIds.size,
         courses: Object.values(courseMap).sort((a, b) => b.students - a.students),
       })
     );
@@ -233,8 +263,19 @@ export const getCompletionAnalytics = async (req, res, next) => {
       })
     );
 
+    // Enrollment-weighted overall averages across all the instructor's courses.
+    const totalEnrolled  = result.reduce((s, c) => s + c.totalEnrolled, 0);
+    const totalCompleted = result.reduce((s, c) => s + c.completedCount, 0);
+    const weightedProgress = result.reduce((s, c) => s + c.averageProgress * c.totalEnrolled, 0);
+    const averageCompletion = totalEnrolled > 0 ? Math.round((totalCompleted / totalEnrolled) * 100) : 0;
+    const averageProgress   = totalEnrolled > 0 ? Math.round(weightedProgress / totalEnrolled) : 0;
+
     res.status(200).json(
       successResponse({
+        totalEnrolled,
+        totalCompleted,
+        averageCompletion,
+        averageProgress,
         courses: result.sort((a, b) => b.completionRate - a.completionRate),
       })
     );
