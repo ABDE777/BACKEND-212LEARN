@@ -3,7 +3,7 @@ import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { validateUUID, validateRequired, validateEnum } from '../utils/validation.js';
 import { ensureCourseManager } from '../utils/authorization.js';
-import { getJaasConfig, signJaasJwt } from '../config/jaas.js';
+import { getJaasConfig, signJaasJwt, shouldUsePublicJitsi, PUBLIC_JITSI_DOMAIN } from '../config/jaas.js';
 import crypto from 'crypto';
 
 // ─── Webhook Signature Verification ─────────────────────────────────────────────
@@ -49,9 +49,18 @@ export const createMeeting = async (req, res, next) => {
 
     await ensureCourseManager(req.user, courseId);
 
-    // Generate unique room slug (without AppID prefix)
+    // Generate unique room slug (without AppID prefix). The slug is the only
+    // thing protecting a public-Jitsi room, so keep it unguessable.
     const roomSlug = `212learn-${courseId}-${Date.now()}`;
-    const { appId, domain } = getJaasConfig();
+
+    // Public Jitsi: https://meet.jit.si/<slug>. JaaS: https://<domain>/<appId>/<slug>.
+    let meetingUrl;
+    if (shouldUsePublicJitsi()) {
+      meetingUrl = `https://${PUBLIC_JITSI_DOMAIN}/${roomSlug}`;
+    } else {
+      const { appId, domain } = getJaasConfig();
+      meetingUrl = `https://${domain}/${appId}/${roomSlug}`;
+    }
 
     const meeting = await prisma.meeting.create({
       data: {
@@ -61,7 +70,7 @@ export const createMeeting = async (req, res, next) => {
         roomName: roomSlug,
         status: 'SCHEDULED',
         durationMinutes: durationMinutes || 60,
-        meetingUrl: `https://${domain}/${appId}/${roomSlug}`,
+        meetingUrl,
       },
     });
 
@@ -274,6 +283,42 @@ export const deleteMeeting = async (req, res, next) => {
   }
 };
 
+// GET /api/v1/meetings/:id - Fetch a single meeting (status/details).
+// Accessible to admins, instructors of the course, and enrolled students.
+// Used by the virtual classroom to poll whether the instructor has ended the
+// session; a lightweight read that does NOT mint a Jitsi token.
+export const getMeeting = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    validateUUID(id, 'meetingId');
+
+    const meeting = await prisma.meeting.findUnique({
+      where: { id },
+      include: { course: { select: { id: true, title: true } } },
+    });
+
+    if (!meeting) {
+      return next(new AppError('Meeting not found.', 404, 'NOT_FOUND'));
+    }
+
+    const isAdmin = req.user.role === 'admin';
+    const isInstructorOnCourse = await prisma.courseInstructor.findFirst({
+      where: { courseId: meeting.courseId, userId: req.user.id },
+    });
+    const isEnrolled = await prisma.enrollment.findUnique({
+      where: { userId_courseId: { userId: req.user.id, courseId: meeting.courseId } },
+    });
+
+    if (!isAdmin && !isInstructorOnCourse && !isEnrolled) {
+      return next(new AppError('You do not have access to this meeting.', 403, 'FORBIDDEN'));
+    }
+
+    res.status(200).json(successResponse({ meeting }));
+  } catch (error) {
+    next(error);
+  }
+};
+
 // GET /api/v1/meetings/:id/join - Generate JaaS JWT for meeting access
 export const getMeetingJoinInfo = async (req, res, next) => {
   try {
@@ -307,6 +352,17 @@ export const getMeetingJoinInfo = async (req, res, next) => {
 
     if (!canJoin) {
       return next(new AppError('You do not have access to this meeting.', 403, 'FORBIDDEN'));
+    }
+
+    // Public Jitsi: open room, no token. The client joins meet.jit.si/<slug>.
+    if (shouldUsePublicJitsi()) {
+      return res.status(200).json(successResponse({
+        jwt: null,
+        domain: PUBLIC_JITSI_DOMAIN,
+        roomName: meeting.roomName,
+        moderator,
+        meeting,
+      }));
     }
 
     const { appId, domain } = getJaasConfig();

@@ -7,6 +7,7 @@ import {
   endMeeting,
   updateMeeting,
   deleteMeeting,
+  getMeeting,
   getMeetingJoinInfo,
   meetingWebhook,
 } from '../controllers/meeting.controller.js';
@@ -243,5 +244,29 @@ router.delete('/meetings/:id', restrictTo('instructor', 'admin'), deleteMeeting)
  *         description: Meeting not found
  */
 router.get('/meetings/:id/join', getMeetingJoinInfo);
+
+/**
+ * @swagger
+ * /meetings/{id}:
+ *   get:
+ *     summary: Get a single meeting's details/status
+ *     description: Accessible to admins, the course's instructors, and enrolled students.
+ *     tags: [Meetings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Meeting details
+ *       403:
+ *         description: Not authorized to view this meeting
+ *       404:
+ *         description: Meeting not found
+ */
+router.get('/meetings/:id', getMeeting);
 
 export default router;
