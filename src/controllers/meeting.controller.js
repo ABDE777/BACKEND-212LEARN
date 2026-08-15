@@ -3,7 +3,7 @@ import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { validateUUID, validateRequired, validateEnum } from '../utils/validation.js';
 import { ensureCourseManager } from '../utils/authorization.js';
-import { getJaasConfig, signJaasJwt, shouldUsePublicJitsi, PUBLIC_JITSI_DOMAIN } from '../config/jaas.js';
+import { getJaasConfig, signJaasJwt, shouldUsePublicJitsi, PUBLIC_JITSI_DOMAIN, isJaasConfigured } from '../config/jaas.js';
 import crypto from 'crypto';
 
 // ─── Webhook Signature Verification ─────────────────────────────────────────────
@@ -278,6 +278,55 @@ export const deleteMeeting = async (req, res, next) => {
     });
 
     res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /api/v1/meetings/diagnostics - Report the live-video provider config (admin).
+// Leaks no secrets: only booleans indicating which env vars are present, which
+// provider is active, and whether a JaaS token can actually be signed.
+export const getMeetingDiagnostics = async (req, res, next) => {
+  try {
+    const jaasConfigured = isJaasConfigured();
+    const jitsiPublicForced = String(process.env.JITSI_PUBLIC).toLowerCase() === 'true';
+    const usingPublic = shouldUsePublicJitsi();
+
+    // Try signing a throwaway token to confirm the private key is actually valid.
+    let canSignToken = false;
+    let signError = null;
+    if (jaasConfigured) {
+      try {
+        signJaasJwt({
+          user: { id: 'diagnostic', firstName: 'Diag', lastName: 'Nostic', email: 'diagnostic@212learn.local' },
+          roomSlug: 'diagnostic-room',
+          moderator: true,
+          ttlMinutes: 1,
+        });
+        canSignToken = true;
+      } catch (e) {
+        signError = e.message;
+      }
+    }
+
+    res.status(200).json(successResponse({
+      provider: usingPublic ? 'public' : 'jaas',
+      recommendation: usingPublic
+        ? 'Public meet.jit.si rooms are "members only" and require moderator login — set JITSI_PUBLIC off and provide JaaS credentials for reliable hosting.'
+        : 'JaaS is active. New meetings will use your 8x8 tenant.',
+      jaasConfigured,
+      jitsiPublicForced,
+      canSignToken,
+      signError,
+      jaasDomain: process.env.JAAS_DOMAIN || '8x8.vc',
+      publicDomain: PUBLIC_JITSI_DOMAIN,
+      envPresent: {
+        JAAS_APP_ID: Boolean(process.env.JAAS_APP_ID),
+        JAAS_API_KEY_ID: Boolean(process.env.JAAS_API_KEY_ID),
+        JAAS_PRIVATE_KEY: Boolean(process.env.JAAS_PRIVATE_KEY),
+        JAAS_WEBHOOK_SECRET: Boolean(process.env.JAAS_WEBHOOK_SECRET),
+      },
+    }));
   } catch (error) {
     next(error);
   }

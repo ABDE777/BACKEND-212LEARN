@@ -9,6 +9,7 @@ import {
   deleteMeeting,
   getMeeting,
   getMeetingJoinInfo,
+  getMeetingDiagnostics,
   meetingWebhook,
 } from '../controllers/meeting.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
@@ -62,6 +63,23 @@ router.get('/courses/:courseId/meetings', getCourseMeetings);
  *         description: Not authorized (admin only)
  */
 router.get('/admin/meetings', restrictTo('admin'), getAllMeetings);
+
+/**
+ * @swagger
+ * /meetings/diagnostics:
+ *   get:
+ *     summary: Report the live-video provider configuration (admin only)
+ *     description: Returns which provider (jaas/public) is active and whether JaaS can sign a token. Leaks no secrets.
+ *     tags: [Meetings]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Provider diagnostics
+ *       403:
+ *         description: Not authorized (admin only)
+ */
+router.get('/meetings/diagnostics', restrictTo('admin'), getMeetingDiagnostics);
 
 /**
  * @swagger
