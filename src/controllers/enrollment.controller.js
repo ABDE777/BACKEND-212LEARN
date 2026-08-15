@@ -48,10 +48,26 @@ export const getMyCourses = async (req, res, next) => {
       }),
     ]);
 
+    // Attach real per-course progress: completed lessons / total lessons in the
+    // course. Computed at read time (no stored progress column).
+    const enrollmentsWithProgress = await Promise.all(
+      enrollments.map(async (enrollment) => {
+        const courseId = enrollment.courseId;
+        const [totalLessons, completedLessons] = await Promise.all([
+          prisma.lesson.count({ where: { section: { courseId } } }),
+          prisma.lessonProgress.count({
+            where: { userId: req.user.id, completed: true, lesson: { section: { courseId } } },
+          }),
+        ]);
+        const progress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+        return { ...enrollment, totalLessons, completedLessons, progress };
+      })
+    );
+
     res
       .status(200)
       .json(
-        successResponse({ enrollments }, paginationMeta(total, page, limit))
+        successResponse({ enrollments: enrollmentsWithProgress }, paginationMeta(total, page, limit))
       );
   } catch (error) {
     next(error);
