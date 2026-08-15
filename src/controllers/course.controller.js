@@ -411,6 +411,31 @@ export const updateCourse = async (req, res, next) => {
       ...(categoryId && { categoryId }),
     };
 
+    // Status gate for instructors: they may only edit a course's details while
+    // it is a DRAFT. A published course must go through an update request
+    // (admin review); an archived course is read-only. Admins may edit any
+    // status directly. Instructors also can't flip status here (publish/archive
+    // is admin-only).
+    if (req.user.role !== 'admin') {
+      const existing = await prisma.course.findUnique({
+        where: { id: req.params.id },
+        select: { status: true, deletedAt: true },
+      });
+      if (!existing || existing.deletedAt) {
+        return next(new AppError('Course not found.', 404, 'NOT_FOUND'));
+      }
+      if (existing.status === 'published') {
+        return next(new AppError(
+          'Published courses cannot be edited directly. Submit an update request for admin review.',
+          403, 'UPDATE_VIA_REQUEST'
+        ));
+      }
+      if (existing.status === 'archived') {
+        return next(new AppError('Archived courses cannot be edited.', 403, 'FORBIDDEN'));
+      }
+      delete updateData.status;
+    }
+
     // Handle instructor change if provided
     if (instructorId) {
       // Validate that the target instructor exists and has instructor role
