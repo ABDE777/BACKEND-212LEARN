@@ -677,6 +677,65 @@ async function main() {
         content: 'Rappel : La session live Q&A aura lieu dans 2 jours.',
         isRead: false,
       },
+  // ── 9. Groups & Group Chat Messages ───────────────────────────────────────
+  const demoGroup = await prisma.group.create({
+    data: {
+      name: 'Cohorte Web & React Fullstack 2026',
+      description: 'Groupe d\'échange et d\'accompagnement pour les étudiants de la cohorte React.',
+      courseId: courseReact.id,
+      formateurId: instructorSara.id,
+      createdById: adminUser.id,
+      students: {
+        create: [
+          { userId: studentYoussef.id },
+          { userId: studentAmina.id },
+        ],
+      },
+    },
+  });
+
+  await prisma.groupChatMessage.createMany({
+    data: [
+      {
+        groupId: demoGroup.id,
+        senderId: instructorSara.id,
+        text: 'Bonjour à tous et bienvenue dans la cohorte Web & React 2026 ! N\'hésitez pas à poser vos questions ici.',
+        status: 'approved',
+      },
+      {
+        groupId: demoGroup.id,
+        senderId: studentYoussef.id,
+        text: 'Bonjour Madame Sara ! Merci pour ce cours, le chapitre sur Next.js 15 App Router est impressionnant.',
+        status: 'approved',
+      },
+      {
+        groupId: demoGroup.id,
+        senderId: studentAmina.id,
+        text: 'Bonjour professeur ! Quel outil recommandez-vous pour la gestion d\'état globale avec React ?',
+        status: 'approved',
+      },
+    ],
+  });
+
+  // ── 10. Contact Messages ──────────────────────────────────────────────────
+  await prisma.contactMessage.createMany({
+    data: [
+      {
+        name: 'Othmane Berrada',
+        email: 'othmane.berrada@gmail.com',
+        phone: '+212 605-713171',
+        subject: 'Information cours',
+        message: 'Bonjour l\'équipe 212Learn, je souhaite savoir quand commence la prochaine session de Cybersécurité.',
+        status: 'unread',
+      },
+      {
+        name: 'Khadija Chraibi',
+        email: 'khadija.chraibi@yahoo.fr',
+        phone: '+212 631-883412',
+        subject: 'Devenir formateur',
+        message: 'Bonjour, experte avec 8 ans d\'expérience en Cloud AWS & DevOps, je souhaite proposer un cours sur votre plateforme.',
+        status: 'unread',
+      },
     ],
   });
 
