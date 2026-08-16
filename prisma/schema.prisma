@@ -59,6 +59,7 @@ model User {
   instructorProfile InstructorProfile?
   updateRequests    CourseUpdateRequest[]
   reviewedRequests  CourseUpdateRequest[] @relation("CourseUpdateRequestReviewer")
+  groupChatMessages GroupChatMessage[]
 
   // Admin stats & user listings filter heavily on role + soft-delete state.
   @@index([role, deletedAt])
