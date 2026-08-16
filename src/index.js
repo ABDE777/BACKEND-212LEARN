@@ -221,7 +221,6 @@ app.use(`${V1}`,             reviewRoutes);   // /courses/:id/reviews, /users/:i
 app.use(`${V1}`,             analyticsRoutes); // /instructor/analytics/*
 app.use(`${V1}/ai`,          aiRoutes);        // /ai/overview (machine-readable)
 app.use(`${V1}/contact`,     contactRoutes);   // /contact
-app.use(`/api/contact`,      contactRoutes);   // fallback legacy route
 app.use(`${V1}`,             meetingRoutes);   // /courses/:id/meetings, /meetings/*
 // Mount BEFORE adminRoutes: adminRoutes applies a blanket restrictTo('admin') to
 // its whole router, so any unmatched /api/v1/* request that reaches it is 403'd.

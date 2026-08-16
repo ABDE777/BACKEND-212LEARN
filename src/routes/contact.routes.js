@@ -5,20 +5,24 @@ import {
   updateContactMessageStatus,
   deleteContactMessage,
 } from '../controllers/contact.controller.js';
+import { protect, restrictTo } from '../middleware/auth.js';
 
 const router = express.Router();
 
 /**
- * @route   POST /api/v1/contact or /api/contact
+ * @route   POST /api/v1/contact
  * @desc    Submit a contact form message
  * @access  Public
  */
 router.post('/', submitContactMessage);
 
+// Everything below is admin-only (reading, updating, deleting messages).
+router.use(protect, restrictTo('admin'));
+
 /**
- * @route   GET /api/v1/contact or /api/contact
+ * @route   GET /api/v1/contact
  * @desc    Get all contact form messages
- * @access  Public / Admin
+ * @access  Admin
  */
 router.get('/', getContactMessages);
 
