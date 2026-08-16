@@ -605,10 +605,11 @@ model Group {
   deletedAt   DateTime?
 
   // Relations
-  course    Course?        @relation(fields: [courseId], references: [id], onDelete: SetNull)
-  formateur User           @relation("GroupFormateur", fields: [formateurId], references: [id], onDelete: Restrict)
-  createdBy User?          @relation("GroupCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  students  GroupStudent[]
+  course       Course?            @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  formateur    User               @relation("GroupFormateur", fields: [formateurId], references: [id], onDelete: Restrict)
+  createdBy    User?              @relation("GroupCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  students     GroupStudent[]
+  chatMessages GroupChatMessage[]
 
   @@map("groups")
 }
@@ -625,6 +626,27 @@ model GroupStudent {
 
   @@unique([groupId, userId])
   @@map("group_students")
+}
+
+// ─── Group Chat Messages ──────────────────────────────────────────────────────
+
+model GroupChatMessage {
+  id        String   @id @default(uuid()) @db.Uuid
+  groupId   String   @db.Uuid
+  senderId  String   @db.Uuid
+  text      String?  @db.Text
+  fileUrl   String?  @db.VarChar(500)
+  fileType  String?  @db.VarChar(50) // 'image' | 'video' | 'audio' | 'document' | 'other'
+  fileName  String?  @db.VarChar(255)
+  status    String   @default("approved") @db.VarChar(50) // 'approved' | 'blocked_ai' | 'deleted'
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  group  Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  sender User  @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([groupId, createdAt])
+  @@map("group_chat_messages")
 }
 
 // ─── Contact Messages ──────────────────────────────────────────────────────────

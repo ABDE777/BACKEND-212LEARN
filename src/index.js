@@ -32,6 +32,7 @@ import couponRoutes    from './routes/coupon.routes.js';
 import meetingRoutes   from './routes/meeting.routes.js';
 import statsRoutes     from './routes/stats.routes.js';
 import groupRoutes     from './routes/group.routes.js';
+import groupChatRoutes from './routes/groupChat.routes.js';
 import courseUpdateRequestRoutes from './routes/courseUpdateRequest.routes.js';
 import aiRoutes        from './routes/ai.routes.js';
 import contactRoutes   from './routes/contact.routes.js';
@@ -213,6 +214,7 @@ app.use(`${V1}/cart`,        cartRoutes);
 app.use(`${V1}/wishlist`,    wishlistRoutes);
 app.use(`${V1}/coupons`,     couponRoutes);
 app.use(`${V1}/groups`,      groupRoutes);
+app.use(`${V1}/groups`,      groupChatRoutes);
 app.use(`${V1}`,             progressRoutes); // /courses/:id/quizzes, /lessons/:id/progress, /users/:id/achievements
 app.use(`${V1}`,             quizRoutes);     // /lessons/:id/quizzes, /quizzes/:id, /quizzes/:id/attempts
 app.use(`${V1}`,             reviewRoutes);   // /courses/:id/reviews, /users/:id/notifications

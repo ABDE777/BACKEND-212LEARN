@@ -79,6 +79,7 @@ router.post('/', protect, restrictTo('admin'), createGroup);
  */
 // Must be declared before `/:id` so "mine" isn't captured as a group id.
 router.get('/mine', protect, getMyGroups);
+router.get('/my-groups', protect, getMyGroups);
 
 /**
  * @swagger
