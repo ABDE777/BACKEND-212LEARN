@@ -5,6 +5,7 @@ import { validateUUID, validateRequired } from '../utils/validation.js';
 import { resolveValidCoupon, applyCouponDiscount, consumeCouponUsage } from '../utils/coupon.js';
 import { isOurCloudinaryUrl } from '../config/cloudinary.js';
 import { PAYMENT_STATUS } from '../constants/payment.js';
+import { notifyAdminsEnrollmentPendingApproval } from '../utils/adminNotify.js';
 
 // Helper to generate a unique Transfer Reference
 const generateTransferReference = () => {
@@ -196,6 +197,19 @@ export const submitTransferDetails = async (req, res, next) => {
         },
       });
     });
+
+    // Notify admins that a student's enrollment is awaiting manual approval.
+    // Best-effort: never blocks or fails the payment submission.
+    if (updatedPayment.status === PAYMENT_STATUS.WAITING_VERIFICATION) {
+      await notifyAdminsEnrollmentPendingApproval({
+        userId: payment.enrollment.userId,
+        courseId: payment.enrollment.courseId,
+        amount: updatedPayment.amount,
+        currency: updatedPayment.currency,
+        provider: 'transfer',
+        reference: paymentReference,
+      });
+    }
 
     res.status(200).json(
       successResponse({
