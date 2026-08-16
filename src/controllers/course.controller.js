@@ -312,13 +312,10 @@ export const createCourse = async (req, res, next) => {
       }
     }
 
-    console.log('Creating course with categoryId:', categoryId);
-    
     // Verify category exists
     const category = await prisma.category.findUnique({
       where: { id: categoryId },
     });
-    console.log('Found category:', category);
     if (!category || category.deletedAt) {
       return next(new AppError('Category not found.', 404, 'NOT_FOUND'));
     }
