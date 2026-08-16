@@ -46,6 +46,14 @@ export const protect = async (req, res, next) => {
       }
     }
 
+    // 4b) Single active session: a login bumps the user's tokenVersion, so a
+    // token minted for an older session (lower `tv`) is rejected here — the
+    // other device is logged out. Tokens issued before this feature have no
+    // `tv` claim and are left alone (they expire naturally / on next login).
+    if (typeof decoded.tv === 'number' && decoded.tv !== currentUser.tokenVersion) {
+      return next(new AppError('Vous avez été déconnecté car votre compte a été utilisé sur un autre appareil.', 401, 'SESSION_REPLACED'));
+    }
+
     // 5) Grant access to protected route (mount user on request)
     req.user = currentUser;
     next();
