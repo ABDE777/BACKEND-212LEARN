@@ -60,6 +60,9 @@ model User {
   updateRequests    CourseUpdateRequest[]
   reviewedRequests  CourseUpdateRequest[] @relation("CourseUpdateRequestReviewer")
 
+  // Admin stats & user listings filter heavily on role + soft-delete state.
+  @@index([role, deletedAt])
+  @@index([deletedAt])
   @@map("users")
 }
 
