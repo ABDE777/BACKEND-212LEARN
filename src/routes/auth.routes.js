@@ -1,9 +1,12 @@
 import { Router } from 'express';
-import { register, login, getMe, forgotPassword, resetPassword, restoreAccountWithOtp, verifyEmail } from '../controllers/auth.controller.js';
+import { register, login, getMe, forgotPassword, resetPassword, restoreAccountWithOtp, verifyEmail, checkEmail, checkPhone } from '../controllers/auth.controller.js';
 import { protect } from '../middleware/auth.js';
 import { rateLimiter } from '../middleware/security.js';
 
 const router = Router();
+
+router.get('/check-email', checkEmail);
+router.get('/check-phone', checkPhone);
 
 // Strict rate limiter for sensitive authentication endpoints: max 10 attempts per minute
 const authRateLimit = rateLimiter(

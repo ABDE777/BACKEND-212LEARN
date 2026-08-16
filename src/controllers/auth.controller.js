@@ -317,11 +317,65 @@ export const changePassword = async (req, res, next) => {
 
     const passwordHash = await bcrypt.hash(newPassword, 12);
     await prisma.user.update({
-      where: { id: user.id },
+      where: { id: req.user.id },
       data: { passwordHash, passwordChangedAt: new Date() },
     });
 
-    res.status(200).json(successResponse({ message: 'Password updated successfully.' }));
+    res.status(200).json({
+      success: true,
+      data: user,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const checkEmail = async (req, res, next) => {
+  try {
+    const { email } = req.query;
+    if (!email || !email.trim()) {
+      return res.status(200).json({ success: true, available: true, exists: false });
+    }
+
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        email: { equals: email.trim(), mode: 'insensitive' },
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+
+    return res.status(200).json({
+      success: true,
+      available: !existingUser,
+      exists: !!existingUser,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const checkPhone = async (req, res, next) => {
+  try {
+    const { phone } = req.query;
+    if (!phone || !phone.trim()) {
+      return res.status(200).json({ success: true, available: true, exists: false });
+    }
+
+    const cleanPhone = phone.trim();
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        phone: { equals: cleanPhone },
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+
+    return res.status(200).json({
+      success: true,
+      available: !existingUser,
+      exists: !!existingUser,
+    });
   } catch (error) {
     next(error);
   }

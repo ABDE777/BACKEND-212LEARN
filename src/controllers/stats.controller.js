@@ -62,3 +62,82 @@ export const getPublicTestimonials = async (req, res, next) => {
     next(error);
   }
 };
+
+export const getPublicInstructors = async (req, res, next) => {
+  try {
+    const instructors = await prisma.user.findMany({
+      where: {
+        role: 'instructor',
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        avatar: true,
+        bio: true,
+        skills: true,
+        socialLinks: true,
+        instructorProfile: {
+          select: {
+            situation: true,
+            expertiseDomain: true,
+            specialization: true,
+            organization: true,
+            position: true,
+            experienceYears: true,
+            teachingMode: true,
+          },
+        },
+        coursesInstructed: {
+          select: {
+            course: {
+              select: {
+                id: true,
+                title: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+      take: 12,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: instructors,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getPublicAdmins = async (req, res, next) => {
+  try {
+    const admins = await prisma.user.findMany({
+      where: {
+        role: 'admin',
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        avatar: true,
+        bio: true,
+        skills: true,
+        socialLinks: true,
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      data: admins,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

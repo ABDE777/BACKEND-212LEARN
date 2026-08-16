@@ -1,10 +1,9 @@
 /**
- * Lean test seed for 212LEARN.
- * Creates only enough data to exercise auth, curriculum, paywall, quiz, and admin flows.
+ * Comprehensive Seed Script for 212LEARN.
+ * Seeds diverse instructors, categories, courses, lessons, quizzes, reviews, and enrollments
+ * for testing performance, catalog filtering, 3D Coverflow carousels, and learning flows.
  *
- * All accounts use password: password123
- * NOTE: this is a pre-launch TEST seeder. Remove it and create a real admin
- * directly in the database before launch.
+ * All user accounts use password: password123
  */
 import prisma from '../src/config/prisma.js';
 import bcrypt from 'bcryptjs';
@@ -12,7 +11,7 @@ import bcrypt from 'bcryptjs';
 const PASSWORD = 'password123';
 
 async function clearAll() {
-  console.log('🧹 Clearing tables...');
+  console.log('🧹 Clearing existing database tables...');
   await prisma.auditLog.deleteMany();
   await prisma.groupStudent.deleteMany();
   await prisma.group.deleteMany();
@@ -47,25 +46,45 @@ async function clearAll() {
 }
 
 async function main() {
-  console.log('🌱 Seeding lean test data...');
+  console.log('🌱 Seeding rich production-ready test data...');
   await clearAll();
 
   const passwordHash = await bcrypt.hash(PASSWORD, 10);
 
-  // ── Users ──────────────────────────────────────────────────────────────────
+  // ── 1. Admins / Platform Owners ──────────────────────────────────────────────
+  console.log('👑 Creating Admin Accounts...');
   const admin = await prisma.user.create({
     data: {
-      firstName: 'Admin',
-      lastName: '212',
-      email: 'admin@212learn.com',
+      firstName: 'Ibrahim',
+      lastName: 'Challal',
+      email: 'ibrahim.challal@212learn.com',
       passwordHash,
       role: 'admin',
       isVerified: true,
-      bio: 'Platform administrator',
+      bio: 'Fondateur & Administrateur Principal de 212Learn',
+      phone: '+212600000000',
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=640&h=640&fit=crop&q=80',
     },
   });
 
-  const instructor = await prisma.user.create({
+  await prisma.user.create({
+    data: {
+      firstName: 'Abdel Monim',
+      lastName: 'Mazguora',
+      email: 'abdelmonim.mazguora@212learn.com',
+      passwordHash,
+      role: 'admin',
+      isVerified: true,
+      bio: 'Co-Fondateur & Directeur Technique de 212Learn',
+      phone: '+212600000099',
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=640&h=640&fit=crop&q=80',
+    },
+  });
+
+  // ── 2. Instructors ─────────────────────────────────────────────────────────
+  console.log('👨‍🏫 Creating Instructors...');
+
+  const instructorSara = await prisma.user.create({
     data: {
       firstName: 'Sara',
       lastName: 'Instructor',
@@ -73,173 +92,430 @@ async function main() {
       passwordHash,
       role: 'instructor',
       isVerified: true,
-      bio: 'Lead web development instructor',
+      bio: 'Lead web development instructor passionnée par React, Node.js et l\'architecture frontend moderne.',
       phone: '+212600000001',
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=640&h=640&fit=crop&q=80',
+      skills: ['React', 'Node.js', 'TypeScript', 'TailwindCSS'],
+      socialLinks: { linkedin: 'https://linkedin.com/in/sarainstructor', github: 'https://github.com/sarainstructor' },
     },
   });
 
   await prisma.instructorProfile.create({
     data: {
-      userId: instructor.id,
+      userId: instructorSara.id,
       situation: 'employed',
       expertiseDomain: 'Web Development',
       specialization: 'React & Node.js',
       organization: '212Learn',
-      department: 'IT',
+      department: 'Pédagogie',
       position: 'Lead Web Development Instructor',
-      sector: 'Technology',
+      sector: 'Éducation & Tech',
       experienceYears: '3-5',
       teachingMode: 'online',
-      teachingDomains: 'JavaScript, React, Node.js, PHP',
+      teachingDomains: 'JavaScript, React, Node.js, Next.js',
     },
   });
 
-  const student1 = await prisma.user.create({
+  const instructorSofia = await prisma.user.create({
+    data: {
+      firstName: 'Dr. Sofia',
+      lastName: 'Benali',
+      email: 'sofia.benali@212learn.com',
+      passwordHash,
+      role: 'instructor',
+      isVerified: true,
+      bio: 'Docteur en Intelligence Artificielle et chercheuse Senior Data Science.',
+      phone: '+212611223344',
+      avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=640&h=640&fit=crop&q=80',
+      skills: ['Python', 'Machine Learning', 'TensorFlow', 'Deep Learning', 'Data Science'],
+      socialLinks: { linkedin: 'https://linkedin.com/in/sofiabenali', website: 'https://sofiabenali.ai' },
+    },
+  });
+
+  await prisma.instructorProfile.create({
+    data: {
+      userId: instructorSofia.id,
+      situation: 'employed',
+      expertiseDomain: 'Data & IA',
+      specialization: 'Machine Learning & Deep Learning',
+      organization: 'Capgemini Maroc',
+      department: 'Data & AI Lab',
+      position: 'Senior AI Researcher',
+      sector: 'Conseil & Technologie',
+      experienceYears: '>10',
+      teachingMode: 'online',
+      teachingDomains: 'Python, Data Science, Machine Learning, AI',
+    },
+  });
+
+  const instructorKarim = await prisma.user.create({
+    data: {
+      firstName: 'Karim',
+      lastName: 'Mansouri',
+      email: 'karim.mansouri@212learn.com',
+      passwordHash,
+      role: 'instructor',
+      isVerified: true,
+      bio: 'Architecte Cloud & DevSecOps avec 12 ans d\'expérience dans l\'accompagnement des entreprises.',
+      phone: '+212622334455',
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=640&h=640&fit=crop&q=80',
+      skills: ['AWS', 'Docker', 'Kubernetes', 'Terraform', 'CI/CD'],
+      socialLinks: { linkedin: 'https://linkedin.com/in/karimmansouri', github: 'https://github.com/karimmansouri' },
+    },
+  });
+
+  await prisma.instructorProfile.create({
+    data: {
+      userId: instructorKarim.id,
+      situation: 'freelance',
+      expertiseDomain: 'Cloud & DevOps',
+      specialization: 'Cloud Architecture & Kubernetes',
+      organization: 'CGI Maroc',
+      position: 'Principal Cloud Architect',
+      sector: 'Services Informatiques',
+      experienceYears: '6-10',
+      teachingMode: 'online',
+      teachingDomains: 'AWS, Cloud, Docker, Kubernetes, DevOps',
+    },
+  });
+
+  const instructorAmine = await prisma.user.create({
+    data: {
+      firstName: 'Amine',
+      lastName: 'El Amrani',
+      email: 'amine.elamrani@212learn.com',
+      passwordHash,
+      role: 'instructor',
+      isVerified: true,
+      bio: 'Consultant en Cybersécurité et Pentesteur certifié (OSCP & CEH).',
+      phone: '+212633445566',
+      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=640&h=640&fit=crop&q=80',
+      skills: ['Ethical Hacking', 'Linux Security', 'Network Auditing', 'SIEM'],
+      socialLinks: { linkedin: 'https://linkedin.com/in/amineelamrani' },
+    },
+  });
+
+  await prisma.instructorProfile.create({
+    data: {
+      userId: instructorAmine.id,
+      situation: 'employed',
+      expertiseDomain: 'Cybersécurité',
+      specialization: 'Pentest & Sécurité Réseau',
+      organization: 'DXC Technology',
+      position: 'Senior Security Consultant',
+      sector: 'Sécurité Informatique',
+      experienceYears: '6-10',
+      teachingMode: 'online',
+      teachingDomains: 'Cybersecurity, Pentesting, Linux, Network Security',
+    },
+  });
+
+  const instructorNadia = await prisma.user.create({
+    data: {
+      firstName: 'Nadia',
+      lastName: 'Tazi',
+      email: 'nadia.tazi@212learn.com',
+      passwordHash,
+      role: 'instructor',
+      isVerified: true,
+      bio: 'Lead UI/UX Designer spécialisée dans la création d\'interfaces immersives et de Design Systems.',
+      phone: '+212644556677',
+      avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=640&h=640&fit=crop&q=80',
+      skills: ['Figma', 'UI/UX Design', 'Design Systems', 'User Research', 'Prototyping'],
+      socialLinks: { linkedin: 'https://linkedin.com/in/nadiatazi', website: 'https://nadiatazi.design' },
+    },
+  });
+
+  await prisma.instructorProfile.create({
+    data: {
+      userId: instructorNadia.id,
+      situation: 'freelance',
+      expertiseDomain: 'Design & UX/UI',
+      specialization: 'Figma & Design Systems',
+      organization: 'Studio UI',
+      position: 'Head of Product Design',
+      sector: 'Design & UX',
+      experienceYears: '3-5',
+      teachingMode: 'online',
+      teachingDomains: 'Figma, UI Design, UX Research, Design System',
+    },
+  });
+
+  // ── 3. Students ────────────────────────────────────────────────────────────
+  console.log('🎓 Creating Students...');
+
+  const studentYoussef = await prisma.user.create({
     data: {
       firstName: 'Youssef',
-      lastName: 'Student',
+      lastName: 'Bennani',
       email: 'student1@212learn.com',
       passwordHash,
       role: 'student',
       isVerified: true,
       phone: '+212600000002',
+      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=640&h=640&fit=crop&q=80',
     },
   });
 
   await prisma.studentProfile.create({
     data: {
-      userId: student1.id,
+      userId: studentYoussef.id,
       situation: 'student',
-      school: 'ISFO Sidi Maarouf',
-      fieldOfStudy: 'Développement Digital',
-      educationLevel: 'Bac+2',
+      school: 'ENSIAS Rabat',
+      fieldOfStudy: 'Génie Logiciel',
+      educationLevel: 'Master',
       academicYearStart: new Date('2025-09-01'),
       academicYearEnd: new Date('2026-06-30'),
-      group: null,
       isSelfDirected: false,
     },
   });
 
-  const student2 = await prisma.user.create({
+  const studentAmina = await prisma.user.create({
     data: {
       firstName: 'Amina',
-      lastName: 'Learner',
+      lastName: 'El Fassi',
       email: 'student2@212learn.com',
       passwordHash,
       role: 'student',
       isVerified: true,
       phone: '+212600000003',
+      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=640&h=640&fit=crop&q=80',
     },
   });
 
   await prisma.studentProfile.create({
     data: {
-      userId: student2.id,
+      userId: studentAmina.id,
       situation: 'employee',
-      school: null,
-      fieldOfStudy: null,
-      educationLevel: null,
-      academicYearStart: null,
-      academicYearEnd: null,
-      companyName: 'ABC Maroc',
-      department: 'IT',
-      position: 'Développeur Web',
-      sector: 'Technologie',
+      companyName: 'OCP Group',
+      department: 'Systèmes d\'Information',
+      position: 'Analyste Développeur',
+      sector: 'Industrie & Tech',
       experienceYears: '1-2',
-      group: null,
       isSelfDirected: false,
     },
   });
 
-  // ── Categories ─────────────────────────────────────────────────────────────
-  const development = await prisma.category.create({
+  const studentMehdi = await prisma.user.create({
     data: {
-      name: 'Development',
-      description: 'Programming and software engineering',
+      firstName: 'Mehdi',
+      lastName: 'Alaoui',
+      email: 'mehdi@212learn.com',
+      passwordHash,
+      role: 'student',
+      isVerified: true,
+      phone: '+212600000004',
+      avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=640&h=640&fit=crop&q=80',
     },
   });
 
-  const webDev = await prisma.category.create({
+  await prisma.studentProfile.create({
     data: {
-      name: 'Web Development',
-      description: 'HTML, CSS, JavaScript, React, Node.js',
-      parentId: development.id,
+      userId: studentMehdi.id,
+      situation: 'self_directed',
+      isSelfDirected: true,
     },
   });
 
-  // ── Course A: published, paid (main test course) ────────────────────────────
+  // ── 4. Categories ──────────────────────────────────────────────────────────
+  console.log('📂 Creating Categories...');
+
+  const catDev = await prisma.category.create({
+    data: {
+      name: 'Développement Web',
+      description: 'HTML, CSS, JavaScript, React, Node.js, Next.js et architectures web modernes.',
+      icon: 'Code',
+    },
+  });
+
+  const catData = await prisma.category.create({
+    data: {
+      name: 'Data & IA',
+      description: 'Python, Machine Learning, Deep Learning, SQL et analyse de données.',
+      icon: 'Brain',
+    },
+  });
+
+  const catCyber = await prisma.category.create({
+    data: {
+      name: 'Cybersécurité',
+      description: 'Ethical Hacking, sécurité des réseaux, Linux SysAdmin et audit.',
+      icon: 'Shield',
+    },
+  });
+
+  const catCloud = await prisma.category.create({
+    data: {
+      name: 'Cloud & DevOps',
+      description: 'Docker, Kubernetes, AWS, Terraform, CI/CD et déploiement continu.',
+      icon: 'Cloud',
+    },
+  });
+
+  const catDesign = await prisma.category.create({
+    data: {
+      name: 'Design UX/UI',
+      description: 'Figma, Design Systems, UX Research et conception d\'interfaces web et mobile.',
+      icon: 'Figma',
+    },
+  });
+
+  // ── 5. Courses ─────────────────────────────────────────────────────────────
+  console.log('📚 Creating Courses & Curriculum...');
+
+  // Course 1: React & Next.js
   const courseReact = await prisma.course.create({
     data: {
-      categoryId: webDev.id,
-      title: 'React Essentials',
-      description: 'Learn React fundamentals with practical lessons and a quiz.',
-      price: 299.0,
-      level: 'beginner',
+      categoryId: catDev.id,
+      title: 'React & Next.js 15 : Le Guide Complet',
+      description: 'Maîtrisez React 19, les Server Components Next.js 15, Zustand, TailwindCSS et la création d\'applications web fullstack réactives.',
+      price: 349.0,
+      level: 'intermediate',
       language: 'french',
-      duration: 480,
+      duration: 720,
       status: 'published',
-      thumbnail: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=600&q=80',
+      thumbnail: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=800&q=80',
     },
   });
 
   await prisma.courseInstructor.create({
+    data: { courseId: courseReact.id, userId: instructorSara.id, role: 'lead_instructor' },
+  });
+
+  // Course 2: Python & Data Science
+  const coursePython = await prisma.course.create({
     data: {
-      courseId: courseReact.id,
-      userId: instructor.id,
-      role: 'lead_instructor',
+      categoryId: catData.id,
+      title: 'Python pour la Data Science et le Machine Learning',
+      description: 'Apprenez Python, Pandas, NumPy, Scikit-Learn et entraînez vos premiers modèles de Machine Learning de A à Z.',
+      price: 399.0,
+      level: 'beginner',
+      language: 'french',
+      duration: 900,
+      status: 'published',
+      thumbnail: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=800&q=80',
     },
   });
 
-  const section1 = await prisma.section.create({
-    data: { courseId: courseReact.id, title: 'Getting Started', position: 1 },
-  });
-  const section2 = await prisma.section.create({
-    data: { courseId: courseReact.id, title: 'Components & State', position: 2 },
+  await prisma.courseInstructor.create({
+    data: { courseId: coursePython.id, userId: instructorSofia.id, role: 'lead_instructor' },
   });
 
-  const lesson1 = await prisma.lesson.create({
-    data: { sectionId: section1.id, title: 'What is React?', position: 1 },
-  });
-  const lesson2 = await prisma.lesson.create({
-    data: { sectionId: section1.id, title: 'Project Setup', position: 2 },
-  });
-  const lesson3 = await prisma.lesson.create({
-    data: { sectionId: section2.id, title: 'useState Hook', position: 1 },
+  // Course 3: Docker & Cloud DevOps
+  const courseDocker = await prisma.course.create({
+    data: {
+      categoryId: catCloud.id,
+      title: 'Docker, Kubernetes & DevOps CI/CD',
+      description: 'Conteneurisez vos applications avec Docker, orchestrez avec Kubernetes et automatisez vos déploiements avec GitHub Actions & AWS.',
+      price: 449.0,
+      level: 'advanced',
+      language: 'french',
+      duration: 650,
+      status: 'published',
+      thumbnail: 'https://images.unsplash.com/photo-1607799279861-4dd421887fb3?w=800&q=80',
+    },
   });
 
-  // External links only (no Cloudinary files in seed)
+  await prisma.courseInstructor.create({
+    data: { courseId: courseDocker.id, userId: instructorKarim.id, role: 'lead_instructor' },
+  });
+
+  // Course 4: Cybersécurité & Pentest
+  const courseCyber = await prisma.course.create({
+    data: {
+      categoryId: catCyber.id,
+      title: 'Cybersécurité : Ethical Hacking & Pentest',
+      description: 'Découvrez les bases de l\'Ethical Hacking, l\'analyse de vulnérabilités, la sécurité Linux et la protection des infrastructures.',
+      price: 499.0,
+      level: 'intermediate',
+      language: 'french',
+      duration: 800,
+      status: 'published',
+      thumbnail: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&q=80',
+    },
+  });
+
+  await prisma.courseInstructor.create({
+    data: { courseId: courseCyber.id, userId: instructorAmine.id, role: 'lead_instructor' },
+  });
+
+  // Course 5: Design UX/UI Figma
+  const courseFigma = await prisma.course.create({
+    data: {
+      categoryId: catDesign.id,
+      title: 'Design UI/UX Moderne avec Figma',
+      description: 'Concevez des maquettes web et mobile professionnelles, des prototypes interactifs et votre premier Design System sous Figma.',
+      price: 299.0,
+      level: 'beginner',
+      language: 'french',
+      duration: 540,
+      status: 'published',
+      thumbnail: 'https://images.unsplash.com/photo-1581291518857-4e27b48ff24e?w=800&q=80',
+    },
+  });
+
+  await prisma.courseInstructor.create({
+    data: { courseId: courseFigma.id, userId: instructorNadia.id, role: 'lead_instructor' },
+  });
+
+  // Course 6: JavaScript gratuit (Free Course)
+  const courseJsFree = await prisma.course.create({
+    data: {
+      categoryId: catDev.id,
+      title: 'Découverte Gratuite de JavaScript',
+      description: 'Cours d\'initiation gratuit pour apprendre les bases absolues de JavaScript ES6+ et la manipulation du DOM.',
+      price: 0,
+      level: 'beginner',
+      language: 'french',
+      duration: 180,
+      status: 'published',
+      thumbnail: 'https://images.unsplash.com/photo-1579468118864-1b9ea3c0db4a?w=800&q=80',
+    },
+  });
+
+  await prisma.courseInstructor.create({
+    data: { courseId: courseJsFree.id, userId: instructorSara.id, role: 'lead_instructor' },
+  });
+
+  // ── 6. Sections, Lessons & Quizzes for React Course ────────────────────────
+  const reactSec1 = await prisma.section.create({
+    data: { courseId: courseReact.id, title: '1. Introduction & Fondations React', position: 1 },
+  });
+
+  const reactSec2 = await prisma.section.create({
+    data: { courseId: courseReact.id, title: '2. Hooks & Gestion d\'État (useState, useEffect)', position: 2 },
+  });
+
+  const reactLes1 = await prisma.lesson.create({
+    data: { sectionId: reactSec1.id, title: 'Pourquoi React en 2026 ?', position: 1 },
+  });
+  const reactLes2 = await prisma.lesson.create({
+    data: { sectionId: reactSec1.id, title: 'Configuration de projet Vite + React', position: 2 },
+  });
+  const reactLes3 = await prisma.lesson.create({
+    data: { sectionId: reactSec2.id, title: 'Comprendre useState avec un exemple concret', position: 1 },
+  });
+
   await prisma.resource.createMany({
     data: [
-      {
-        lessonId: lesson1.id,
-        type: 'link',
-        url: 'https://react.dev/learn',
-      },
-      {
-        lessonId: lesson2.id,
-        type: 'link',
-        url: 'https://vitejs.dev/guide/',
-      },
-      {
-        lessonId: lesson3.id,
-        type: 'link',
-        url: 'https://react.dev/reference/react/useState',
-      },
+      { lessonId: reactLes1.id, type: 'link', url: 'https://react.dev' },
+      { lessonId: reactLes2.id, type: 'link', url: 'https://vitejs.dev' },
+      { lessonId: reactLes3.id, type: 'link', url: 'https://react.dev/reference/react/useState' },
     ],
   });
 
   await prisma.assignment.create({
     data: {
-      lessonId: lesson3.id,
-      title: 'Build a counter with useState',
+      lessonId: reactLes3.id,
+      title: 'Devoir Pratique : Créer un Compteur Interactif avec useState',
       dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
     },
   });
 
-  const quiz = await prisma.quiz.create({
+  const quizReact = await prisma.quiz.create({
     data: {
-      lessonId: lesson3.id,
-      title: 'useState Basics Quiz',
+      lessonId: reactLes3.id,
+      title: 'Quiz de validation : Hooks React',
       validationStatus: 'approved',
     },
   });
@@ -247,39 +523,38 @@ async function main() {
   await prisma.question.createMany({
     data: [
       {
-        quizId: quiz.id,
-        statement: 'What does useState return?',
-        options: ['A value only', 'A setter only', 'A value and a setter', 'A ref object'],
-        correctAnswer: 'A value and a setter',
+        quizId: quizReact.id,
+        statement: 'Que renvoie le hook useState() dans React ?',
+        options: ['Un objet avec la valeur', 'Un tableau [valeur, fonctionSetter]', 'Une promesse', 'Une référence DOM'],
+        correctAnswer: 'Un tableau [valeur, fonctionSetter]',
       },
       {
-        quizId: quiz.id,
-        statement: 'How do you update state correctly?',
-        options: [
-          'Mutate the variable directly',
-          'Call the setter function',
-          'Edit localStorage',
-          'Reload the page',
-        ],
-        correctAnswer: 'Call the setter function',
+        quizId: quizReact.id,
+        statement: 'Comment modifier correctement la valeur d\'un état ?',
+        options: ['En modifiant directement la variable', 'En appelant la fonction setter dédiée', 'En rechargeant la page', 'Via document.getElementById'],
+        correctAnswer: 'En appelant la fonction setter dédiée',
       },
     ],
   });
 
-  // student1 = PAID access
-  const enrollmentPaid = await prisma.enrollment.create({
-    data: { userId: student1.id, courseId: courseReact.id },
+  // ── 7. Enrollments, Payments & Reviews ─────────────────────────────────────
+  console.log('💳 Creating Enrollments, Payments & Reviews...');
+
+  // Student 1 (Youssef) -> Enrolled & Paid in React & Next.js Course
+  const enrollmentYoussef = await prisma.enrollment.create({
+    data: { userId: studentYoussef.id, courseId: courseReact.id },
   });
+
   await prisma.payment.create({
     data: {
-      enrollmentId: enrollmentPaid.id,
-      amount: 299.0,
+      enrollmentId: enrollmentYoussef.id,
+      amount: 349.0,
       currency: 'MAD',
       provider: 'wafacash',
-      transactionReference: 'WFC-TESTPAID',
+      transactionReference: 'WFC-YOUSSEF-001',
       status: 'PAID',
       paidAt: new Date(),
-      mtcn: '1234567890',
+      mtcn: '9876543210',
       verifiedBy: admin.id,
       verifiedAt: new Date(),
     },
@@ -287,132 +562,139 @@ async function main() {
 
   await prisma.lessonProgress.create({
     data: {
-      userId: student1.id,
-      lessonId: lesson1.id,
+      userId: studentYoussef.id,
+      lessonId: reactLes1.id,
       completed: true,
       videoPosition: 0,
-      timeSpent: 600,
+      timeSpent: 450,
       completedAt: new Date(),
     },
   });
 
   await prisma.review.create({
     data: {
-      userId: student1.id,
+      userId: studentYoussef.id,
       courseId: courseReact.id,
       rating: 5,
-      comment: 'Clear and practical intro to React.',
+      comment: 'Formation exceptionnelle ! Sara explique les concepts complexes de manière ultra claire et concrète. Je recommande à 100%.',
     },
   });
 
-  // student2 = PENDING payment (for Wafacash flow testing)
-  const enrollmentPending = await prisma.enrollment.create({
-    data: { userId: student2.id, courseId: courseReact.id },
+  // Student 2 (Amina) -> Enrolled & Paid in Python Data Science
+  const enrollmentAmina = await prisma.enrollment.create({
+    data: { userId: studentAmina.id, courseId: coursePython.id },
   });
+
   await prisma.payment.create({
     data: {
-      enrollmentId: enrollmentPending.id,
-      amount: 269.1,
+      enrollmentId: enrollmentAmina.id,
+      amount: 399.0,
       currency: 'MAD',
       provider: 'wafacash',
-      transactionReference: 'WFC-TESTPEND',
-      status: 'PENDING',
+      transactionReference: 'WFC-AMINA-002',
+      status: 'PAID',
+      paidAt: new Date(),
+      mtcn: '8765432109',
+      verifiedBy: admin.id,
+      verifiedAt: new Date(),
     },
   });
 
-  // ── Course B: published, free (catalog browsing test) ───────────────────────
-  const courseJs = await prisma.course.create({
+  await prisma.review.create({
     data: {
-      categoryId: webDev.id,
-      title: 'JavaScript Basics',
-      description: 'Short published course for catalog browsing tests.',
-      price: 0,
-      level: 'beginner',
-      language: 'french',
-      duration: 120,
-      status: 'published',
-      thumbnail: 'https://images.unsplash.com/photo-1579468118864-1b9ea3c0db4a?w=600&q=80',
+      userId: studentAmina.id,
+      courseId: coursePython.id,
+      rating: 5,
+      comment: 'Excellente introduction au Machine Learning avec Dr. Sofia Benali. Très pédagogique avec de vrais cas pratiques !',
     },
   });
 
-  await prisma.courseInstructor.create({
+  // Student 3 (Mehdi) -> Enrolled in Free JavaScript Course & Figma Course Review
+  await prisma.enrollment.create({
+    data: { userId: studentMehdi.id, courseId: courseJsFree.id },
+  });
+
+  await prisma.review.create({
     data: {
-      courseId: courseJs.id,
-      userId: instructor.id,
-      role: 'lead_instructor',
+      userId: studentMehdi.id,
+      courseId: courseFigma.id,
+      rating: 5,
+      comment: 'Le cours de Figma par Nadia Tazi est une pépite. Les exercices sur les Design Systems sont directement applicables au travail.',
     },
   });
 
-  const jsSection = await prisma.section.create({
-    data: { courseId: courseJs.id, title: 'Basics', position: 1 },
-  });
-  await prisma.lesson.create({
-    data: { sectionId: jsSection.id, title: 'Variables & Types', position: 1 },
-  });
-
-  // ── Commerce / gamification extras ─────────────────────────────────────────
-  await prisma.coupon.create({
-    data: {
-      code: 'TEST10',
-      discount: 10,
-      expirationDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
-      maxUsage: 100,
-      currentUsage: 0,
-      isActive: true,
-    },
+  // ── 8. Coupons, Badges, Meetings & Notifications ───────────────────────────
+  await prisma.coupon.createMany({
+    data: [
+      {
+        code: 'PROMO212',
+        discount: 20,
+        expirationDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+        maxUsage: 200,
+        currentUsage: 5,
+        isActive: true,
+      },
+      {
+        code: 'WELCOME10',
+        discount: 10,
+        expirationDate: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
+        maxUsage: 500,
+        currentUsage: 12,
+        isActive: true,
+      },
+    ],
   });
 
   await prisma.badgeDefinition.createMany({
     data: [
-      { name: 'First Steps', description: 'Complete your first lesson', icon: '👣' },
-      { name: 'Quiz Master', description: 'Pass a quiz with 80%+', icon: '🧠' },
-      { name: 'Course Finisher', description: 'Complete a full course', icon: '🎓' },
+      { name: 'Pionnier React', description: 'Terminez votre première section du cours React', icon: '⚛️' },
+      { name: 'Data Explorer', description: 'Réussissez un quiz de Data Science', icon: '📊' },
+      { name: 'Maître du Code', description: 'Complétez 5 leçons interactives', icon: '🏆' },
     ],
   });
 
   await prisma.meeting.create({
     data: {
       courseId: courseReact.id,
-      title: 'Live Q&A — React Essentials',
-      meetingUrl: 'https://meet.google.com/test-react-qa',
-      meetingDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-      roomName: '212learn-react-qa-scheduled',
+      title: 'Session Live Cohorte #1 : Q&A React & Next.js 15',
+      meetingUrl: 'https://meet.google.com/live-212learn-react',
+      meetingDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+      roomName: '212learn-cohorte-react-1',
       status: 'SCHEDULED',
-      durationMinutes: 60,
-      recordingUrl: null,
+      durationMinutes: 90,
     },
   });
 
-  await prisma.notification.create({
-    data: {
-      userId: student1.id,
-      content: 'Welcome! Your React Essentials enrollment is active.',
-      isRead: false,
-    },
+  await prisma.notification.createMany({
+    data: [
+      {
+        userId: studentYoussef.id,
+        content: 'Félicitations ! Votre paiement pour "React & Next.js 15" a été validé.',
+        isRead: false,
+      },
+      {
+        userId: studentAmina.id,
+        content: 'Rappel : La session live Q&A aura lieu dans 2 jours.',
+        isRead: false,
+      },
+    ],
   });
 
-  // ── Course Update Request (for testing instructor update workflow) ─────────────
-  await prisma.courseUpdateRequest.create({
-    data: {
-      courseId: courseReact.id,
-      instructorId: instructor.id,
-      title: 'React Essentials - Updated 2026',
-      description: 'Updated course description with new React 19 features and modern hooks.',
-      price: 349.0,
-      level: 'intermediate',
-      thumbnail: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=600&q=80',
-      status: 'PENDING',
-    },
-  });
-
-  console.log('\n✅ Seed complete (lean test dataset)\n');
-  console.log('Accounts (password for all: password123)');
-  console.log('  admin@212learn.com');
-  console.log('  instructor@212learn.com');
-  console.log('  student1@212learn.com  → PAID on React Essentials');
-  console.log('  student2@212learn.com  → PENDING Wafacash (ref WFC-TESTPEND)');
-  console.log('\nCoupon: TEST10 (10%)');
-  console.log(`Courses: ${courseReact.title} (${courseReact.id}), ${courseJs.title}`);
+  console.log('\n✅ SEEDING COMPLETE WITH RICH DATASET!\n');
+  console.log('🔑 TEST ACCOUNTS (Password for all: password123)');
+  console.log(' 👑 Admin:       admin@212learn.com');
+  console.log(' 👨‍🏫 Instructors:');
+  console.log('     - instructor@212learn.com      (Sara Instructor — React & Node.js)');
+  console.log('     - sofia.benali@212learn.com    (Dr. Sofia Benali — Data & IA)');
+  console.log('     - karim.mansouri@212learn.com  (Karim Mansouri — Cloud & DevOps)');
+  console.log('     - amine.elamrani@212learn.com  (Amine El Amrani — Cybersécurité)');
+  console.log('     - nadia.tazi@212learn.com      (Nadia Tazi — Design UX/UI)');
+  console.log(' 🎓 Students:');
+  console.log('     - student1@212learn.com        (Youssef Bennani — Paid React)');
+  console.log('     - student2@212learn.com        (Amina El Fassi — Paid Python)');
+  console.log('     - mehdi@212learn.com           (Mehdi Alaoui — Free JS)');
+  console.log('\n🎟️ Active Coupons: PROMO212 (-20%), WELCOME10 (-10%)');
+  console.log(`📚 Courses Seeded: ${courseReact.title}, ${coursePython.title}, ${courseDocker.title}, ${courseCyber.title}, ${courseFigma.title}, ${courseJsFree.title}\n`);
 }
 
 main()

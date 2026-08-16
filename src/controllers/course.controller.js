@@ -161,6 +161,18 @@ export const getAllCourses = async (req, res, next) => {
                   firstName: true,
                   lastName: true,
                   avatar: true,
+                  bio: true,
+                  skills: true,
+                  instructorProfile: {
+                    select: {
+                      situation: true,
+                      expertiseDomain: true,
+                      specialization: true,
+                      organization: true,
+                      position: true,
+                      experienceYears: true,
+                    },
+                  },
                 },
               },
             },
