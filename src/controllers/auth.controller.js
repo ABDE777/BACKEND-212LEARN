@@ -6,7 +6,7 @@ import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { validateRequired, validateEmail, validatePassword } from '../utils/validation.js';
 import { validateLearnerProfile, validateInstructorProfile, toDateOrNull } from '../utils/registrationValidation.js';
-import { sendPasswordResetEmail, sendAccountRestoreOtpEmail } from '../utils/email.js';
+import { sendPasswordResetEmail, sendAccountRestoreOtpEmail, sendVerificationEmail } from '../utils/email.js';
 import { getJwtSecret } from '../config/jwt.js';
 import { getAppSettings } from '../utils/settings.js';
 import { logAuditEvent } from '../utils/audit.js';
@@ -16,10 +16,28 @@ import { logAuditEvent } from '../utils/audit.js';
 // user-enumeration via response timing). Computed once at module load.
 const DUMMY_PASSWORD_HASH = bcrypt.hashSync('timing-equalizer-not-a-real-password', 12);
 
-const signToken = (id) =>
-  jwt.sign({ id }, getJwtSecret(), {
+const signToken = (id, tokenVersion = 0) =>
+  jwt.sign({ id, tv: tokenVersion }, getJwtSecret(), {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   });
+
+// Dedicated secret + purpose claim so a login token can never be replayed as an
+// email-verification token and vice-versa.
+const EMAIL_VERIFY_SECRET = () => `${getJwtSecret()}-verify-email`;
+const signEmailVerifyToken = (id) =>
+  jwt.sign({ id, purpose: 'verify-email' }, EMAIL_VERIFY_SECRET(), { expiresIn: '48h' });
+
+// Send the account-verification email to a learner (best-effort, non-blocking).
+const sendLearnerVerificationEmail = (user) => {
+  try {
+    const token = signEmailVerifyToken(user.id);
+    const frontendUrl = process.env.FRONTEND_URL || 'https://212-learn.vercel.app';
+    const link = `${frontendUrl}/verify-email/${token}`;
+    sendVerificationEmail(user.email, user.firstName, link).catch(() => {});
+  } catch {
+    // never block registration on email failure
+  }
+};
 
 const USER_PUBLIC_FIELDS = {
   id: true, firstName: true, lastName: true, email: true,
@@ -28,7 +46,7 @@ const USER_PUBLIC_FIELDS = {
 };
 
 const sendTokenResponse = (user, statusCode, res) => {
-  const token = signToken(user.id);
+  const token = signToken(user.id, user.tokenVersion ?? 0);
   const { passwordHash, deletedAt, restoreOtp, restoreOtpExp, studentProfile, instructorProfile, ...safeUser } = user;
 
   // Include profile data based on role
@@ -52,8 +70,12 @@ const sendTokenResponse = (user, statusCode, res) => {
 // POST /api/v1/auth/register
 export const register = async (req, res, next) => {
   try {
-    // Respect the admin "Inscriptions ouvertes" setting.
+    // Respect the admin "Inscriptions ouvertes" setting, and block all signups
+    // while the platform is in maintenance mode.
     const settings = await getAppSettings();
+    if (settings.maintenanceMode) {
+      return next(new AppError('La plateforme est en maintenance. Les inscriptions sont temporairement désactivées.', 503, 'MAINTENANCE'));
+    }
     if (!settings.allowRegistrations) {
       return next(new AppError('New registrations are currently closed.', 403, 'REGISTRATIONS_CLOSED'));
     }
@@ -158,6 +180,12 @@ export const register = async (req, res, next) => {
       },
     });
 
+    // Learners self-verify by email (instructors are approved by an admin via
+    // KYC). Fire-and-forget so a mail hiccup never blocks signup.
+    if (isLearner) {
+      sendLearnerVerificationEmail(user);
+    }
+
     sendTokenResponse(user, 201, res);
   } catch (error) {
     next(error);
@@ -191,6 +219,14 @@ export const login = async (req, res, next) => {
       return next(new AppError('Incorrect email or password.', 401, 'INVALID_CREDENTIALS'));
     }
 
+    // Maintenance lockout: while maintenance mode is on, only admins may log in.
+    if (user.role !== 'admin') {
+      const settings = await getAppSettings();
+      if (settings.maintenanceMode) {
+        return next(new AppError('La plateforme est en maintenance. Connexion temporairement indisponible.', 503, 'MAINTENANCE'));
+      }
+    }
+
     // Deleted account — send OTP to allow self-restoration
     if (user.deletedAt) {
       const otp = String(crypto.randomInt(100000, 999999)); // 6-digit OTP
@@ -212,8 +248,14 @@ export const login = async (req, res, next) => {
       });
     }
 
-    // Update lastLogin without blocking the response
-    prisma.user.update({ where: { id: user.id }, data: { lastLogin: new Date() } }).catch(() => {});
+    // Rotate the token version so any other active session for this account is
+    // invalidated (single active session per account), and record lastLogin.
+    const updated = await prisma.user.update({
+      where: { id: user.id },
+      data: { tokenVersion: { increment: 1 }, lastLogin: new Date() },
+      select: { tokenVersion: true },
+    });
+    user.tokenVersion = updated.tokenVersion;
 
     sendTokenResponse(user, 200, res);
   } catch (error) {
@@ -329,6 +371,42 @@ export const forgotPassword = async (req, res, next) => {
 // POST /api/v1/auth/reset-password/:token
 // Public: validates the reset token and sets the new password.
 // ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/auth/verify-email/:token — confirm a learner's email address.
+export const verifyEmail = async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    if (!token) {
+      return next(new AppError('Verification token is required.', 400, 'VALIDATION_ERROR'));
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, EMAIL_VERIFY_SECRET());
+    } catch {
+      return next(new AppError('Lien de vérification invalide ou expiré.', 400, 'INVALID_TOKEN'));
+    }
+    if (decoded.purpose !== 'verify-email') {
+      return next(new AppError('Lien de vérification invalide.', 400, 'INVALID_TOKEN'));
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      select: { id: true, isVerified: true, deletedAt: true },
+    });
+    if (!user || user.deletedAt) {
+      return next(new AppError('Compte introuvable.', 404, 'NOT_FOUND'));
+    }
+
+    if (!user.isVerified) {
+      await prisma.user.update({ where: { id: user.id }, data: { isVerified: true } });
+    }
+
+    res.status(200).json(successResponse({ message: 'Adresse email confirmée avec succès.', verified: true }));
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const resetPassword = async (req, res, next) => {
   try {
     validateRequired(req.body, ['newPassword']);
@@ -432,8 +510,9 @@ export const restoreAccountWithOtp = async (req, res, next) => {
         restoreOtp: null,
         restoreOtpExp: null,
         lastLogin: new Date(),
+        tokenVersion: { increment: 1 }, // fresh single session on restore
       },
-      select: { ...USER_PUBLIC_FIELDS, passwordHash: true, deletedAt: true },
+      select: { ...USER_PUBLIC_FIELDS, passwordHash: true, deletedAt: true, tokenVersion: true },
     });
 
     // Log audit event (best-effort)

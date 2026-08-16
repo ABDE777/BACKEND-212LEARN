@@ -41,10 +41,12 @@ const router = Router();
  *       400:
  *         description: Validation error
  */
+// Any authenticated user may sign an upload — students need it for their
+// avatar and verification documents, instructors/admins for course media.
 router.post(
   '/cloudinary-sign',
   protect,
-  restrictTo('instructor', 'admin'),
+  restrictTo('instructor', 'admin', 'student', 'employee'),
   signCloudinaryUpload
 );
 

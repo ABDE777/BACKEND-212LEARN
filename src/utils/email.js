@@ -126,3 +126,35 @@ export const sendAccountRestoreOtpEmail = async (to, firstName, otp) => {
   return sendEmail({ to, subject, text, html });
 };
 
+/**
+ * Pre-built: Email Verification
+ * @param {string} to         - Recipient email address
+ * @param {string} firstName  - Recipient's first name
+ * @param {string} verifyLink - Full URL the user clicks to verify their email
+ */
+export const sendVerificationEmail = async (to, firstName, verifyLink) => {
+  const subject = '✅ Confirmez votre adresse email — 212Learn';
+
+  const text = `Bonjour ${firstName},\n\nMerci de vous être inscrit sur 212Learn !\n\nConfirmez votre adresse email en cliquant sur le lien ci-dessous (valable 48 heures) :\n${verifyLink}\n\nSi vous n'avez pas créé de compte, ignorez cet email.\n\n— L'équipe 212Learn`;
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #1a1a2e;">Bienvenue sur 212Learn 🎉</h2>
+      <p>Bonjour <strong>${firstName}</strong>,</p>
+      <p>Merci de vous être inscrit ! Confirmez votre adresse email pour activer votre compte.</p>
+      <p>Cliquez sur le bouton ci-dessous (le lien est valable <strong>48 heures</strong>) :</p>
+      <a href="${verifyLink}"
+         style="display:inline-block;padding:12px 24px;background-color:#6c63ff;color:#fff;
+                text-decoration:none;border-radius:6px;font-weight:bold;margin:16px 0;">
+        Confirmer mon email
+      </a>
+      <p style="color:#666;font-size:13px;">
+        Si vous n'avez pas créé de compte, ignorez simplement cet email.
+      </p>
+      <hr style="border:none;border-top:1px solid #eee;margin:24px 0;">
+      <p style="color:#999;font-size:12px;">© 212Learn — Plateforme d'apprentissage en ligne</p>
+    </div>
+  `;
+
+  return sendEmail({ to, subject, text, html });
+};
