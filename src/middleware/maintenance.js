@@ -6,7 +6,7 @@ import { errorResponse } from '../utils/response.js';
 
 // Paths that must keep working while maintenance mode is ON, so admins can log
 // in and turn it back off. Everything under these prefixes is always allowed.
-const ALLOW_PREFIXES = ['/auth', '/admin'];
+const ALLOW_PREFIXES = ['/auth', '/admin', '/ai'];
 
 /**
  * When `maintenanceMode` is enabled, block non-admin API traffic with 503.

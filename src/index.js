@@ -33,6 +33,8 @@ import meetingRoutes   from './routes/meeting.routes.js';
 import statsRoutes     from './routes/stats.routes.js';
 import groupRoutes     from './routes/group.routes.js';
 import courseUpdateRequestRoutes from './routes/courseUpdateRequest.routes.js';
+import aiRoutes        from './routes/ai.routes.js';
+import { getAiPluginManifest } from './controllers/ai.controller.js';
 import { xssSanitizer, preventParameterPollution, rateLimiter } from './middleware/security.js';
 import { requestId, accessLogger } from './middleware/requestId.js';
 import { validateJwtSecret } from './config/jwt.js';
@@ -150,6 +152,9 @@ if (docsEnabled) {
   });
 }
 
+// ── AI plugin manifest (agent discovery) — public, at the well-known path ────
+app.get('/.well-known/ai-plugin.json', getAiPluginManifest);
+
 // ── Health check (includes DB ping) ───────────────────────────────────────────
 app.get('/health', async (req, res) => {
   const host = req.get('host') || `localhost:${PORT}`;
@@ -208,6 +213,7 @@ app.use(`${V1}`,             progressRoutes); // /courses/:id/quizzes, /lessons/
 app.use(`${V1}`,             quizRoutes);     // /lessons/:id/quizzes, /quizzes/:id, /quizzes/:id/attempts
 app.use(`${V1}`,             reviewRoutes);   // /courses/:id/reviews, /users/:id/notifications
 app.use(`${V1}`,             analyticsRoutes); // /instructor/analytics/*
+app.use(`${V1}/ai`,          aiRoutes);        // /ai/overview (machine-readable)
 app.use(`${V1}`,             meetingRoutes);   // /courses/:id/meetings, /meetings/*
 // Mount BEFORE adminRoutes: adminRoutes applies a blanket restrictTo('admin') to
 // its whole router, so any unmatched /api/v1/* request that reaches it is 403'd.
