@@ -5,9 +5,6 @@ import { rateLimiter } from '../middleware/security.js';
 
 const router = Router();
 
-router.get('/check-email', checkEmail);
-router.get('/check-phone', checkPhone);
-
 // Strict rate limiter for sensitive authentication endpoints: max 10 attempts per minute
 const authRateLimit = rateLimiter(
   60000,
@@ -15,6 +12,18 @@ const authRateLimit = rateLimiter(
   'Too many login or registration attempts. Please try again in a minute.',
   { prefix: 'auth' }
 );
+
+// Throttle the availability-check endpoints: they are unauthenticated and can be
+// abused to enumerate which emails/phones already have accounts. Cap probes per IP.
+const availabilityCheckLimit = rateLimiter(
+  60000,
+  20,
+  'Too many verification checks. Please try again in a minute.',
+  { prefix: 'auth-check' }
+);
+
+router.get('/check-email', availabilityCheckLimit, checkEmail);
+router.get('/check-phone', availabilityCheckLimit, checkPhone);
 
 // Per-ACCOUNT throttle for password-reset / account-recovery: max 5 attempts per
 // email per 15 min. This is keyed by the target email (not the caller IP), so an

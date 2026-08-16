@@ -112,7 +112,6 @@ export const register = async (req, res, next) => {
 
     // Enforce the situation-specific required fields + value enums that the
     // registration form declares (throws AppError on any violation).
-    console.log('Received instructorProfile:', JSON.stringify(instructorProfile, null, 2));
     let learnerSelfDirected = false;
     if (isLearner) {
       ({ isSelfDirected: learnerSelfDirected } = validateLearnerProfile(studentProfile));
