@@ -770,6 +770,53 @@ export const restoreUser = async (req, res, next) => {
 
 // ─── GET /api/v1/admin/stats ──────────────────────────────────────────────────
 // Returns a complete platform statistics snapshot for the admin dashboard.
+// GET /api/v1/admin/overview — one consolidated snapshot for the admin dashboard
+// landing view (stats + pending-KYC count + recent users), so the page makes a
+// single request instead of several. Briefly cached to cut repeat load.
+export const getAdminOverview = async (req, res, next) => {
+  try {
+    const [
+      totalUsers, students, instructors, admins,
+      totalCourses, activeCourses, draftCourses,
+      totalCategories, totalEnrollments, revenueAgg,
+      pendingPayments, paidPayments,
+      pendingKycCount, recentUsers,
+    ] = await Promise.all([
+      prisma.user.count({ where: { deletedAt: null } }),
+      prisma.user.count({ where: { deletedAt: null, role: 'student' } }),
+      prisma.user.count({ where: { deletedAt: null, role: 'instructor' } }),
+      prisma.user.count({ where: { deletedAt: null, role: 'admin' } }),
+      prisma.course.count({ where: { deletedAt: null } }),
+      prisma.course.count({ where: { deletedAt: null, status: 'published' } }),
+      prisma.course.count({ where: { deletedAt: null, status: 'draft' } }),
+      prisma.category.count({ where: { deletedAt: null } }),
+      prisma.enrollment.count(),
+      prisma.payment.aggregate({ _sum: { amount: true }, where: { status: 'PAID' } }),
+      prisma.payment.count({ where: { provider: 'wafacash', status: 'WAITING_VERIFICATION' } }),
+      prisma.payment.count({ where: { provider: 'wafacash', status: 'PAID' } }),
+      prisma.user.count({ where: { deletedAt: null, role: 'instructor', isVerified: false } }),
+      prisma.user.findMany({
+        where: { deletedAt: null },
+        select: { id: true, firstName: true, lastName: true, email: true, role: true, isVerified: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+        take: 8,
+      }),
+    ]);
+
+    const stats = {
+      totalUsers, students, instructors, admins,
+      totalCourses, activeCourses, draftCourses, totalCategories,
+      totalEnrollments, totalRevenue: Number(revenueAgg._sum.amount ?? 0),
+      pendingPayments, paidPayments,
+    };
+
+    res.set('Cache-Control', 'private, max-age=30');
+    res.status(200).json(successResponse({ stats, pendingKycCount, recentUsers }));
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getAdminStats = async (req, res, next) => {
   try {
     const [

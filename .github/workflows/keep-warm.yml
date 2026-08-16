@@ -1,0 +1,27 @@
+# Keeps the API (and its Neon database) warm so the first request after a quiet
+# period isn't frozen by a serverless cold start + Neon autosuspend wake-up.
+# Pings /health (which runs a SELECT 1) on a schedule.
+#
+# NOTE: GitHub's scheduled runs are best-effort and can be delayed under load,
+# and the minimum interval is 5 min. For tighter/guaranteed warming use an
+# external monitor (cron-job.org — 1 min, free; or UptimeRobot — 5 min) hitting
+# the same URL, or raise Neon's autosuspend timeout / disable it on a paid plan.
+name: keep-warm
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'   # every 5 minutes (GitHub minimum)
+  workflow_dispatch: {}      # allow manual runs
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health endpoint
+        env:
+          # Override in repo settings → Variables if the API URL differs.
+          KEEPWARM_URL: ${{ vars.KEEPWARM_URL || 'https://backend-212learn.vercel.app/health' }}
+        run: |
+          echo "Pinging $KEEPWARM_URL"
+          # Never fail the workflow on a transient blip (avoids noisy alerts).
+          curl -fsS --max-time 30 "$KEEPWARM_URL" || echo "ping failed (ignored)"
