@@ -99,6 +99,63 @@ export const getAiOverview = async (req, res, next) => {
   }
 };
 
+// Cache for the generated sitemap (rebuilt every 15 min).
+let sitemapCache = null;
+let sitemapCachedAt = 0;
+const SITEMAP_TTL_MS = 15 * 60 * 1000;
+
+/**
+ * GET /sitemap.xml
+ * Dynamic sitemap listing the core pages plus every published course URL on the
+ * canonical frontend domain. Served at the API root; point Search Console / a
+ * frontend rewrite at it so crawlers discover all course pages.
+ */
+export const getSitemap = async (req, res, next) => {
+  try {
+    if (sitemapCache && Date.now() - sitemapCachedAt < SITEMAP_TTL_MS) {
+      res.set('Content-Type', 'application/xml');
+      res.set('Cache-Control', 'public, max-age=3600');
+      return res.status(200).send(sitemapCache);
+    }
+
+    const courses = await prisma.course.findMany({
+      where: { status: 'published', deletedAt: null },
+      select: { id: true, updatedAt: true },
+      orderBy: { updatedAt: 'desc' },
+      take: 5000,
+    });
+
+    const core = [
+      { loc: `${SITE_URL}/`, changefreq: 'daily', priority: '1.0' },
+      { loc: `${SITE_URL}/courses`, changefreq: 'daily', priority: '0.9' },
+      { loc: `${SITE_URL}/about`, changefreq: 'monthly', priority: '0.7' },
+      { loc: `${SITE_URL}/signup`, changefreq: 'monthly', priority: '0.5' },
+      { loc: `${SITE_URL}/login`, changefreq: 'monthly', priority: '0.4' },
+    ];
+
+    const urlEntries = [
+      ...core.map(
+        (u) => `  <url>\n    <loc>${u.loc}</loc>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`
+      ),
+      ...courses.map((c) => {
+        const lastmod = new Date(c.updatedAt).toISOString().slice(0, 10);
+        return `  <url>\n    <loc>${SITE_URL}/courses/${c.id}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>\n  </url>`;
+      }),
+    ];
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urlEntries.join('\n')}\n</urlset>\n`;
+
+    sitemapCache = xml;
+    sitemapCachedAt = Date.now();
+
+    res.set('Content-Type', 'application/xml');
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.status(200).send(xml);
+  } catch (error) {
+    next(error);
+  }
+};
+
 /**
  * GET /.well-known/ai-plugin.json
  * Minimal AI-plugin-style manifest so agent frameworks can discover the API.
