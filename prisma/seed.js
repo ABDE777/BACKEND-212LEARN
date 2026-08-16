@@ -677,6 +677,9 @@ async function main() {
         content: 'Rappel : La session live Q&A aura lieu dans 2 jours.',
         isRead: false,
       },
+    ],
+  });
+
   // ── 9. Groups & Group Chat Messages ───────────────────────────────────────
   const demoGroup = await prisma.group.create({
     data: {
