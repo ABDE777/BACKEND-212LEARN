@@ -34,7 +34,7 @@ import statsRoutes     from './routes/stats.routes.js';
 import groupRoutes     from './routes/group.routes.js';
 import courseUpdateRequestRoutes from './routes/courseUpdateRequest.routes.js';
 import aiRoutes        from './routes/ai.routes.js';
-import { getAiPluginManifest } from './controllers/ai.controller.js';
+import { getAiPluginManifest, getSitemap } from './controllers/ai.controller.js';
 import { xssSanitizer, preventParameterPollution, rateLimiter } from './middleware/security.js';
 import { requestId, accessLogger } from './middleware/requestId.js';
 import { validateJwtSecret } from './config/jwt.js';
@@ -154,6 +154,9 @@ if (docsEnabled) {
 
 // ── AI plugin manifest (agent discovery) — public, at the well-known path ────
 app.get('/.well-known/ai-plugin.json', getAiPluginManifest);
+
+// ── Dynamic sitemap (core pages + every published course) — public ───────────
+app.get('/sitemap.xml', getSitemap);
 
 // ── Health check (includes DB ping) ───────────────────────────────────────────
 app.get('/health', async (req, res) => {
