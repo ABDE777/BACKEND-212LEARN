@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { register, login, getMe, forgotPassword, resetPassword, restoreAccountWithOtp } from '../controllers/auth.controller.js';
+import { register, login, getMe, forgotPassword, resetPassword, restoreAccountWithOtp, verifyEmail } from '../controllers/auth.controller.js';
 import { protect } from '../middleware/auth.js';
 import { rateLimiter } from '../middleware/security.js';
 
@@ -171,6 +171,25 @@ router.post('/forgot-password', authRateLimit, accountRecoveryLimit, forgotPassw
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post('/reset-password/:token', authRateLimit, resetPassword);
+
+/**
+ * @swagger
+ * /auth/verify-email/{token}:
+ *   post:
+ *     summary: Confirm a learner's email address from the verification link
+ *     tags: [Auth]
+ *     parameters:
+ *       - in: path
+ *         name: token
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Email verified successfully
+ *       400:
+ *         description: Invalid or expired verification token
+ */
+router.post('/verify-email/:token', authRateLimit, verifyEmail);
 
 /**
  * @swagger

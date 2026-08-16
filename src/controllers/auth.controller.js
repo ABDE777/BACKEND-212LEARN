@@ -6,7 +6,7 @@ import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { validateRequired, validateEmail, validatePassword } from '../utils/validation.js';
 import { validateLearnerProfile, validateInstructorProfile, toDateOrNull } from '../utils/registrationValidation.js';
-import { sendPasswordResetEmail, sendAccountRestoreOtpEmail } from '../utils/email.js';
+import { sendPasswordResetEmail, sendAccountRestoreOtpEmail, sendVerificationEmail } from '../utils/email.js';
 import { getJwtSecret } from '../config/jwt.js';
 import { getAppSettings } from '../utils/settings.js';
 import { logAuditEvent } from '../utils/audit.js';
@@ -20,6 +20,24 @@ const signToken = (id, tokenVersion = 0) =>
   jwt.sign({ id, tv: tokenVersion }, getJwtSecret(), {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   });
+
+// Dedicated secret + purpose claim so a login token can never be replayed as an
+// email-verification token and vice-versa.
+const EMAIL_VERIFY_SECRET = () => `${getJwtSecret()}-verify-email`;
+const signEmailVerifyToken = (id) =>
+  jwt.sign({ id, purpose: 'verify-email' }, EMAIL_VERIFY_SECRET(), { expiresIn: '48h' });
+
+// Send the account-verification email to a learner (best-effort, non-blocking).
+const sendLearnerVerificationEmail = (user) => {
+  try {
+    const token = signEmailVerifyToken(user.id);
+    const frontendUrl = process.env.FRONTEND_URL || 'https://212-learn.vercel.app';
+    const link = `${frontendUrl}/verify-email/${token}`;
+    sendVerificationEmail(user.email, user.firstName, link).catch(() => {});
+  } catch {
+    // never block registration on email failure
+  }
+};
 
 const USER_PUBLIC_FIELDS = {
   id: true, firstName: true, lastName: true, email: true,
@@ -161,6 +179,12 @@ export const register = async (req, res, next) => {
         instructorProfile: true,
       },
     });
+
+    // Learners self-verify by email (instructors are approved by an admin via
+    // KYC). Fire-and-forget so a mail hiccup never blocks signup.
+    if (isLearner) {
+      sendLearnerVerificationEmail(user);
+    }
 
     sendTokenResponse(user, 201, res);
   } catch (error) {
@@ -347,6 +371,42 @@ export const forgotPassword = async (req, res, next) => {
 // POST /api/v1/auth/reset-password/:token
 // Public: validates the reset token and sets the new password.
 // ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/auth/verify-email/:token — confirm a learner's email address.
+export const verifyEmail = async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    if (!token) {
+      return next(new AppError('Verification token is required.', 400, 'VALIDATION_ERROR'));
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, EMAIL_VERIFY_SECRET());
+    } catch {
+      return next(new AppError('Lien de vérification invalide ou expiré.', 400, 'INVALID_TOKEN'));
+    }
+    if (decoded.purpose !== 'verify-email') {
+      return next(new AppError('Lien de vérification invalide.', 400, 'INVALID_TOKEN'));
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      select: { id: true, isVerified: true, deletedAt: true },
+    });
+    if (!user || user.deletedAt) {
+      return next(new AppError('Compte introuvable.', 404, 'NOT_FOUND'));
+    }
+
+    if (!user.isVerified) {
+      await prisma.user.update({ where: { id: user.id }, data: { isVerified: true } });
+    }
+
+    res.status(200).json(successResponse({ message: 'Adresse email confirmée avec succès.', verified: true }));
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const resetPassword = async (req, res, next) => {
   try {
     validateRequired(req.body, ['newPassword']);

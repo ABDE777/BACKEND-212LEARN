@@ -2,7 +2,6 @@ import { Router } from 'express';
 import {
   getPendingKyc,
   verifyInstructor,
-  verifyStudent,
   refundPayment,
   getAuditLogs,
   getGroups,
@@ -90,41 +89,9 @@ router.get('/admin/users/pending-kyc', getPendingKyc);
  */
 router.patch('/admin/users/:userId/verify', verifyInstructor);
 
-/**
- * @swagger
- * /admin/users/{userId}/verify-student:
- *   patch:
- *     summary: Verify or unverify a student account (admin only)
- *     tags: [Admin]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: userId
- *         required: true
- *         schema: { type: string, format: uuid }
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [isVerified]
- *             properties:
- *               isVerified:
- *                 type: boolean
- *               notes:
- *                 type: string
- *                 example: "Account verified after manual review."
- *     responses:
- *       200:
- *         description: Student verification status updated successfully
- *       400:
- *         description: Invalid input or user role is not student
- *       404:
- *         description: User not found
- */
-router.patch('/admin/users/:userId/verify-student', verifyStudent);
+// Students now self-verify by email (see POST /auth/verify-email/:token), so the
+// admin verify/unverify-student endpoint has been removed. Admins still verify
+// instructors via /admin/users/:userId/verify (KYC).
 
 /**
  * @swagger
