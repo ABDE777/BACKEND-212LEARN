@@ -35,12 +35,13 @@ const createTransporter = () => {
  * @param {string} options.text      - Plain-text body (fallback)
  * @param {string} [options.html]    - HTML body (optional)
  */
-export const sendEmail = async ({ to, subject, text, html }) => {
+export const sendEmail = async ({ to, cc, subject, text, html }) => {
   const transporter = createTransporter();
 
   const mailOptions = {
     from: process.env.EMAIL_FROM || '"212Learn" <212learn.support@gmail.com>',
     to,
+    ...(cc && { cc }),
     subject,
     text,
     ...(html && { html }),
@@ -54,6 +55,56 @@ export const sendEmail = async ({ to, subject, text, html }) => {
   }
 
   return transporter.sendMail(mailOptions);
+};
+
+/**
+ * Pre-built: Contact Form Admin Notification Email
+ */
+export const sendContactNotificationEmail = async ({ name, email, phone, subject, message }) => {
+  const adminEmail = process.env.ADMIN_EMAIL || '212learn.support@gmail.com';
+  
+  const text = `Nouveau message de contact reçu sur 212Learn !
+
+Nom: ${name}
+Email: ${email}
+Téléphone: ${phone || 'Non renseigné'}
+Sujet: ${subject}
+
+Message:
+${message}
+`;
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
+      <div style="background: #1B4B5A; color: #ffffff; padding: 15px 20px; border-radius: 8px 8px 0 0;">
+        <h2 style="margin: 0; font-size: 18px;">📩 Nouveau message de contact 212Learn</h2>
+      </div>
+      <div style="padding: 20px; color: #1A1A2E;">
+        <p style="margin-top: 0;"><strong>Nom complet:</strong> ${name}</p>
+        <p><strong>Email:</strong> <a href="mailto:${email}">${email}</a></p>
+        <p><strong>Téléphone:</strong> ${phone || 'Non renseigné'}</p>
+        <p><strong>Sujet:</strong> <span style="color: #C1652F; font-weight: bold;">${subject}</span></p>
+        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 15px 0;" />
+        <p style="margin-bottom: 5px; font-weight: bold;">Message:</p>
+        <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; white-space: pre-wrap; font-size: 14px;">${message}</div>
+      </div>
+      <div style="font-size: 12px; color: #64748b; text-align: center; margin-top: 20px; padding-top: 15px; border-top: 1px solid #f1f5f9;">
+        Notification automatique de la plateforme 212Learn
+      </div>
+    </div>
+  `;
+
+  try {
+    return await sendEmail({
+      to: adminEmail,
+      cc: 'mazgouraabdalmounim@gmail.com',
+      subject: `[Contact 212Learn] ${subject} - ${name}`,
+      text,
+      html,
+    });
+  } catch (err) {
+    console.warn('Failed sending admin notification email:', err.message);
+  }
 };
 
 /**
