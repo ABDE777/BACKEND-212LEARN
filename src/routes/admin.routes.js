@@ -16,6 +16,7 @@ import {
   resetUserPassword,
   restoreUser,
   getAdminStats,
+  getAdminOverview,
 } from '../controllers/admin.controller.js';
 import { getSettings, updateSettings } from '../controllers/settings.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
@@ -423,6 +424,21 @@ router.get('/admin/audit-logs', getAuditLogs);
 
 // ── Platform statistics ──────────────────────────────────────────────────────
 router.get('/admin/stats', getAdminStats);
+
+/**
+ * @swagger
+ * /admin/overview:
+ *   get:
+ *     summary: Consolidated admin dashboard snapshot (stats + pending KYC + recent users)
+ *     description: One request for the dashboard landing view instead of several. Briefly cached.
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Overview payload
+ */
+router.get('/admin/overview', getAdminOverview);
 
 /**
  * @swagger
