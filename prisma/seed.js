@@ -13,6 +13,8 @@ const PASSWORD = 'password123';
 async function clearAll() {
   console.log('🧹 Clearing existing database tables...');
   await prisma.auditLog.deleteMany();
+  await prisma.contactMessage.deleteMany();
+  await prisma.groupChatMessage.deleteMany();
   await prisma.groupStudent.deleteMany();
   await prisma.group.deleteMany();
   await prisma.meeting.deleteMany();
@@ -687,7 +689,7 @@ async function main() {
       description: 'Groupe d\'échange et d\'accompagnement pour les étudiants de la cohorte React.',
       courseId: courseReact.id,
       formateurId: instructorSara.id,
-      createdById: adminUser.id,
+      createdById: admin.id,
       students: {
         create: [
           { userId: studentYoussef.id },
@@ -744,7 +746,9 @@ async function main() {
 
   console.log('\n✅ SEEDING COMPLETE WITH RICH DATASET!\n');
   console.log('🔑 TEST ACCOUNTS (Password for all: password123)');
-  console.log(' 👑 Admin:       admin@212learn.com');
+  console.log(' 👑 Admins:');
+  console.log('     - ibrahim.challal@212learn.com      (Ibrahim Challal)');
+  console.log('     - abdelmonim.mazguora@212learn.com  (Abdel Monim Mazguora)');
   console.log(' 👨‍🏫 Instructors:');
   console.log('     - instructor@212learn.com      (Sara Instructor — React & Node.js)');
   console.log('     - sofia.benali@212learn.com    (Dr. Sofia Benali — Data & IA)');
