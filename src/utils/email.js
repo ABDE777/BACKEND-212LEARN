@@ -60,9 +60,13 @@ export const sendEmail = async ({ to, cc, subject, text, html }) => {
 /**
  * Pre-built: Contact Form Admin Notification Email
  */
-export const sendContactNotificationEmail = async ({ name, email, phone, subject, message }) => {
-  const adminEmail = process.env.ADMIN_EMAIL || '212learn.support@gmail.com';
-  
+export const sendContactNotificationEmail = async ({ name, email, phone, subject, message, to }) => {
+  // Recipients: an explicit list (e.g. every admin account) when provided,
+  // otherwise the ADMIN_EMAIL env address.
+  const recipients = Array.isArray(to) && to.length
+    ? to.join(', ')
+    : (to || process.env.ADMIN_EMAIL || '212learn.support@gmail.com');
+
   const text = `Nouveau message de contact reçu sur 212Learn !
 
 Nom: ${name}
@@ -96,8 +100,7 @@ ${message}
 
   try {
     return await sendEmail({
-      to: adminEmail,
-      cc: 'mazgouraabdalmounim@gmail.com',
+      to: recipients,
       subject: `[Contact 212Learn] ${subject} - ${name}`,
       text,
       html,
