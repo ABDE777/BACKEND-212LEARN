@@ -1,7 +1,7 @@
 import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
-import { sendContactNotificationEmail } from '../utils/email.js';
+import { notifyAdminsContactMessage } from '../utils/adminNotify.js';
 
 // Temporary in-memory fallback cache if DB table is migrating
 const memoryMessages = [];
@@ -55,8 +55,8 @@ export const submitContactMessage = async (req, res, next) => {
       memoryMessages.push(savedMessage);
     }
 
-    // Trigger automated email notification to admin asynchronously
-    sendContactNotificationEmail({
+    // Trigger automated email notification to ALL admins asynchronously
+    notifyAdminsContactMessage({
       name: savedMessage.name,
       email: savedMessage.email,
       phone: savedMessage.phone,

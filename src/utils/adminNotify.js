@@ -5,14 +5,14 @@
  * triggers them, so every function swallows its own errors and only logs.
  */
 import prisma from '../config/prisma.js';
-import { sendEmail } from './email.js';
+import { sendEmail, sendContactNotificationEmail } from './email.js';
 
 /**
  * Resolve the list of recipient emails for admin notifications: every active
  * admin account, falling back to the ADMIN_EMAIL env address if none exist.
  * @returns {Promise<string[]>}
  */
-const resolveAdminRecipients = async () => {
+export const resolveAdminRecipients = async () => {
   const admins = await prisma.user.findMany({
     where: { role: 'admin', deletedAt: null },
     select: { email: true },
@@ -117,5 +117,20 @@ ${dashboardLink}
   } catch (err) {
     // Never let a notification failure break the payment flow.
     console.warn('Failed sending admin enrollment-approval email:', err.message);
+  }
+};
+
+/**
+ * Notify all admins that a visitor submitted the contact form. Best-effort /
+ * non-blocking — resolves every active admin account and reuses the contact
+ * email template.
+ * @param {{name:string,email:string,phone?:string,subject:string,message:string}} msg
+ */
+export const notifyAdminsContactMessage = async (msg) => {
+  try {
+    const to = await resolveAdminRecipients();
+    await sendContactNotificationEmail({ ...msg, to });
+  } catch (err) {
+    console.warn('Failed sending admin contact email:', err.message);
   }
 };
