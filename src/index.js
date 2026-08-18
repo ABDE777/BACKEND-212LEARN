@@ -91,6 +91,7 @@ const allowedOrigins = [
   'https://backend-212learn.vercel.app',
   'http://localhost:8081',
   'https://212-learn.vercel.app',
+  'https://212-learn-frontend.vercel.app',
   'https://learn212.lovable.app',
   process.env.FRONTEND_URL,
 ].filter(Boolean);
