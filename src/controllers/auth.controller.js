@@ -10,7 +10,6 @@ import { sendPasswordResetEmail, sendAccountRestoreOtpEmail, sendVerificationEma
 import { getJwtSecret } from '../config/jwt.js';
 import { logAuditEvent } from '../utils/audit.js';
 import { getAppSettings } from '../utils/settings.js';
-import { logAuditEvent } from '../utils/audit.js';
 
 // A fixed bcrypt hash used to equalize timing when an email is not found, so a
 // login attempt takes the same time whether or not the account exists (defeats
