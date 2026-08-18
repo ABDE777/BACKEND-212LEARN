@@ -2,6 +2,7 @@ import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { validateUUID, validateRequired } from '../utils/validation.js';
+import { logAuditEvent } from '../utils/audit.js';
 
 const courseSelect = {
   id: true,
@@ -64,6 +65,10 @@ export const addToWishlist = async (req, res, next) => {
       data: { userId: req.user.id, courseId },
       include: { course: { select: courseSelect } },
     });
+
+    logAuditEvent(req.user.id, 'ADD_WISHLIST', 'Course', courseId, {
+      courseTitle: item.course?.title,
+    }).catch(() => {});
 
     res.status(201).json(successResponse({
       id: item.id,

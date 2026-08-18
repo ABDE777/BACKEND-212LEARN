@@ -3,6 +3,7 @@ import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { checkAndAwardBadges } from '../utils/gamification.js';
 import { validateUUID } from '../utils/validation.js';
+import { logAuditEvent } from '../utils/audit.js';
 
 // ─── GET /api/v1/courses/:courseId/quizzes ────────────────────────────────────
 // List all quizzes for a course (via its lessons → sections).
@@ -129,6 +130,11 @@ export const logProgress = async (req, res, next) => {
 
     if (completed === true) {
       checkAndAwardBadges(userId, courseId).catch(console.error);
+      // Only log completions (not every video-position/timeSpent tick).
+      logAuditEvent(userId, 'COMPLETE_LESSON', 'Lesson', lessonId, {
+        courseId,
+        lessonTitle: lesson.title,
+      }).catch(() => {});
     }
 
     res.status(200).json(successResponse({ progress }));
