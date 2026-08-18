@@ -2,6 +2,7 @@ import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { validateUUID, validateRequired } from '../utils/validation.js';
+import { logAuditEvent } from '../utils/audit.js';
 
 const courseSelect = {
   id: true,
@@ -93,6 +94,8 @@ export const addCartItem = async (req, res, next) => {
     await prisma.cartItem.create({
       data: { cartId: cart.id, courseId },
     });
+
+    logAuditEvent(req.user.id, 'ADD_CART', 'Course', courseId, null).catch(() => {});
 
     const updated = await getOrCreateCart(req.user.id);
     res.status(201).json(successResponse(summarizeCart(updated)));

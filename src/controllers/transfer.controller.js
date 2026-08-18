@@ -6,6 +6,7 @@ import { resolveValidCoupon, applyCouponDiscount, consumeCouponUsage } from '../
 import { isOurCloudinaryUrl } from '../config/cloudinary.js';
 import { PAYMENT_STATUS } from '../constants/payment.js';
 import { notifyAdminsEnrollmentPendingApproval } from '../utils/adminNotify.js';
+import { logAuditEvent } from '../utils/audit.js';
 
 // Helper to generate a unique Transfer Reference
 const generateTransferReference = () => {
@@ -219,6 +220,14 @@ export const submitTransferDetails = async (req, res, next) => {
         reference: paymentReference,
       });
     }
+
+    logAuditEvent(payment.enrollment.userId, 'SUBMIT_PAYMENT', 'Payment', updatedPayment.id, {
+      provider: 'transfer',
+      status: updatedPayment.status,
+      amount: updatedPayment.amount,
+      currency: updatedPayment.currency,
+      courseId: payment.enrollment.courseId,
+    }).catch(() => {});
 
     res.status(200).json(
       successResponse({

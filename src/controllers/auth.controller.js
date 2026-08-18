@@ -8,6 +8,7 @@ import { validateRequired, validateEmail, validatePassword } from '../utils/vali
 import { validateLearnerProfile, validateInstructorProfile, toDateOrNull } from '../utils/registrationValidation.js';
 import { sendPasswordResetEmail, sendAccountRestoreOtpEmail, sendVerificationEmail } from '../utils/email.js';
 import { getJwtSecret } from '../config/jwt.js';
+import { logAuditEvent } from '../utils/audit.js';
 import { getAppSettings } from '../utils/settings.js';
 import { logAuditEvent } from '../utils/audit.js';
 
@@ -185,6 +186,8 @@ export const register = async (req, res, next) => {
       sendLearnerVerificationEmail(user);
     }
 
+    logAuditEvent(user.id, 'REGISTER', 'User', user.id, { role: user.role, email: user.email }).catch(() => {});
+
     sendTokenResponse(user, 201, res);
   } catch (error) {
     next(error);
@@ -255,6 +258,8 @@ export const login = async (req, res, next) => {
       select: { tokenVersion: true },
     });
     user.tokenVersion = updated.tokenVersion;
+
+    logAuditEvent(user.id, 'LOGIN', 'User', user.id, { email: user.email, role: user.role }).catch(() => {});
 
     sendTokenResponse(user, 200, res);
   } catch (error) {
@@ -452,6 +457,7 @@ export const verifyEmail = async (req, res, next) => {
 
     if (!user.isVerified) {
       await prisma.user.update({ where: { id: user.id }, data: { isVerified: true } });
+      logAuditEvent(user.id, 'VERIFY_EMAIL', 'User', user.id, { email: user.email }).catch(() => {});
     }
 
     res.status(200).json(successResponse({ message: 'Adresse email confirmée avec succès.', verified: true }));

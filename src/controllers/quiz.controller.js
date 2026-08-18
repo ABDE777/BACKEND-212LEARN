@@ -4,6 +4,7 @@ import { successResponse } from '../utils/response.js';
 import { checkAndAwardBadges } from '../utils/gamification.js';
 import { ensureCourseManager } from '../utils/authorization.js';
 import { validateUUID, validateRequired, validateNumberRange, validateEnum } from '../utils/validation.js';
+import { logAuditEvent } from '../utils/audit.js';
 
 // ─── POST /api/v1/lessons/:lessonId/quizzes ───────────────────────────────────
 // Instructor creates a new quiz manually for a lesson.
@@ -459,6 +460,11 @@ export const submitAttempt = async (req, res, next) => {
     // ── Trigger gamification check in background ──────────────────────────────
     // Checks badge unlocks (Quiz Master, etc.) without blocking the response
     checkAndAwardBadges(req.user.id, null).catch(console.error);
+
+    logAuditEvent(req.user.id, 'SUBMIT_QUIZ', 'Quiz', quizId, {
+      score: Number(attempt.score),
+      passed: score >= 60,
+    }).catch(() => {});
 
     res.status(201).json(
       successResponse({

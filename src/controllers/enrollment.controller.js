@@ -8,6 +8,7 @@ import {
 } from '../utils/response.js';
 import { validateUUID, validateRequired } from '../utils/validation.js';
 import { PAYMENT_STATUS } from '../constants/payment.js';
+import { logAuditEvent } from '../utils/audit.js';
 
 // GET /api/v1/enrollments?page=1&limit=20
 export const getMyCourses = async (req, res, next) => {
@@ -162,6 +163,11 @@ export const enrollInCourse = async (req, res, next) => {
         payment: { select: { id: true, status: true, amount: true, provider: true } },
       },
     });
+
+    logAuditEvent(req.user.id, 'ENROLL_COURSE', 'Course', courseId, {
+      enrollmentId: enrollment.id,
+      courseTitle: enrollment.course?.title,
+    }).catch(() => {});
 
     res.status(201).json(successResponse({ enrollment }));
   } catch (error) {

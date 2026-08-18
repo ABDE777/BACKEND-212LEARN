@@ -2,6 +2,7 @@ import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { notifyAdminsContactMessage } from '../utils/adminNotify.js';
+import { logAuditEvent } from '../utils/audit.js';
 
 // Temporary in-memory fallback cache if DB table is migrating
 const memoryMessages = [];
@@ -63,6 +64,12 @@ export const submitContactMessage = async (req, res, next) => {
       subject: savedMessage.subject,
       message: savedMessage.message,
     }).catch(e => console.warn('Async admin contact email notify error:', e.message));
+
+    logAuditEvent(req.user?.id || null, 'SUBMIT_CONTACT', 'ContactMessage', String(savedMessage.id), {
+      name: savedMessage.name,
+      email: savedMessage.email,
+      subject: savedMessage.subject,
+    }).catch(() => {});
 
     return res.status(201).json(
       successResponse(
