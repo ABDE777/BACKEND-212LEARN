@@ -476,28 +476,45 @@ export const removeStudentFromGroup = async (req, res, next) => {
 // belongs to and its formateur, so a student can see their group for a paid course.
 export const getMyGroups = async (req, res, next) => {
   try {
-    const memberships = await prisma.groupStudent.findMany({
-      where: { userId: req.user.id, group: { deletedAt: null } },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        group: {
-          include: {
-            course: { select: { id: true, title: true, thumbnail: true } },
-            formateur: { select: { id: true, firstName: true, lastName: true } },
+    // Instructors get the groups they lead (as formateur); everyone else gets
+    // the groups they're a member of. Both shapes expose `id` and a `groupId`
+    // alias so student and instructor dashboards can each read what they expect.
+    let rawGroups;
+    if (req.user.role === 'instructor') {
+      rawGroups = await prisma.group.findMany({
+        where: { formateurId: req.user.id, deletedAt: null },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          course: { select: { id: true, title: true, thumbnail: true } },
+          formateur: { select: { id: true, firstName: true, lastName: true } },
+          _count: { select: { students: true } },
+        },
+      });
+    } else {
+      const memberships = await prisma.groupStudent.findMany({
+        where: { userId: req.user.id, group: { deletedAt: null } },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          group: {
+            include: {
+              course: { select: { id: true, title: true, thumbnail: true } },
+              formateur: { select: { id: true, firstName: true, lastName: true } },
+            },
           },
         },
-      },
-    });
+      });
+      rawGroups = memberships.filter((m) => m.group).map((m) => m.group);
+    }
 
-    const groups = memberships
-      .filter((m) => m.group)
-      .map((m) => ({
-        groupId: m.group.id,
-        name: m.group.name,
-        description: m.group.description,
-        course: m.group.course,
-        formateur: m.group.formateur,
-      }));
+    const groups = rawGroups.map((g) => ({
+      id: g.id,
+      groupId: g.id,
+      name: g.name,
+      description: g.description,
+      course: g.course,
+      formateur: g.formateur,
+      studentCount: g._count?.students,
+    }));
 
     res.status(200).json(successResponse({ groups }));
   } catch (error) {
