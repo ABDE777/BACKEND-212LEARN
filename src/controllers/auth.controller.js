@@ -124,7 +124,7 @@ export const register = async (req, res, next) => {
     const userData = {
       firstName,
       lastName,
-      email,
+      email: email.trim().toLowerCase(),
       passwordHash,
       role,
       phone: phone || null,
@@ -201,8 +201,10 @@ export const login = async (req, res, next) => {
     validateRequired(req.body, ['email', 'password']);
     validateEmail(email);
 
-    const user = await prisma.user.findUnique({
-      where: { email },
+    // Match the email case-insensitively and trimmed, so accounts created or
+    // registered with different casing / stray whitespace still log in.
+    const user = await prisma.user.findFirst({
+      where: { email: { equals: email.trim(), mode: 'insensitive' } },
       include: {
         studentProfile: true,
         instructorProfile: true,
