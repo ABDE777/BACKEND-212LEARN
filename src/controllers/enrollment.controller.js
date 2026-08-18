@@ -77,6 +77,15 @@ export const getMyCourses = async (req, res, next) => {
 // POST /api/v1/enrollments
 export const enrollInCourse = async (req, res, next) => {
   try {
+    // Students must confirm their email before they can enroll in any course.
+    if (!req.user.isVerified) {
+      return next(new AppError(
+        "Veuillez confirmer votre adresse email avant de vous inscrire à un cours. Vérifiez votre boîte de réception.",
+        403,
+        'EMAIL_NOT_VERIFIED'
+      ));
+    }
+
     const { courseId } = req.body;
 
     validateRequired(req.body, ['courseId']);

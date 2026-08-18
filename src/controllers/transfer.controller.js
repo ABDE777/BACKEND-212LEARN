@@ -22,6 +22,15 @@ const generateTransferReference = () => {
 // Returns the Transfer reference, price in MAD, and bank RIB information.
 export const requestTransferPayment = async (req, res, next) => {
   try {
+    // Students must confirm their email before enrolling / paying for a course.
+    if (!req.user.isVerified) {
+      return next(new AppError(
+        "Veuillez confirmer votre adresse email avant de vous inscrire à un cours. Vérifiez votre boîte de réception.",
+        403,
+        'EMAIL_NOT_VERIFIED'
+      ));
+    }
+
     const { courseId, couponCode } = req.body;
     validateRequired(req.body, ['courseId']);
     validateUUID(courseId, 'courseId');
