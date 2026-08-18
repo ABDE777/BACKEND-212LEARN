@@ -648,6 +648,7 @@ export const updateUser = async (req, res, next) => {
       role,
       isVerified,
       bio,
+      password,
     } = req.body;
 
     const targetUser = await prisma.user.findUnique({ where: { id: userId } });
@@ -655,9 +656,17 @@ export const updateUser = async (req, res, next) => {
       return next(new AppError('User not found.', 404, 'NOT_FOUND'));
     }
 
-    // Check email uniqueness if changing email
-    if (email && email !== targetUser.email) {
-      const existingUser = await prisma.user.findUnique({ where: { email } });
+    // Normalize the email (trim + lowercase) so it matches how login looks it up.
+    const normalizedEmail = email ? email.trim().toLowerCase() : undefined;
+
+    // Check email uniqueness if changing email (case-insensitive).
+    if (normalizedEmail && normalizedEmail !== targetUser.email) {
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          email: { equals: normalizedEmail, mode: 'insensitive' },
+          NOT: { id: userId },
+        },
+      });
       if (existingUser) {
         return next(new AppError('Email already exists.', 400, 'VALIDATION_ERROR'));
       }
@@ -671,11 +680,19 @@ export const updateUser = async (req, res, next) => {
     const updateData = {
       ...(firstName && { firstName }),
       ...(lastName && { lastName }),
-      ...(email && { email }),
+      ...(normalizedEmail && { email: normalizedEmail }),
       ...(role && { role }),
       ...(isVerified !== undefined && { isVerified }),
       ...(bio !== undefined && { bio }),
     };
+
+    // Optional password reset by the admin: hash the new password, stamp the
+    // change, and rotate tokenVersion so any existing session is invalidated.
+    if (typeof password === 'string' && password.trim()) {
+      updateData.passwordHash = await bcrypt.hash(password.trim(), 12);
+      updateData.passwordChangedAt = new Date();
+      updateData.tokenVersion = { increment: 1 };
+    }
 
     const user = await prisma.user.update({
       where: { id: userId },
