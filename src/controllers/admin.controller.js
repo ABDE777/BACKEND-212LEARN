@@ -589,8 +589,13 @@ export const createUser = async (req, res, next) => {
       return next(new AppError('role must be student, instructor or admin.', 400, 'VALIDATION_ERROR'));
     }
 
-    // Check if email already exists
-    const existingUser = await prisma.user.findUnique({ where: { email } });
+    // Normalize the email so it matches how login looks it up (trim + lowercase).
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Check if email already exists (case-insensitive).
+    const existingUser = await prisma.user.findFirst({
+      where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
+    });
     if (existingUser) {
       return next(new AppError('Email already exists.', 400, 'VALIDATION_ERROR'));
     }
@@ -602,7 +607,7 @@ export const createUser = async (req, res, next) => {
       data: {
         firstName,
         lastName,
-        email,
+        email: normalizedEmail,
         passwordHash,
         role,
         isVerified: isVerified !== undefined ? isVerified : false,
