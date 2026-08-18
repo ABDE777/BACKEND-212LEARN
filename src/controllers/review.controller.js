@@ -3,6 +3,7 @@ import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { createNotification } from '../utils/gamification.js';
 import { validateUUID, validateRequired, validateNumberRange } from '../utils/validation.js';
+import { logAuditEvent } from '../utils/audit.js';
 
 // ─── POST /api/v1/courses/:courseId/reviews ───────────────────────────────────
 // Student submits a star rating and optional comment for a course they enrolled in.
@@ -66,6 +67,10 @@ export const submitReview = async (req, res, next) => {
         );
       }
     }
+
+    logAuditEvent(req.user.id, existingReview ? 'UPDATE_REVIEW' : 'CREATE_REVIEW', 'Course', req.params.courseId, {
+      rating,
+    }).catch(() => {});
 
     res.status(existingReview ? 200 : 201).json(successResponse(review));
   } catch (error) {

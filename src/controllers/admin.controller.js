@@ -219,14 +219,46 @@ export const refundPayment = async (req, res, next) => {
 };
 
 // ─── GET /api/v1/admin/audit-logs ────────────────────────────────────────────
-// Fetch paginated administrative action audit logs.
+// Fetch paginated action audit logs for every user (not only admins), with
+// optional filters: action, resource, role, free-text search over the actor's
+// name/email, and a createdAt date range.
 export const getAuditLogs = async (req, res, next) => {
   try {
     const { page, limit, skip } = parsePagination(req.query);
+    const { action, resource, role, search, startDate, endDate } = req.query;
 
-    const [total, logs] = await Promise.all([
-      prisma.auditLog.count(),
+    const where = {};
+    if (action && action !== 'all') where.action = String(action);
+    if (resource && resource !== 'all') where.resource = String(resource);
+    if (role && role !== 'all') where.user = { role: String(role) };
+
+    if (search && String(search).trim()) {
+      const q = String(search).trim();
+      where.user = {
+        ...(where.user || {}),
+        OR: [
+          { firstName: { contains: q, mode: 'insensitive' } },
+          { lastName: { contains: q, mode: 'insensitive' } },
+          { email: { contains: q, mode: 'insensitive' } },
+        ],
+      };
+    }
+
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate && !Number.isNaN(Date.parse(startDate))) where.createdAt.gte = new Date(startDate);
+      if (endDate && !Number.isNaN(Date.parse(endDate))) {
+        // Include the whole end day.
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        where.createdAt.lte = end;
+      }
+    }
+
+    const [total, logs, actions, resources] = await Promise.all([
+      prisma.auditLog.count({ where }),
       prisma.auditLog.findMany({
+        where,
         orderBy: { createdAt: 'desc' },
         ...(skip !== undefined && { skip }),
         ...(limit !== null && { take: limit }),
@@ -236,10 +268,22 @@ export const getAuditLogs = async (req, res, next) => {
           },
         },
       }),
+      // Distinct action/resource values power the filter dropdowns on the client.
+      prisma.auditLog.findMany({ distinct: ['action'], select: { action: true }, orderBy: { action: 'asc' } }),
+      prisma.auditLog.findMany({ distinct: ['resource'], select: { resource: true }, orderBy: { resource: 'asc' } }),
     ]);
 
     res.status(200).json(
-      successResponse({ logs }, paginationMeta(total, page, limit))
+      successResponse(
+        {
+          logs,
+          filters: {
+            actions: actions.map((a) => a.action).filter(Boolean),
+            resources: resources.map((r) => r.resource).filter(Boolean),
+          },
+        },
+        paginationMeta(total, page, limit)
+      )
     );
   } catch (error) {
     next(error);

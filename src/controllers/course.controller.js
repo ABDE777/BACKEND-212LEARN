@@ -10,6 +10,7 @@ import {
 import { ensureCourseManager } from '../utils/authorization.js';
 import { PAYMENT_STATUS } from '../constants/payment.js';
 import { validateUUID, validateRequired, validateEnum, validateHttpUrl } from '../utils/validation.js';
+import { logAuditEvent } from '../utils/audit.js';
 import { getJwtSecret } from '../config/jwt.js';
 import { getAppSettings } from '../utils/settings.js';
 
@@ -373,6 +374,8 @@ export const createCourse = async (req, res, next) => {
       },
     });
 
+    logAuditEvent(req.user.id, 'CREATE_COURSE', 'Course', course.id, { title: course.title }).catch(() => {});
+
     res.status(201).json(successResponse({ course }));
   } catch (error) {
     next(error);
@@ -497,6 +500,8 @@ export const updateCourse = async (req, res, next) => {
       data: updateData,
     });
 
+    logAuditEvent(req.user.id, 'UPDATE_COURSE', 'Course', course.id, { title: course.title }).catch(() => {});
+
     res.status(200).json(successResponse({ course }));
   } catch (error) {
     next(error);
@@ -514,6 +519,8 @@ export const deleteCourse = async (req, res, next) => {
       where: { id: req.params.id },
       data: { deletedAt: new Date() },
     });
+
+    logAuditEvent(req.user.id, 'DELETE_COURSE', 'Course', req.params.id, null).catch(() => {});
 
     res.status(204).end();
   } catch (error) {
