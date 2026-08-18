@@ -74,6 +74,18 @@ export const restrictTo = (...roles) => {
     if (!req.user || !roles.includes(req.user.role)) {
       return next(new AppError('You do not have permission to perform this action.', 403));
     }
+    // Instructors must be approved by an admin before using any instructor-
+    // privileged action. They can still authenticate (protect) and read self
+    // endpoints — but every restrictTo-guarded route is blocked until isVerified
+    // is true, so calling the API directly (or typing an instructor URL) is
+    // rejected server-side, not just hidden in the UI.
+    if (req.user.role === 'instructor' && !req.user.isVerified) {
+      return next(new AppError(
+        "Votre compte instructeur est en attente de validation par un administrateur.",
+        403,
+        'INSTRUCTOR_PENDING_APPROVAL'
+      ));
+    }
     next();
   };
 };
