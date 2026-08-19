@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
@@ -30,45 +31,58 @@ export const getRevenueAnalytics = async (req, res, next) => {
       }
     }
 
-    // Fetch all PAID payments for instructor's courses
-    const payments = await prisma.payment.findMany({
-      where: {
-        status: 'PAID',
-        ...(courseIds && {
-          enrollment: { courseId: { in: courseIds } },
-        }),
-      },
-      include: {
-        enrollment: {
-          include: {
-            course: { select: { id: true, title: true } },
-          },
-        },
-      },
-      orderBy: { paidAt: 'asc' },
-    });
+    // Aggregate in the database (GROUP BY) instead of loading every PAID payment
+    // into memory — the result sets are tiny (one row per month; top 5 courses),
+    // so this stays flat no matter how many sales an instructor accrues.
+    const courseFilter = courseIds
+      ? Prisma.sql`AND e."courseId" = ANY(ARRAY[${Prisma.join(courseIds)}]::uuid[])`
+      : Prisma.empty;
 
-    // Group by month (YYYY-MM)
-    const monthlyMap = {};
-    payments.forEach((p) => {
-      const d = p.paidAt || p.enrollment.enrolledAt;
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      if (!monthlyMap[key]) monthlyMap[key] = { month: key, revenue: 0, enrollments: 0 };
-      monthlyMap[key].revenue     += Number(p.amount);
-      monthlyMap[key].enrollments += 1;
-    });
+    const [monthlyRows, topRows] = await Promise.all([
+      // Monthly revenue rollup across all time (one row per month).
+      prisma.$queryRaw`
+        SELECT to_char(date_trunc('month', COALESCE(p."paidAt", e."enrolledAt")), 'YYYY-MM') AS month,
+               COALESCE(SUM(p."amount"), 0)::float8 AS revenue,
+               COUNT(*)::int AS enrollments
+        FROM "payments" p
+        JOIN "enrollments" e ON e."id" = p."enrollmentId"
+        WHERE p."status" = 'PAID' ${courseFilter}
+        GROUP BY 1
+        ORDER BY 1 ASC
+      `,
+      // Top 5 courses by revenue.
+      prisma.$queryRaw`
+        SELECT e."courseId"::text AS "courseId", c."title" AS title,
+               COALESCE(SUM(p."amount"), 0)::float8 AS revenue,
+               COUNT(*)::int AS students
+        FROM "payments" p
+        JOIN "enrollments" e ON e."id" = p."enrollmentId"
+        JOIN "courses" c ON c."id" = e."courseId"
+        WHERE p."status" = 'PAID' ${courseFilter}
+        GROUP BY e."courseId", c."title"
+        ORDER BY revenue DESC
+        LIMIT 5
+      `,
+    ]);
 
-    const monthly = Object.values(monthlyMap).slice(-12); // Last 12 months
-    const totalRevenue = payments.reduce((sum, p) => sum + Number(p.amount), 0);
-    const totalEnrollments = payments.length;
+    const monthlyAll = monthlyRows.map((r) => ({
+      month: r.month,
+      revenue: Number(r.revenue),
+      enrollments: Number(r.enrollments),
+    }));
+    const byMonth = Object.fromEntries(monthlyAll.map((m) => [m.month, m]));
+
+    const monthly = monthlyAll.slice(-12); // Last 12 months for the chart
+    const totalRevenue = monthlyAll.reduce((sum, m) => sum + m.revenue, 0);
+    const totalEnrollments = monthlyAll.reduce((sum, m) => sum + m.enrollments, 0);
 
     // Current vs previous calendar month, for a month-over-month growth figure.
     const now = new Date();
     const curKey  = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const prevD   = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const prevKey = `${prevD.getFullYear()}-${String(prevD.getMonth() + 1).padStart(2, '0')}`;
-    const currentMonthRevenue  = monthlyMap[curKey]?.revenue  || 0;
-    const previousMonthRevenue = monthlyMap[prevKey]?.revenue || 0;
+    const currentMonthRevenue  = byMonth[curKey]?.revenue  || 0;
+    const previousMonthRevenue = byMonth[prevKey]?.revenue || 0;
     let growth = 0;
     if (previousMonthRevenue > 0) {
       growth = Math.round(((currentMonthRevenue - previousMonthRevenue) / previousMonthRevenue) * 100);
@@ -77,21 +91,12 @@ export const getRevenueAnalytics = async (req, res, next) => {
     }
     const averageOrderValue = totalEnrollments > 0 ? totalRevenue / totalEnrollments : 0;
 
-    // Top courses by revenue
-    const courseRevenueMap = {};
-    payments.forEach((p) => {
-      const course = p.enrollment.course;
-      if (!courseRevenueMap[course.id]) {
-        courseRevenueMap[course.id] = { courseId: course.id, title: course.title, revenue: 0, students: 0 };
-      }
-      courseRevenueMap[course.id].revenue  += Number(p.amount);
-      courseRevenueMap[course.id].students += 1;
-    });
-
-    const topCourses = Object.values(courseRevenueMap)
-      .map((c) => ({ ...c, revenue: Number(c.revenue.toFixed(2)) }))
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 5);
+    const topCourses = topRows.map((c) => ({
+      courseId: c.courseId,
+      title: c.title,
+      revenue: Number(Number(c.revenue).toFixed(2)),
+      students: Number(c.students),
+    }));
 
     res.status(200).json(
       successResponse({
