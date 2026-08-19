@@ -959,7 +959,7 @@ async function main() {
 
   // Youssef: 2/3 React lessons done + 1 in progress → real progress %.
   await prisma.lessonProgress.create({
-    data: { userId: studentYoussef.id, lessonId: reactLes2.id, completed: true, timeSpent: 620, completedAt: new Date() },
+    data: { userId: studentYoussef.id, lessonId: reactLes2.id, completed: true, videoPosition: 0, timeSpent: 620, completedAt: new Date() },
   });
   await prisma.lessonProgress.create({
     data: { userId: studentYoussef.id, lessonId: reactLes3.id, completed: false, videoPosition: 130, timeSpent: 140 },
