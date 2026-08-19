@@ -9,6 +9,24 @@ import cron from 'node-cron';
  */
 
 const DELETION_THRESHOLD_DAYS = 30;
+// Audit logs are append-only and grow with every user action; keep ~6 months.
+const AUDIT_RETENTION_DAYS = 180;
+
+/**
+ * Prune audit logs older than the retention window so the table stays bounded.
+ */
+async function pruneOldAuditLogs() {
+  try {
+    const thresholdDate = new Date();
+    thresholdDate.setDate(thresholdDate.getDate() - AUDIT_RETENTION_DAYS);
+    const { count } = await prisma.auditLog.deleteMany({
+      where: { createdAt: { lt: thresholdDate } },
+    });
+    console.log(`[Cleanup Service] Pruned ${count} audit log(s) older than ${AUDIT_RETENTION_DAYS} days.`);
+  } catch (error) {
+    console.error('[Cleanup Service] Audit log pruning failed:', error.message);
+  }
+}
 
 /**
  * Permanently delete soft-deleted accounts older than 30 days
@@ -93,6 +111,7 @@ export function startCleanupService() {
   // Schedule cleanup to run daily at 2:00 AM
   cron.schedule('0 2 * * *', async () => {
     await cleanupOldDeletedAccounts();
+    await pruneOldAuditLogs();
   });
   
   console.log('[Cleanup Service] Cleanup service scheduled to run daily at 2:00 AM');
