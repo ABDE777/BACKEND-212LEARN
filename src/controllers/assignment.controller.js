@@ -59,7 +59,13 @@ export const getAssignments = async (req, res, next) => {
     const assignments = await prisma.assignment.findMany({
       where:   { lessonId: req.params.lessonId },
       orderBy: { dueDate: 'asc' },
-      include: { submissions: req.user.role !== 'student' }, // instructors/admins see all subs
+      // Instructors/admins see every submission; a student sees only their own
+      // so the lesson UI can show their submitted-status, grade and feedback.
+      include: {
+        submissions: req.user.role === 'student'
+          ? { where: { userId: req.user.id } }
+          : true,
+      },
     });
 
     res.status(200).json(successResponse({ assignments }));
