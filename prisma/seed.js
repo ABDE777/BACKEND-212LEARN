@@ -319,6 +319,95 @@ async function main() {
     },
   });
 
+  // Employee learner (company-sponsored) — verified.
+  const studentEmployee = await prisma.user.create({
+    data: {
+      firstName: 'Hamza',
+      lastName: 'Rachidi',
+      email: 'employee@212learn.com',
+      passwordHash,
+      role: 'employee',
+      isVerified: true,
+      phone: '+212600000005',
+    },
+  });
+  await prisma.studentProfile.create({
+    data: {
+      userId: studentEmployee.id,
+      situation: 'employee',
+      companyName: 'Maroc Telecom',
+      department: 'DSI',
+      position: 'Ingénieur DevOps',
+      sector: 'Télécommunications',
+      experienceYears: '3-5',
+      isSelfDirected: false,
+    },
+  });
+
+  // Unverified student — has NOT confirmed their email (blocked from enrolling).
+  const studentUnverified = await prisma.user.create({
+    data: {
+      firstName: 'Salma',
+      lastName: 'Ouazzani',
+      email: 'unverified.student@212learn.com',
+      passwordHash,
+      role: 'student',
+      isVerified: false,
+      phone: '+212600000006',
+    },
+  });
+  await prisma.studentProfile.create({
+    data: { userId: studentUnverified.id, situation: 'student', school: 'FST Settat', isSelfDirected: false },
+  });
+
+  // Soft-deleted student — for testing the account-restore (OTP) flow at login.
+  const studentDeleted = await prisma.user.create({
+    data: {
+      firstName: 'Réda',
+      lastName: 'Bouhaddou',
+      email: 'deleted.student@212learn.com',
+      passwordHash,
+      role: 'student',
+      isVerified: true,
+      phone: '+212600000007',
+      deletedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+    },
+  });
+  await prisma.studentProfile.create({
+    data: { userId: studentDeleted.id, situation: 'self_directed', isSelfDirected: true },
+  });
+
+  // ── 2b. Instructor pending admin approval ───────────────────────────────────
+  // Can log in but is gated to the "pending approval" screen until an admin
+  // verifies them (isVerified stays false).
+  const instructorPending = await prisma.user.create({
+    data: {
+      firstName: 'Zineb',
+      lastName: 'El Idrissi',
+      email: 'pending.instructor@212learn.com',
+      passwordHash,
+      role: 'instructor',
+      isVerified: false,
+      bio: 'Data Engineer souhaitant enseigner l\'ingénierie de données — en attente de validation.',
+      phone: '+212600000008',
+      skills: ['SQL', 'Spark', 'Airflow'],
+    },
+  });
+  await prisma.instructorProfile.create({
+    data: {
+      userId: instructorPending.id,
+      situation: 'employed',
+      expertiseDomain: 'Data Engineering',
+      specialization: 'Big Data & Pipelines',
+      organization: 'Inwi',
+      position: 'Data Engineer',
+      sector: 'Télécommunications',
+      experienceYears: '3-5',
+      teachingMode: 'online',
+      teachingDomains: 'SQL, Spark, Airflow, ETL',
+    },
+  });
+
   // ── 4. Categories ──────────────────────────────────────────────────────────
   console.log('📂 Creating Categories...');
 
@@ -479,6 +568,24 @@ async function main() {
     data: { courseId: courseJsFree.id, userId: instructorSara.id, role: 'lead_instructor' },
   });
 
+  // Course 7: Draft (unpublished) — should NOT appear in the public catalog.
+  const courseDraft = await prisma.course.create({
+    data: {
+      categoryId: catData.id,
+      title: 'SQL Avancé & Optimisation (Brouillon)',
+      description: 'Cours en cours de préparation : requêtes analytiques, index, et optimisation des performances PostgreSQL.',
+      price: 279.0,
+      level: 'advanced',
+      language: 'french',
+      duration: 480,
+      status: 'draft',
+      thumbnail: 'https://images.unsplash.com/photo-1544383835-bda2bc66a55d?w=800&q=80',
+    },
+  });
+  await prisma.courseInstructor.create({
+    data: { courseId: courseDraft.id, userId: instructorSofia.id, role: 'lead_instructor' },
+  });
+
   // ── 6. Sections, Lessons & Quizzes for React Course ────────────────────────
   const reactSec1 = await prisma.section.create({
     data: { courseId: courseReact.id, title: '1. Introduction & Fondations React', position: 1 },
@@ -506,10 +613,11 @@ async function main() {
     ],
   });
 
-  await prisma.assignment.create({
+  const reactAssignment = await prisma.assignment.create({
     data: {
       lessonId: reactLes3.id,
       title: 'Devoir Pratique : Créer un Compteur Interactif avec useState',
+      description: 'Créez un composant compteur avec deux boutons (+/-) en utilisant le hook useState.',
       dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
     },
   });
@@ -644,6 +752,35 @@ async function main() {
         currentUsage: 12,
         isActive: true,
       },
+      {
+        // Course-specific coupon (React only), created by the admin.
+        code: 'REACT25',
+        discount: 25,
+        expirationDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+        maxUsage: 100,
+        currentUsage: 3,
+        isActive: true,
+        courseId: courseReact.id,
+        createdById: admin.id,
+      },
+      {
+        // Expired coupon — should be rejected at checkout.
+        code: 'EXPIRED2025',
+        discount: 30,
+        expirationDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+        maxUsage: 100,
+        currentUsage: 40,
+        isActive: true,
+      },
+      {
+        // Fully-used coupon — should be rejected (maxUsage reached).
+        code: 'SOLDOUT',
+        discount: 50,
+        expirationDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        maxUsage: 50,
+        currentUsage: 50,
+        isActive: true,
+      },
     ],
   });
 
@@ -744,6 +881,231 @@ async function main() {
     ],
   });
 
+  // ── 11. Payments in every lifecycle state ─────────────────────────────────
+  console.log('💰 Creating payments across all states (PENDING / WAITING / REJECTED / REFUNDED)...');
+
+  // Youssef → Docker : REFUNDED (was paid, then refunded).
+  const enrYoussefDocker = await prisma.enrollment.create({
+    data: { userId: studentYoussef.id, courseId: courseDocker.id },
+  });
+  await prisma.payment.create({
+    data: {
+      enrollmentId: enrYoussefDocker.id,
+      amount: 449.0, currency: 'MAD', provider: 'wafacash',
+      transactionReference: 'WFC-YOUSSEF-REFUND-003',
+      status: 'REFUNDED', paidAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000),
+      mtcn: '1112223334', verifiedBy: admin.id, verifiedAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000),
+      notes: 'Remboursé à la demande de l\'étudiant.',
+    },
+  });
+
+  // Amina → Figma : WAITING_VERIFICATION via bank transfer (awaiting admin review).
+  const enrAminaFigma = await prisma.enrollment.create({
+    data: { userId: studentAmina.id, courseId: courseFigma.id },
+  });
+  await prisma.payment.create({
+    data: {
+      enrollmentId: enrAminaFigma.id,
+      amount: 299.0, currency: 'MAD', provider: 'transfer',
+      transactionReference: 'TRF-AMINA-004',
+      status: 'WAITING_VERIFICATION',
+      rib: '007780000123456789012345',
+      transferReceiptUrl: 'https://res.cloudinary.com/demo/image/upload/transfer_receipt_amina.jpg',
+    },
+  });
+
+  // Employee → Docker : WAITING_VERIFICATION via Wafacash (MTCN + receipt submitted).
+  const enrEmployeeDocker = await prisma.enrollment.create({
+    data: { userId: studentEmployee.id, courseId: courseDocker.id },
+  });
+  await prisma.payment.create({
+    data: {
+      enrollmentId: enrEmployeeDocker.id,
+      amount: 449.0, currency: 'MAD', provider: 'wafacash',
+      transactionReference: 'WFC-EMPLOYEE-005',
+      status: 'WAITING_VERIFICATION',
+      mtcn: '5556667778',
+      receiptUrl: 'https://res.cloudinary.com/demo/image/upload/wafacash_receipt_employee.jpg',
+    },
+  });
+
+  // Mehdi → Cyber : PENDING (started checkout, not yet submitted proof).
+  const enrMehdiCyber = await prisma.enrollment.create({
+    data: { userId: studentMehdi.id, courseId: courseCyber.id },
+  });
+  await prisma.payment.create({
+    data: {
+      enrollmentId: enrMehdiCyber.id,
+      amount: 499.0, currency: 'MAD', provider: 'wafacash',
+      transactionReference: 'WFC-MEHDI-006', status: 'PENDING',
+    },
+  });
+
+  // Mehdi → Figma : REJECTED (submitted proof was invalid).
+  const enrMehdiFigma = await prisma.enrollment.create({
+    data: { userId: studentMehdi.id, courseId: courseFigma.id },
+  });
+  await prisma.payment.create({
+    data: {
+      enrollmentId: enrMehdiFigma.id,
+      amount: 299.0, currency: 'MAD', provider: 'transfer',
+      transactionReference: 'TRF-MEHDI-007', status: 'REJECTED',
+      notes: 'Reçu illisible — merci de renvoyer un justificatif valide.',
+    },
+  });
+
+  // ── 12. Lesson progress, quiz attempts, submissions ───────────────────────
+  console.log('📈 Creating progress, quiz attempts & submissions...');
+
+  // Youssef: 2/3 React lessons done + 1 in progress → real progress %.
+  await prisma.lessonProgress.create({
+    data: { userId: studentYoussef.id, lessonId: reactLes2.id, completed: true, timeSpent: 620, completedAt: new Date() },
+  });
+  await prisma.lessonProgress.create({
+    data: { userId: studentYoussef.id, lessonId: reactLes3.id, completed: false, videoPosition: 130, timeSpent: 140 },
+  });
+
+  // Quiz attempts: Youssef passed, Amina failed.
+  await prisma.quizAttempt.create({
+    data: { quizId: quizReact.id, userId: studentYoussef.id, score: 100.0, duration: 95, attemptDate: new Date() },
+  });
+  await prisma.quizAttempt.create({
+    data: { quizId: quizReact.id, userId: studentAmina.id, score: 50.0, duration: 140, attemptDate: new Date() },
+  });
+
+  // Assignment submissions: one graded, one awaiting grading.
+  await prisma.submission.create({
+    data: {
+      assignmentId: reactAssignment.id, userId: studentYoussef.id,
+      fileUrl: 'https://res.cloudinary.com/demo/raw/upload/youssef_counter.zip',
+      grade: 18.0, feedback: 'Excellent travail, code propre et bien structuré.',
+    },
+  });
+  await prisma.submission.create({
+    data: {
+      assignmentId: reactAssignment.id, userId: studentAmina.id,
+      fileUrl: 'https://res.cloudinary.com/demo/raw/upload/amina_counter.zip',
+    },
+  });
+
+  // ── 13. Certificates & Badges ─────────────────────────────────────────────
+  await prisma.certificate.create({
+    data: {
+      userId: studentAmina.id, courseId: coursePython.id,
+      certificateNumber: 'CERT-212LEARN-PY-2026-0001',
+    },
+  });
+
+  const badgeList = await prisma.badgeDefinition.findMany();
+  const badgeByName = Object.fromEntries(badgeList.map((b) => [b.name, b.id]));
+  await prisma.userBadge.createMany({
+    data: [
+      { userId: studentYoussef.id, badgeDefinitionId: badgeByName['Pionnier React'] },
+      { userId: studentYoussef.id, badgeDefinitionId: badgeByName['Maître du Code'] },
+      { userId: studentAmina.id, badgeDefinitionId: badgeByName['Data Explorer'] },
+    ].filter((b) => b.badgeDefinitionId),
+  });
+
+  // ── 14. Cart & Wishlist ───────────────────────────────────────────────────
+  const mehdiCart = await prisma.cart.create({ data: { userId: studentMehdi.id } });
+  await prisma.cartItem.createMany({
+    data: [
+      { cartId: mehdiCart.id, courseId: courseReact.id },
+      { cartId: mehdiCart.id, courseId: coursePython.id },
+    ],
+  });
+  await prisma.wishlist.createMany({
+    data: [
+      { userId: studentYoussef.id, courseId: coursePython.id },
+      { userId: studentYoussef.id, courseId: courseCyber.id },
+      { userId: studentAmina.id, courseId: courseFigma.id },
+    ],
+  });
+
+  // ── 15. Course update requests (instructor → admin moderation) ────────────
+  await prisma.courseUpdateRequest.create({
+    data: {
+      courseId: courseReact.id, instructorId: instructorSara.id,
+      title: 'React & Next.js 15 : Le Guide Complet (Édition 2026)',
+      price: 379.0, status: 'PENDING',
+    },
+  });
+  await prisma.courseUpdateRequest.create({
+    data: {
+      courseId: coursePython.id, instructorId: instructorSofia.id,
+      description: 'Ajout d\'un module sur les LLM et le fine-tuning.',
+      status: 'APPROVED', reviewedBy: admin.id, reviewedAt: new Date(),
+    },
+  });
+  await prisma.courseUpdateRequest.create({
+    data: {
+      courseId: courseFigma.id, instructorId: instructorNadia.id,
+      price: 199.0, status: 'REJECTED', reviewedBy: admin.id, reviewedAt: new Date(),
+      rejectionReason: 'La baisse de prix proposée est trop importante.',
+    },
+  });
+
+  // ── 16. App settings (singleton) ──────────────────────────────────────────
+  await prisma.appSetting.upsert({
+    where: { id: 'app' },
+    update: {},
+    create: {
+      id: 'app', siteName: '212Learn', supportEmail: '212learn.support@gmail.com',
+      currency: 'MAD', wafacashAutoApprove: false, requireKyc: true,
+      allowRegistrations: true, maintenanceMode: false, emailNotifications: true,
+    },
+  });
+
+  // ── 17. More meetings (past + live) ───────────────────────────────────────
+  await prisma.meeting.create({
+    data: {
+      courseId: coursePython.id, title: 'Atelier Live : Régression Linéaire en Python',
+      meetingUrl: 'https://meet.google.com/live-212learn-python',
+      meetingDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+      roomName: '212learn-python-1', status: 'COMPLETED', durationMinutes: 75,
+      recordingUrl: 'https://res.cloudinary.com/demo/video/upload/python_workshop.mp4',
+    },
+  });
+  await prisma.meeting.create({
+    data: {
+      courseId: courseReact.id, title: 'En Direct : Code Review Next.js',
+      meetingUrl: 'https://meet.google.com/live-212learn-react-2',
+      meetingDate: new Date(), roomName: '212learn-react-live', status: 'LIVE', durationMinutes: 60,
+    },
+  });
+
+  // ── 18. More notifications (read + unread) ─────────────────────────────────
+  await prisma.notification.createMany({
+    data: [
+      { userId: studentYoussef.id, content: '🏅 Vous avez débloqué le badge "Maître du Code" !', isRead: true },
+      { userId: studentAmina.id, content: '🎓 Votre certificat pour "Python pour la Data Science" est disponible.', isRead: true },
+      { userId: instructorSara.id, content: 'Un étudiant a rendu le devoir "Compteur Interactif".', isRead: false },
+      { userId: instructorPending.id, content: 'Votre compte instructeur est en attente de validation.', isRead: false },
+      { userId: studentUnverified.id, content: 'Confirmez votre adresse email pour pouvoir vous inscrire à un cours.', isRead: false },
+    ],
+  });
+
+  // ── 19. Audit log entries (populate the activity journal + its filters) ───
+  console.log('📝 Creating audit log entries...');
+  const day = 24 * 60 * 60 * 1000;
+  await prisma.auditLog.createMany({
+    data: [
+      { userId: admin.id, action: 'LOGIN', resource: 'User', resourceId: admin.id, details: { email: admin.email }, createdAt: new Date(Date.now() - 1 * day) },
+      { userId: studentYoussef.id, action: 'REGISTER', resource: 'User', resourceId: studentYoussef.id, details: { role: 'student' }, createdAt: new Date(Date.now() - 30 * day) },
+      { userId: studentYoussef.id, action: 'ENROLL_COURSE', resource: 'Course', resourceId: courseReact.id, details: { courseTitle: courseReact.title }, createdAt: new Date(Date.now() - 29 * day) },
+      { userId: studentYoussef.id, action: 'SUBMIT_PAYMENT', resource: 'Payment', resourceId: enrollmentYoussef.id, details: { provider: 'wafacash', amount: 349 }, createdAt: new Date(Date.now() - 29 * day) },
+      { userId: studentYoussef.id, action: 'COMPLETE_LESSON', resource: 'Lesson', resourceId: reactLes1.id, details: { lessonTitle: 'Pourquoi React en 2026 ?' }, createdAt: new Date(Date.now() - 25 * day) },
+      { userId: studentYoussef.id, action: 'SUBMIT_QUIZ', resource: 'Quiz', resourceId: quizReact.id, details: { score: 100, passed: true }, createdAt: new Date(Date.now() - 24 * day) },
+      { userId: studentAmina.id, action: 'ADD_WISHLIST', resource: 'Course', resourceId: courseFigma.id, details: { courseTitle: courseFigma.title }, createdAt: new Date(Date.now() - 10 * day) },
+      { userId: studentMehdi.id, action: 'ADD_CART', resource: 'Course', resourceId: courseReact.id, details: null, createdAt: new Date(Date.now() - 2 * day) },
+      { userId: instructorSara.id, action: 'CREATE_COURSE', resource: 'Course', resourceId: courseReact.id, details: { title: courseReact.title }, createdAt: new Date(Date.now() - 40 * day) },
+      { userId: instructorSara.id, action: 'UPDATE_COURSE', resource: 'Course', resourceId: courseReact.id, details: { title: courseReact.title }, createdAt: new Date(Date.now() - 15 * day) },
+      { userId: admin.id, action: 'VERIFY_INSTRUCTOR', resource: 'User', resourceId: instructorSara.id, details: { email: instructorSara.email }, createdAt: new Date(Date.now() - 39 * day) },
+      { userId: admin.id, action: 'REFUND_PAYMENT', resource: 'Payment', resourceId: enrYoussefDocker.id, details: { amount: 449 }, createdAt: new Date(Date.now() - 20 * day) },
+      { userId: null, action: 'SUBMIT_CONTACT', resource: 'ContactMessage', resourceId: 'seed-contact-1', details: { subject: 'Information cours' }, createdAt: new Date(Date.now() - 1 * day) },
+    ],
+  });
+
   console.log('\n✅ SEEDING COMPLETE WITH RICH DATASET!\n');
   console.log('🔑 TEST ACCOUNTS (Password for all: password123)');
   console.log(' 👑 Admins:');
@@ -755,11 +1117,16 @@ async function main() {
   console.log('     - karim.mansouri@212learn.com  (Karim Mansouri — Cloud & DevOps)');
   console.log('     - amine.elamrani@212learn.com  (Amine El Amrani — Cybersécurité)');
   console.log('     - nadia.tazi@212learn.com      (Nadia Tazi — Design UX/UI)');
+  console.log('     - pending.instructor@212learn.com  (Zineb — PENDING admin approval)');
   console.log(' 🎓 Students:');
-  console.log('     - student1@212learn.com        (Youssef Bennani — Paid React)');
-  console.log('     - student2@212learn.com        (Amina El Fassi — Paid Python)');
-  console.log('     - mehdi@212learn.com           (Mehdi Alaoui — Free JS)');
-  console.log('\n🎟️ Active Coupons: PROMO212 (-20%), WELCOME10 (-10%)');
+  console.log('     - student1@212learn.com        (Youssef — Paid React, refunded Docker, badges)');
+  console.log('     - student2@212learn.com        (Amina — Paid Python, certificate, transfer pending)');
+  console.log('     - mehdi@212learn.com           (Mehdi — Free JS, cart items, pending/rejected payments)');
+  console.log('     - employee@212learn.com        (Hamza — employee role, Wafacash waiting)');
+  console.log('     - unverified.student@212learn.com  (Salma — email NOT verified)');
+  console.log('     - deleted.student@212learn.com     (Réda — soft-deleted, restore flow)');
+  console.log('\n💳 Payment states covered: PAID, PENDING, WAITING_VERIFICATION, REJECTED, REFUNDED');
+  console.log('🎟️ Active Coupons: PROMO212 (-20%), WELCOME10 (-10%)');
   console.log(`📚 Courses Seeded: ${courseReact.title}, ${coursePython.title}, ${courseDocker.title}, ${courseCyber.title}, ${courseFigma.title}, ${courseJsFree.title}\n`);
 }
 
