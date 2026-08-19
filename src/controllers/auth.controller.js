@@ -203,8 +203,11 @@ export const login = async (req, res, next) => {
 
     // Match the email case-insensitively and trimmed, so accounts created or
     // registered with different casing / stray whitespace still log in.
-    const user = await prisma.user.findFirst({
-      where: { email: { equals: email.trim(), mode: 'insensitive' } },
+    // Emails are stored normalized (trim + lowercase), so look up by the
+    // normalized value with findUnique — this uses the unique index instead of
+    // a case-insensitive sequential scan (critical once the users table is large).
+    const user = await prisma.user.findUnique({
+      where: { email: email.trim().toLowerCase() },
       include: {
         studentProfile: true,
         instructorProfile: true,
@@ -342,18 +345,17 @@ export const checkEmail = async (req, res, next) => {
       return res.status(200).json({ success: true, available: true, exists: false });
     }
 
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        email: { equals: email.trim(), mode: 'insensitive' },
-        deletedAt: null,
-      },
-      select: { id: true },
+    // Index-using lookup on the normalized email (emails are stored lowercased).
+    const existingUser = await prisma.user.findUnique({
+      where: { email: email.trim().toLowerCase() },
+      select: { id: true, deletedAt: true },
     });
+    const taken = Boolean(existingUser && !existingUser.deletedAt);
 
     return res.status(200).json({
       success: true,
-      available: !existingUser,
-      exists: !!existingUser,
+      available: !taken,
+      exists: taken,
     });
   } catch (error) {
     next(error);
@@ -398,7 +400,7 @@ export const forgotPassword = async (req, res, next) => {
     const { email } = req.body;
 
     const user = await prisma.user.findUnique({
-      where: { email },
+      where: { email: email.trim().toLowerCase() },
       select: { id: true, firstName: true, email: true, passwordHash: true, deletedAt: true },
     });
 

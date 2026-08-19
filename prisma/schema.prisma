@@ -9,35 +9,35 @@ generator client {
 // ─── Module 1: Utilisateurs (User) ──────────────────────────────────────────
 
 model User {
-  id           String    @id @default(uuid()) @db.Uuid
-  firstName    String    @db.VarChar(100)
-  lastName     String    @db.VarChar(100)
-  email        String    @unique @db.VarChar(255)
-  passwordHash String    @db.VarChar(255)
-  avatar       String?   @db.VarChar(500)
-  bio          String?   @db.Text
-  role         String    @db.VarChar(50)
-  isVerified   Boolean
-  lastLogin    DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  deletedAt    DateTime?
-  restoreOtp      String?   @db.VarChar(255)
-  restoreOtpExp   DateTime?
-  phone          String?   @db.VarChar(50)
+  id                String    @id @default(uuid()) @db.Uuid
+  firstName         String    @db.VarChar(100)
+  lastName          String    @db.VarChar(100)
+  email             String    @unique @db.VarChar(255)
+  passwordHash      String    @db.VarChar(255)
+  avatar            String?   @db.VarChar(500)
+  bio               String?   @db.Text
+  role              String    @db.VarChar(50)
+  isVerified        Boolean
+  lastLogin         DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+  restoreOtp        String?   @db.VarChar(255)
+  restoreOtpExp     DateTime?
+  phone             String?   @db.VarChar(50)
   passwordChangedAt DateTime?
   // Bumped on every login to enforce a single active session per account: a
   // token whose `tv` no longer matches is rejected, logging out the older device.
-  tokenVersion   Int       @default(0)
+  tokenVersion      Int       @default(0)
 
   // Portfolio (learners & instructors) — validated/normalized in
   // src/utils/portfolioValidation.js. `certifications` is deliberately distinct
   // from the `certificates` relation below (platform course certificates).
-  skills         Json?  // string[]                          e.g. ["React","Node.js"]
-  languages      Json?  // [{ name, level }]                 level: basic|intermediate|fluent|native
-  certifications Json?  // [{ title, issuer, year, fileUrl }]
-  diplomas       Json?  // [{ title, institution, year, fileUrl }]
-  socialLinks    Json?  // { linkedin, github, website, twitter }
+  skills         Json? // string[]                          e.g. ["React","Node.js"]
+  languages      Json? // [{ name, level }]                 level: basic|intermediate|fluent|native
+  certifications Json? // [{ title, issuer, year, fileUrl }]
+  diplomas       Json? // [{ title, institution, year, fileUrl }]
+  socialLinks    Json? // { linkedin, github, website, twitter }
 
   // Relations
   coursesInstructed CourseInstructor[]
@@ -52,8 +52,8 @@ model User {
   badges            UserBadge[]
   certificates      Certificate[]
   auditLogs         AuditLog[]
-  groupsTaught      Group[]        @relation("GroupFormateur")
-  groupsCreated     Group[]        @relation("GroupCreator")
+  groupsTaught      Group[]               @relation("GroupFormateur")
+  groupsCreated     Group[]               @relation("GroupCreator")
   groupMemberships  GroupStudent[]
   studentProfile    StudentProfile?
   instructorProfile InstructorProfile?
@@ -64,32 +64,33 @@ model User {
   // Admin stats & user listings filter heavily on role + soft-delete state.
   @@index([role, deletedAt])
   @@index([deletedAt])
+  @@index([phone])
   @@map("users")
 }
 
 // ─── Student Profile ───────────────────────────────────────────────────────────
 
 model StudentProfile {
-  id                String   @id @default(uuid()) @db.Uuid
-  userId            String   @unique @db.Uuid
-  situation         String   @default("student") @db.VarChar(50)
-  school            String?  @db.VarChar(255)
-  fieldOfStudy      String?  @db.VarChar(255)
-  educationLevel    String?  @db.VarChar(50)
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String    @unique @db.Uuid
+  situation         String    @default("student") @db.VarChar(50)
+  school            String?   @db.VarChar(255)
+  fieldOfStudy      String?   @db.VarChar(255)
+  educationLevel    String?   @db.VarChar(50)
   academicYearStart DateTime?
   academicYearEnd   DateTime?
-  companyName       String?  @db.VarChar(255)
-  department        String?  @db.VarChar(255)
-  position          String?  @db.VarChar(255)
-  sector            String?  @db.VarChar(255)
-  experienceYears   String?  @db.VarChar(10) // range token: <1, 1-2, 3-5, 6-10, >10
-  interests         String?  @db.Text
-  learningObjective String?  @db.Text
-  currentLevel      String?  @db.VarChar(50)
-  group             String?  @db.VarChar(50)
-  isSelfDirected    Boolean  @default(false)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  companyName       String?   @db.VarChar(255)
+  department        String?   @db.VarChar(255)
+  position          String?   @db.VarChar(255)
+  sector            String?   @db.VarChar(255)
+  experienceYears   String?   @db.VarChar(10) // range token: <1, 1-2, 3-5, 6-10, >10
+  interests         String?   @db.Text
+  learningObjective String?   @db.Text
+  currentLevel      String?   @db.VarChar(50)
+  group             String?   @db.VarChar(50)
+  isSelfDirected    Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -159,18 +160,18 @@ model Course {
   deletedAt   DateTime?
 
   // Relations
-  category           Category               @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  instructors        CourseInstructor[]
-  sections           Section[]
-  enrollments        Enrollment[]
-  cartItems          CartItem[]
-  wishlists          Wishlist[]
-  meetings           Meeting[]
-  reviews            Review[]
-  certificates       Certificate[]
-  groups             Group[]
-  updateRequests     CourseUpdateRequest[]
-  coupons            Coupon[]
+  category       Category              @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  instructors    CourseInstructor[]
+  sections       Section[]
+  enrollments    Enrollment[]
+  cartItems      CartItem[]
+  wishlists      Wishlist[]
+  meetings       Meeting[]
+  reviews        Review[]
+  certificates   Certificate[]
+  groups         Group[]
+  updateRequests CourseUpdateRequest[]
+  coupons        Coupon[]
 
   @@index([status, deletedAt])
   @@index([categoryId])
@@ -194,25 +195,25 @@ model CourseInstructor {
 
 // Course Update Request - for instructors to request changes to published courses
 model CourseUpdateRequest {
-  id          String   @id @default(uuid()) @db.Uuid
-  courseId    String   @db.Uuid
-  instructorId String  @db.Uuid
-  title       String?  @db.VarChar(255)
-  description String?  @db.Text
-  price       Decimal? @db.Decimal(10, 2)
-  level       String?  @db.VarChar(50)
-  thumbnail   String?  @db.VarChar(500)
-  status      String   @default("PENDING") @db.VarChar(50) // 'PENDING', 'APPROVED', 'REJECTED'
-  reviewedBy  String?  @db.Uuid
-  reviewedAt  DateTime?
-  rejectionReason String? @db.Text
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String    @id @default(uuid()) @db.Uuid
+  courseId        String    @db.Uuid
+  instructorId    String    @db.Uuid
+  title           String?   @db.VarChar(255)
+  description     String?   @db.Text
+  price           Decimal?  @db.Decimal(10, 2)
+  level           String?   @db.VarChar(50)
+  thumbnail       String?   @db.VarChar(500)
+  status          String    @default("PENDING") @db.VarChar(50) // 'PENDING', 'APPROVED', 'REJECTED'
+  reviewedBy      String?   @db.Uuid
+  reviewedAt      DateTime?
+  rejectionReason String?   @db.Text
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   // Relations
-  course    Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course     Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
   instructor User   @relation(fields: [instructorId], references: [id], onDelete: Cascade)
-  reviewer  User?  @relation("CourseUpdateRequestReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  reviewer   User?  @relation("CourseUpdateRequestReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([instructorId])
@@ -277,13 +278,13 @@ model Assignment {
 }
 
 model Submission {
-  id           String    @id @default(uuid()) @db.Uuid
-  assignmentId String    @db.Uuid
-  userId       String    @db.Uuid
-  fileUrl      String?   @db.VarChar(500)
-  grade        Decimal?  @db.Decimal(5, 2)
-  feedback     String?   @db.Text
-  submittedAt  DateTime  @default(now())
+  id           String   @id @default(uuid()) @db.Uuid
+  assignmentId String   @db.Uuid
+  userId       String   @db.Uuid
+  fileUrl      String?  @db.VarChar(500)
+  grade        Decimal? @db.Decimal(5, 2)
+  feedback     String?  @db.Text
+  submittedAt  DateTime @default(now())
 
   // Relations
   assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
@@ -323,17 +324,17 @@ model Payment {
   couponId             String?   @db.Uuid
 
   // Wafacash robust validation fields
-  mtcn                 String?   @db.VarChar(50)
-  receiptUrl           String?   @db.VarChar(500)
-  
+  mtcn       String? @db.VarChar(50)
+  receiptUrl String? @db.VarChar(500)
+
   // Bank Transfer (Virement) fields
-  rib                  String?   @db.VarChar(50) // RIB submitted by user
-  transferReceiptUrl   String?   @db.VarChar(500) // Transfer receipt image
-  
+  rib                String? @db.VarChar(50) // RIB submitted by user
+  transferReceiptUrl String? @db.VarChar(500) // Transfer receipt image
+
   // Common verification fields
-  verifiedBy           String?   @db.Uuid
-  verifiedAt           DateTime?
-  notes                String?   @db.Text
+  verifiedBy String?   @db.Uuid
+  verifiedAt DateTime?
+  notes      String?   @db.Text
 
   // Relations
   enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
@@ -393,7 +394,7 @@ model AppSetting {
   allowRegistrations  Boolean  @default(true)
   maintenanceMode     Boolean  @default(false)
   emailNotifications  Boolean  @default(true)
-  updatedAt           DateTime @updatedAt @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
 
   @@map("app_settings")
 }
@@ -409,12 +410,12 @@ model Coupon {
 
   // A null courseId is a global coupon (admin); a set courseId scopes the coupon
   // to that single course. createdById records who created it (admin/instructor).
-  courseId       String?  @db.Uuid
-  createdById    String?  @db.Uuid
+  courseId    String? @db.Uuid
+  createdById String? @db.Uuid
 
   // Relations
   payments Payment[]
-  course   Course?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  course   Course?   @relation(fields: [courseId], references: [id], onDelete: SetNull)
 
   @@index([courseId])
   @@index([createdById])
@@ -441,7 +442,7 @@ model Question {
   id            String @id @default(uuid()) @db.Uuid
   quizId        String @db.Uuid
   statement     String @db.Text
-  options       Json?  // Array of strings: ["Option A", "Option B", "Option C", "Option D"]
+  options       Json? // Array of strings: ["Option A", "Option B", "Option C", "Option D"]
   correctAnswer String @db.Text // Must match one of the options exactly
 
   // Relations
@@ -512,6 +513,7 @@ model Notification {
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId, isRead])
   @@map("notifications")
 }
 
@@ -559,15 +561,15 @@ model Certificate {
 // ─── Module 8: Sessions Live (Meeting) ───────────────────────────────────────
 
 model Meeting {
-  id             String   @id @default(uuid()) @db.Uuid
-  courseId       String   @db.Uuid
-  title          String   @db.VarChar(255)
-  meetingUrl     String   @db.VarChar(500)
-  meetingDate    DateTime
-  roomName       String?  @db.VarChar(255)
-  status         String   @default("SCHEDULED") @db.VarChar(50) // 'SCHEDULED', 'LIVE', 'COMPLETED'
+  id              String   @id @default(uuid()) @db.Uuid
+  courseId        String   @db.Uuid
+  title           String   @db.VarChar(255)
+  meetingUrl      String   @db.VarChar(500)
+  meetingDate     DateTime
+  roomName        String?  @db.VarChar(255)
+  status          String   @default("SCHEDULED") @db.VarChar(50) // 'SCHEDULED', 'LIVE', 'COMPLETED'
   durationMinutes Int?
-  recordingUrl   String?  @db.VarChar(500)
+  recordingUrl    String?  @db.VarChar(500)
 
   // Relations
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
@@ -590,8 +592,13 @@ model AuditLog {
   // Relations
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
+  @@index([createdAt])
+  @@index([userId])
+  @@index([action])
+  @@index([resource])
   @@map("audit_logs")
 }
+
 // ─── Module 10: Groupes de Formation (Group) ────────────────────────────────
 
 model Group {

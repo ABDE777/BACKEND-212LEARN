@@ -218,6 +218,28 @@ export const refundPayment = async (req, res, next) => {
   }
 };
 
+// The distinct action/resource values (for the filter dropdowns) change rarely
+// but scanning audit_logs for them on every page load is expensive once the
+// table is large. Cache them briefly in-process.
+let auditFilterCache = { at: 0, actions: [], resources: [] };
+const AUDIT_FILTER_TTL_MS = 5 * 60 * 1000;
+
+const getAuditFilterOptions = async () => {
+  if (Date.now() - auditFilterCache.at < AUDIT_FILTER_TTL_MS) {
+    return { actions: auditFilterCache.actions, resources: auditFilterCache.resources };
+  }
+  const [actions, resources] = await Promise.all([
+    prisma.auditLog.findMany({ distinct: ['action'], select: { action: true }, orderBy: { action: 'asc' } }),
+    prisma.auditLog.findMany({ distinct: ['resource'], select: { resource: true }, orderBy: { resource: 'asc' } }),
+  ]);
+  auditFilterCache = {
+    at: Date.now(),
+    actions: actions.map((a) => a.action).filter(Boolean),
+    resources: resources.map((r) => r.resource).filter(Boolean),
+  };
+  return { actions: auditFilterCache.actions, resources: auditFilterCache.resources };
+};
+
 // ─── GET /api/v1/admin/audit-logs ────────────────────────────────────────────
 // Fetch paginated action audit logs for every user (not only admins), with
 // optional filters: action, resource, role, free-text search over the actor's
@@ -255,7 +277,7 @@ export const getAuditLogs = async (req, res, next) => {
       }
     }
 
-    const [total, logs, actions, resources] = await Promise.all([
+    const [total, logs, filters] = await Promise.all([
       prisma.auditLog.count({ where }),
       prisma.auditLog.findMany({
         where,
@@ -268,22 +290,12 @@ export const getAuditLogs = async (req, res, next) => {
           },
         },
       }),
-      // Distinct action/resource values power the filter dropdowns on the client.
-      prisma.auditLog.findMany({ distinct: ['action'], select: { action: true }, orderBy: { action: 'asc' } }),
-      prisma.auditLog.findMany({ distinct: ['resource'], select: { resource: true }, orderBy: { resource: 'asc' } }),
+      // Distinct action/resource values power the filter dropdowns (cached).
+      getAuditFilterOptions(),
     ]);
 
     res.status(200).json(
-      successResponse(
-        {
-          logs,
-          filters: {
-            actions: actions.map((a) => a.action).filter(Boolean),
-            resources: resources.map((r) => r.resource).filter(Boolean),
-          },
-        },
-        paginationMeta(total, page, limit)
-      )
+      successResponse({ logs, filters }, paginationMeta(total, page, limit))
     );
   } catch (error) {
     next(error);
