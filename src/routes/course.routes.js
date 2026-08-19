@@ -10,6 +10,7 @@ import {
 } from '../controllers/course.controller.js';
 import { getCourseGroups } from '../controllers/group.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
+import { publicCache } from '../middleware/cache.js';
 
 const router = Router();
 
@@ -57,7 +58,7 @@ const router = Router();
  *             schema:
  *               $ref: '#/components/schemas/PaginatedResponse'
  */
-router.get('/', getAllCourses);
+router.get('/', publicCache(120), getAllCourses);
 
 /**
  * @swagger
@@ -76,7 +77,7 @@ router.get('/', getAllCourses);
  *       404:
  *         description: Course not found
  */
-router.get('/:id', getCourse);
+router.get('/:id', publicCache(120), getCourse);
 
 // ── Protected routes ──────────────────────────────────────────────────────────
 router.use(protect);
