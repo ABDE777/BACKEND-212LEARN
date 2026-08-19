@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { getCategories, createCategory, updateCategory, deleteCategory } from '../controllers/category.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
-import { cacheMiddleware, clearCachePattern } from '../middleware/cache.js';
+import { cacheMiddleware, clearCachePattern, publicCache } from '../middleware/cache.js';
 
 const router = Router();
 
@@ -60,7 +60,7 @@ const router = Router();
  *         description: Category name conflict
  */
 router.route('/')
-  .get(getCategories)
+  .get(publicCache(300), getCategories)
   .post(protect, restrictTo('admin'), createCategory);
 
 router.route('/:id')

@@ -53,6 +53,31 @@ export const cacheMiddleware = (ttlSeconds = 60) => {
 };
 
 /**
+ * CDN / edge cache headers for genuinely public GET endpoints (identical
+ * response for everyone: catalog, categories, public stats). Anonymous requests
+ * get `public, s-maxage=…, stale-while-revalidate=…` so a shared cache (e.g.
+ * Vercel's edge) serves them without invoking the function or hitting Postgres.
+ * Authenticated requests are marked non-storable so no per-user response is ever
+ * cached at a shared layer. Staleness is bounded by sMaxAge (no purge needed).
+ *
+ * @param {number} sMaxAge Shared-cache TTL in seconds (default 120)
+ * @param {number} swr     stale-while-revalidate window in seconds (default 600)
+ */
+export const publicCache = (sMaxAge = 120, swr = 600) => {
+  return (req, res, next) => {
+    if (req.method === 'GET' && !req.headers.authorization) {
+      res.setHeader(
+        'Cache-Control',
+        `public, max-age=60, s-maxage=${sMaxAge}, stale-while-revalidate=${swr}`
+      );
+    } else {
+      res.setHeader('Cache-Control', 'private, no-store');
+    }
+    next();
+  };
+};
+
+/**
  * Invalidate cached endpoints by URL prefix or pattern
  * @param {string} keyPattern Partial match string (e.g. '/api/v1/courses')
  */
