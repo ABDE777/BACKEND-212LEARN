@@ -73,7 +73,7 @@ export const errorHandler = (err, req, res, next) => {
 
   const body = errorResponse(safeMessage, err.code || 'INTERNAL_ERROR');
 
-  if (isDev) {
+  if (process.env.DEBUG === 'true') {
     body.stack = err.stack;
   }
 

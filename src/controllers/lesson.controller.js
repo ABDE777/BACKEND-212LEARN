@@ -22,12 +22,22 @@ export const createLesson = async (req, res, next) => {
 
     await ensureCourseManager(req.user, section.courseId);
 
-    // Auto-assign position: last lesson in section + 1
-    const lastLesson = await prisma.lesson.findFirst({
-      where: { sectionId: req.params.sectionId },
-      orderBy: { position: 'desc' },
-    });
-    const position = lastLesson ? lastLesson.position + 1 : 1;
+    // Assign position
+    let position;
+    if (req.body.position !== undefined) {
+      const parsedPos = Number(req.body.position);
+      if (!Number.isInteger(parsedPos) || parsedPos < 1) {
+        return next(new AppError('Position must be a positive integer.', 400, 'INVALID_INPUT'));
+      }
+      position = parsedPos;
+    } else {
+      // Auto-assign position: last lesson in section + 1
+      const lastLesson = await prisma.lesson.findFirst({
+        where: { sectionId: req.params.sectionId },
+        orderBy: { position: 'desc' },
+      });
+      position = lastLesson ? lastLesson.position + 1 : 1;
+    }
 
     const lesson = await prisma.lesson.create({
       data: {
@@ -61,11 +71,19 @@ export const updateLesson = async (req, res, next) => {
 
     await ensureCourseManager(req.user, lesson.section.courseId);
 
+    let parsedPosition;
+    if (position !== undefined) {
+      parsedPosition = Number(position);
+      if (!Number.isInteger(parsedPosition) || parsedPosition < 1) {
+        return next(new AppError('Position must be a positive integer.', 400, 'INVALID_INPUT'));
+      }
+    }
+
     const updated = await prisma.lesson.update({
       where: { id: req.params.id },
       data: {
-        ...(title    !== undefined && { title: title.trim() }),
-        ...(position !== undefined && { position: Number(position) }),
+        ...(title !== undefined && { title: title.trim() }),
+        ...(parsedPosition !== undefined && { position: parsedPosition }),
       },
     });
 
