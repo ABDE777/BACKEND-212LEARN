@@ -1,4 +1,25 @@
+import { createRequire } from 'module';
+import dns from 'dns/promises';
+import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { AppError } from '../middleware/error.js';
+
+const require = createRequire(import.meta.url);
+const rawDisposableDomains = require('disposable-email-domains');
+const disposableDomainsSet = new Set(rawDisposableDomains);
+
+// Extra known temporary/disposable services
+const extraDisposableDomains = [
+  'tempmail.com', 'temp-mail.org', 'tempmail.io', 'tempmail.net',
+  '10minutemail.com', '10minutemail.net', '10minmail.com',
+  'guerrillamail.com', 'guerrillamail.net', 'guerrillamail.biz',
+  'yopmail.com', 'yopmail.fr', 'yopmail.net', 'cool.fr.nf', 'jetable.fr.nf',
+  'mailinator.com', 'mailinator2.com', 'mailinater.com',
+  'mohmal.com', 'dispostable.com', 'trashmail.com', 'trashmail.net',
+  'getairmail.com', 'fakemailgenerator.com', 'generator.email',
+  'sharklasers.com', 'grr.la', 'guerrillamailblock.com',
+  'inboxkitten.com', 'burnermail.io', 'mytemp.email', 'crazymailing.com'
+];
+extraDisposableDomains.forEach((d) => disposableDomainsSet.add(d));
 
 /**
  * Validate UUID format
@@ -31,15 +52,100 @@ export const validateRequired = (body, fields) => {
 };
 
 /**
- * Validate email format
+ * Check if domain is a known disposable/temporary email provider.
+ * @param {string} email
+ * @returns {boolean}
+ */
+export const isDisposableEmail = (email) => {
+  if (!email || typeof email !== 'string') return false;
+  const parts = email.split('@');
+  if (parts.length !== 2) return false;
+  const domain = parts[1].toLowerCase().trim();
+  return disposableDomainsSet.has(domain);
+};
+
+/**
+ * Check if the email domain has active DNS MX records.
+ * @param {string} email
+ * @returns {Promise<boolean>}
+ */
+export const hasValidMxRecord = async (email) => {
+  try {
+    const parts = email.split('@');
+    if (parts.length !== 2) return false;
+    const domain = parts[1].toLowerCase().trim();
+    // 3.5 second timeout guard so DNS hiccups never block registration indefinitely
+    const resolveWithTimeout = Promise.race([
+      dns.resolveMx(domain),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('DNS_TIMEOUT')), 3500)),
+    ]);
+    const mxRecords = await resolveWithTimeout;
+    return Array.isArray(mxRecords) && mxRecords.length > 0;
+  } catch (err) {
+    if (err.message === 'DNS_TIMEOUT') return true; // Fail open on timeout to avoid blocking genuine users
+    return false;
+  }
+};
+
+/**
+ * Validate email format and reject disposable/temporary email services.
  * @param {string} email - Email to validate
- * @throws {AppError} If email is invalid
+ * @throws {AppError} If email is invalid or disposable
  */
 export const validateEmail = (email) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!email || !emailRegex.test(email)) {
-    throw new AppError('Invalid email format.', 400, 'VALIDATION_ERROR');
+    throw new AppError('Format d\'adresse email invalide.', 400, 'VALIDATION_ERROR');
   }
+
+  if (isDisposableEmail(email)) {
+    throw new AppError(
+      'Les adresses emails temporaires ou jetables (tempmail) ne sont pas autorisées. Veuillez utiliser une adresse email valide et permanente.',
+      400,
+      'VALIDATION_ERROR'
+    );
+  }
+};
+
+/**
+ * Async validation: format + disposable check + DNS MX check.
+ * @param {string} email
+ */
+export const validateEmailAsync = async (email) => {
+  validateEmail(email);
+
+  const hasMx = await hasValidMxRecord(email);
+  if (!hasMx) {
+    throw new AppError(
+      'Le domaine de cette adresse email ne possède pas de serveur de messagerie valide ou n\'existe pas.',
+      400,
+      'VALIDATION_ERROR'
+    );
+  }
+};
+
+/**
+ * Validate phone number using libphonenumber-js.
+ * Enforces valid international phone formats (defaults to Morocco 'MA' if country not specified).
+ * @param {string} phone - Raw phone number string
+ * @param {string} defaultCountry - Default country code (e.g. 'MA', 'FR', etc.)
+ * @returns {string|null} - Formatted international phone number or null
+ * @throws {AppError} If phone number is invalid
+ */
+export const validatePhoneNumber = (phone, defaultCountry = 'MA') => {
+  if (!phone || !String(phone).trim()) return null;
+  const raw = String(phone).trim();
+
+  const phoneNumber = parsePhoneNumberFromString(raw, defaultCountry);
+  if (!phoneNumber || !phoneNumber.isValid()) {
+    throw new AppError(
+      'Numéro de téléphone invalide. Veuillez saisir un numéro de téléphone valide avec son indicatif (ex: +212 6 12 34 56 78 ou 06 12 34 56 78).',
+      400,
+      'VALIDATION_ERROR'
+    );
+  }
+
+  return phoneNumber.formatInternational();
 };
 
 /**

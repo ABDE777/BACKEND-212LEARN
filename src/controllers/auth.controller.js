@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
-import { validateRequired, validateEmail, validatePassword } from '../utils/validation.js';
+import { validateRequired, validateEmail, validateEmailAsync, validatePhoneNumber, isDisposableEmail, validatePassword } from '../utils/validation.js';
 import { validateLearnerProfile, validateInstructorProfile, toDateOrNull } from '../utils/registrationValidation.js';
 import { sendPasswordResetEmail, sendAccountRestoreOtpEmail, sendVerificationEmail } from '../utils/email.js';
 import { getJwtSecret } from '../config/jwt.js';
@@ -92,9 +92,11 @@ export const register = async (req, res, next) => {
     } = req.body;
 
     validateRequired(req.body, ['firstName', 'lastName', 'email', 'password', 'role']);
-    validateEmail(email);
+    await validateEmailAsync(email);
 
     validatePassword(password);
+
+    const formattedPhone = phone ? validatePhoneNumber(phone) : null;
 
     if (!['student', 'instructor', 'employee'].includes(role)) {
       return next(new AppError('Invalid role. Only student, instructor, and employee roles are allowed for public registration.', 400, 'VALIDATION_ERROR'));
@@ -127,7 +129,7 @@ export const register = async (req, res, next) => {
       email: email.trim().toLowerCase(),
       passwordHash,
       role,
-      phone: phone || null,
+      phone: formattedPhone || null,
       isVerified: false,
     };
 
@@ -345,9 +347,22 @@ export const checkEmail = async (req, res, next) => {
       return res.status(200).json({ success: true, available: true, exists: false });
     }
 
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Reject disposable / tempmail addresses immediately
+    if (isDisposableEmail(cleanEmail)) {
+      return res.status(200).json({
+        success: true,
+        available: false,
+        exists: false,
+        isDisposable: true,
+        message: 'Les emails temporaires ou jetables (tempmail) ne sont pas autorisés.',
+      });
+    }
+
     // Index-using lookup on the normalized email (emails are stored lowercased).
     const existingUser = await prisma.user.findUnique({
-      where: { email: email.trim().toLowerCase() },
+      where: { email: cleanEmail },
       select: { id: true, deletedAt: true },
     });
     const taken = Boolean(existingUser && !existingUser.deletedAt);
@@ -370,9 +385,23 @@ export const checkPhone = async (req, res, next) => {
     }
 
     const cleanPhone = phone.trim();
+    let formattedPhone = cleanPhone;
+
+    // Validate phone number format
+    try {
+      formattedPhone = validatePhoneNumber(cleanPhone);
+    } catch (err) {
+      return res.status(200).json({
+        success: true,
+        available: false,
+        isValid: false,
+        message: 'Numéro de téléphone invalide.',
+      });
+    }
+
     const existingUser = await prisma.user.findFirst({
       where: {
-        phone: { equals: cleanPhone },
+        phone: { in: [cleanPhone, formattedPhone] },
         deletedAt: null,
       },
       select: { id: true },
@@ -382,6 +411,8 @@ export const checkPhone = async (req, res, next) => {
       success: true,
       available: !existingUser,
       exists: !!existingUser,
+      isValid: true,
+      formattedPhone,
     });
   } catch (error) {
     next(error);

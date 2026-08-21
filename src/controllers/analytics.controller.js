@@ -4,7 +4,7 @@ import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { validateUUID } from '../utils/validation.js';
 
-// ── Helper: Get instructor's course IDs ─────────────────────────────────────
+// ── Helper: courses via CourseInstructor (content-management scope) ───────────
 const getInstructorCourseIds = async (userId) => {
   const links = await prisma.courseInstructor.findMany({
     where: { userId },
@@ -13,44 +13,75 @@ const getInstructorCourseIds = async (userId) => {
   return links.map((l) => l.courseId);
 };
 
+// ── Helper: student IDs in groups WHERE this user is the formateur ─────────────
+// This is the "real teaching scope" — revenue = only from students they teach.
+const getFormateurGroupStudentIds = async (userId) => {
+  const gs = await prisma.groupStudent.findMany({
+    where: { group: { formateurId: userId, deletedAt: null } },
+    select: { userId: true },
+  });
+  return [...new Set(gs.map((g) => g.userId))];
+};
+
+// ── Helper: course IDs of groups WHERE this user is the formateur ──────────────
+const getFormateurGroupCourseIds = async (userId) => {
+  const groups = await prisma.group.findMany({
+    where: { formateurId: userId, deletedAt: null, courseId: { not: null } },
+    select: { courseId: true },
+  });
+  return [...new Set(groups.map((g) => g.courseId).filter(Boolean))];
+};
+
 // ─── GET /api/v1/instructor/analytics/revenue ─────────────────────────────────
-// Monthly revenue trend for an instructor's courses (last 12 months).
-// Admin sees global revenue when accessing this endpoint.
+// Revenue from students this instructor TEACHES via Groups.
+// Falls back to CourseInstructor scope if no groups exist yet.
+// Admin sees global revenue.
 export const getRevenueAnalytics = async (req, res, next) => {
   try {
     const isAdmin = req.user.role === 'admin';
 
-    // Build course filter
-    let courseIds = null;
+    let studentIds = null;
+    let courseIds  = null;
+    let scope      = 'global';
+
     if (!isAdmin) {
-      courseIds = await getInstructorCourseIds(req.user.id);
-      if (courseIds.length === 0) {
+      studentIds = await getFormateurGroupStudentIds(req.user.id);
+      courseIds  = await getFormateurGroupCourseIds(req.user.id);
+
+      if (studentIds.length > 0) {
+        scope = 'group_students'; // formateur has groups → scope to their students
+      } else {
+        // Fallback: no groups yet, use CourseInstructor scope
+        courseIds  = await getInstructorCourseIds(req.user.id);
+        studentIds = null;
+        scope      = 'course_instructor';
+      }
+
+      if ((courseIds?.length ?? 0) === 0 && !studentIds) {
         return res.status(200).json(
-          successResponse({ totalRevenue: 0, currency: 'MAD', monthly: [], topCourses: [] })
+          successResponse({ totalRevenue: 0, currency: 'MAD', monthly: [], topCourses: [], scope })
         );
       }
     }
 
-    // Aggregate in the database (GROUP BY) instead of loading every PAID payment
-    // into memory — the result sets are tiny (one row per month; top 5 courses),
-    // so this stays flat no matter how many sales an instructor accrues.
-    const courseFilter = courseIds
+    const courseFilter = courseIds?.length
       ? Prisma.sql`AND e."courseId" = ANY(ARRAY[${Prisma.join(courseIds)}]::uuid[])`
+      : Prisma.empty;
+    const studentFilter = studentIds?.length
+      ? Prisma.sql`AND e."userId" = ANY(ARRAY[${Prisma.join(studentIds)}]::uuid[])`
       : Prisma.empty;
 
     const [monthlyRows, topRows] = await Promise.all([
-      // Monthly revenue rollup across all time (one row per month).
       prisma.$queryRaw`
         SELECT to_char(date_trunc('month', COALESCE(p."paidAt", e."enrolledAt")), 'YYYY-MM') AS month,
                COALESCE(SUM(p."amount"), 0)::float8 AS revenue,
                COUNT(*)::int AS enrollments
         FROM "payments" p
         JOIN "enrollments" e ON e."id" = p."enrollmentId"
-        WHERE p."status" = 'PAID' ${courseFilter}
+        WHERE p."status" = 'PAID' ${courseFilter} ${studentFilter}
         GROUP BY 1
         ORDER BY 1 ASC
       `,
-      // Top 5 courses by revenue.
       prisma.$queryRaw`
         SELECT e."courseId"::text AS "courseId", c."title" AS title,
                COALESCE(SUM(p."amount"), 0)::float8 AS revenue,
@@ -58,7 +89,7 @@ export const getRevenueAnalytics = async (req, res, next) => {
         FROM "payments" p
         JOIN "enrollments" e ON e."id" = p."enrollmentId"
         JOIN "courses" c ON c."id" = e."courseId"
-        WHERE p."status" = 'PAID' ${courseFilter}
+        WHERE p."status" = 'PAID' ${courseFilter} ${studentFilter}
         GROUP BY e."courseId", c."title"
         ORDER BY revenue DESC
         LIMIT 5
@@ -71,13 +102,11 @@ export const getRevenueAnalytics = async (req, res, next) => {
       enrollments: Number(r.enrollments),
     }));
     const byMonth = Object.fromEntries(monthlyAll.map((m) => [m.month, m]));
-
-    const monthly = monthlyAll.slice(-12); // Last 12 months for the chart
-    const totalRevenue = monthlyAll.reduce((sum, m) => sum + m.revenue, 0);
+    const monthly          = monthlyAll.slice(-12);
+    const totalRevenue     = monthlyAll.reduce((sum, m) => sum + m.revenue, 0);
     const totalEnrollments = monthlyAll.reduce((sum, m) => sum + m.enrollments, 0);
 
-    // Current vs previous calendar month, for a month-over-month growth figure.
-    const now = new Date();
+    const now     = new Date();
     const curKey  = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const prevD   = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const prevKey = `${prevD.getFullYear()}-${String(prevD.getMonth() + 1).padStart(2, '0')}`;
@@ -90,25 +119,41 @@ export const getRevenueAnalytics = async (req, res, next) => {
       growth = 100;
     }
     const averageOrderValue = totalEnrollments > 0 ? totalRevenue / totalEnrollments : 0;
+    const defaultShare = 70; // 70% instructor share
+    const instructorEarnings = Number((totalRevenue * (defaultShare / 100)).toFixed(2));
+    const currentMonthEarnings = Number((currentMonthRevenue * (defaultShare / 100)).toFixed(2));
+    const previousMonthEarnings = Number((previousMonthRevenue * (defaultShare / 100)).toFixed(2));
+    const platformRetention = Number((totalRevenue * ((100 - defaultShare) / 100)).toFixed(2));
 
     const topCourses = topRows.map((c) => ({
       courseId: c.courseId,
-      title: c.title,
-      revenue: Number(Number(c.revenue).toFixed(2)),
+      title:    c.title,
+      revenue:  Number(Number(c.revenue).toFixed(2)),
+      instructorEarnings: Number((Number(c.revenue) * (defaultShare / 100)).toFixed(2)),
       students: Number(c.students),
     }));
 
     res.status(200).json(
       successResponse({
         totalRevenue: Number(totalRevenue.toFixed(2)),
+        instructorEarnings,
+        currentMonthEarnings,
+        previousMonthEarnings,
+        platformRetention,
+        instructorSharePercentage: defaultShare,
         currency: 'MAD',
         totalEnrollments,
-        currentMonthRevenue: Number(currentMonthRevenue.toFixed(2)),
+        currentMonthRevenue:  Number(currentMonthRevenue.toFixed(2)),
         previousMonthRevenue: Number(previousMonthRevenue.toFixed(2)),
         growth,
         averageOrderValue: Number(averageOrderValue.toFixed(2)),
-        monthly: monthly.map((m) => ({ ...m, revenue: Number(m.revenue.toFixed(2)) })),
+        monthly: monthly.map((m) => ({
+          ...m,
+          revenue: Number(m.revenue.toFixed(2)),
+          instructorEarnings: Number((m.revenue * (defaultShare / 100)).toFixed(2)),
+        })),
         topCourses,
+        scope,
       })
     );
   } catch (error) {
@@ -117,23 +162,41 @@ export const getRevenueAnalytics = async (req, res, next) => {
 };
 
 // ─── GET /api/v1/instructor/analytics/students ───────────────────────────────
-// Active student metrics per course for an instructor.
+// Students this instructor TEACHES via Groups. Admin sees all.
 export const getStudentAnalytics = async (req, res, next) => {
   try {
     const isAdmin = req.user.role === 'admin';
-    let courseIds = null;
+    let studentUserIds = null;
+    let courseIds      = null;
+    let groupsTaught   = [];
 
     if (!isAdmin) {
-      courseIds = await getInstructorCourseIds(req.user.id);
-      if (courseIds.length === 0) {
-        return res.status(200).json(successResponse({ totalStudents: 0, courses: [] }));
+      studentUserIds = await getFormateurGroupStudentIds(req.user.id);
+      courseIds      = await getFormateurGroupCourseIds(req.user.id);
+
+      groupsTaught = await prisma.group.findMany({
+        where: { formateurId: req.user.id, deletedAt: null },
+        select: {
+          id: true,
+          name: true,
+          course: { select: { id: true, title: true } },
+          students: { select: { id: true } },
+        },
+      });
+
+      if (studentUserIds.length === 0) {
+        courseIds      = await getInstructorCourseIds(req.user.id);
+        studentUserIds = null;
+      }
+      if ((courseIds?.length ?? 0) === 0 && !studentUserIds) {
+        return res.status(200).json(successResponse({ totalStudents: 0, courses: [], groups: [] }));
       }
     }
 
-    // Fetch enrollments with PAID payments
     const enrollments = await prisma.enrollment.findMany({
       where: {
-        ...(courseIds && { courseId: { in: courseIds } }),
+        ...(courseIds      && { courseId: { in: courseIds } }),
+        ...(studentUserIds && { userId:   { in: studentUserIds } }),
         payment: { status: 'PAID' },
       },
       include: {
@@ -182,6 +245,12 @@ export const getStudentAnalytics = async (req, res, next) => {
         totalEnrollments: enrollments.length,
         newStudentsThisMonth: newStudentIds.size,
         courses: Object.values(courseMap).sort((a, b) => b.students - a.students),
+        groups: groupsTaught.map((g) => ({
+          id: g.id,
+          name: g.name,
+          courseTitle: g.course?.title || 'Général',
+          studentsCount: g.students.length,
+        })),
       })
     );
   } catch (error) {
@@ -190,15 +259,21 @@ export const getStudentAnalytics = async (req, res, next) => {
 };
 
 // ─── GET /api/v1/instructor/analytics/completion ─────────────────────────────
-// Course completion rates: % of students who completed all lessons per course.
+// Completion rates scoped to students the formateur teaches via Groups.
 export const getCompletionAnalytics = async (req, res, next) => {
   try {
     const isAdmin = req.user.role === 'admin';
-    let courseIds = null;
+    let studentUserIds = null;
+    let courseIds      = null;
 
     if (!isAdmin) {
-      courseIds = await getInstructorCourseIds(req.user.id);
-      if (courseIds.length === 0) {
+      studentUserIds = await getFormateurGroupStudentIds(req.user.id);
+      courseIds      = await getFormateurGroupCourseIds(req.user.id);
+      if (studentUserIds.length === 0) {
+        courseIds      = await getInstructorCourseIds(req.user.id);
+        studentUserIds = null;
+      }
+      if ((courseIds?.length ?? 0) === 0 && !studentUserIds) {
         return res.status(200).json(successResponse({ courses: [] }));
       }
     }
@@ -214,7 +289,10 @@ export const getCompletionAnalytics = async (req, res, next) => {
           include: { lessons: { select: { id: true } } },
         },
         enrollments: {
-          where: { payment: { status: 'PAID' } },
+          where: {
+            payment: { status: 'PAID' },
+            ...(studentUserIds && { userId: { in: studentUserIds } }),
+          },
           select: { userId: true },
         },
       },

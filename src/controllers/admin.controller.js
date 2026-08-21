@@ -957,3 +957,250 @@ export const getAdminStats = async (req, res, next) => {
     next(error);
   }
 };
+
+// ─── GET /api/v1/admin/analytics/instructors ──────────────────────────────────
+// Returns detailed financial breakdown and teaching metrics for every instructor.
+// Computes revenue generated per instructor from students they teach (via Groups or assigned courses),
+// along with payout due (e.g. 70% instructor share) and platform retention (30%).
+export const getInstructorFinancials = async (req, res, next) => {
+  try {
+    const defaultShare = Number(req.query.sharePercentage) || 70; // 70% default payout rate
+
+    // Fetch all active instructors with their profiles, assigned courses and groups
+    const instructors = await prisma.user.findMany({
+      where: { role: 'instructor', deletedAt: null },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        avatar: true,
+        phone: true,
+        isVerified: true,
+        createdAt: true,
+        instructorProfile: {
+          select: {
+            specialization: true,
+            organization: true,
+            position: true,
+            experienceYears: true,
+          },
+        },
+        coursesInstructed: {
+          select: {
+            role: true,
+            course: {
+              select: {
+                id: true,
+                title: true,
+                price: true,
+                status: true,
+                level: true,
+              },
+            },
+          },
+        },
+        groupsTaught: {
+          where: { deletedAt: null },
+          select: {
+            id: true,
+            name: true,
+            courseId: true,
+            course: { select: { id: true, title: true, price: true } },
+            students: {
+              select: {
+                userId: true,
+                createdAt: true,
+                user: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { firstName: 'asc' },
+    });
+
+    // Fetch all PAID payments with enrollment info
+    const paidPayments = await prisma.payment.findMany({
+      where: { status: 'PAID' },
+      select: {
+        id: true,
+        amount: true,
+        currency: true,
+        provider: true,
+        transactionReference: true,
+        paidAt: true,
+        enrollment: {
+          select: {
+            id: true,
+            userId: true,
+            courseId: true,
+            enrolledAt: true,
+            user: { select: { id: true, firstName: true, lastName: true, email: true } },
+            course: { select: { id: true, title: true, price: true } },
+          },
+        },
+      },
+      orderBy: { paidAt: 'desc' },
+    });
+
+    // Calculate metrics for each instructor
+    const instructorReports = instructors.map((inst) => {
+      // 1. Group teaching scope
+      const groupStudentsMap = new Map();
+      const taughtGroupCourseIds = new Set();
+
+      inst.groupsTaught.forEach((g) => {
+        if (g.courseId) taughtGroupCourseIds.add(g.courseId);
+        g.students.forEach((s) => {
+          if (!groupStudentsMap.has(s.userId)) {
+            groupStudentsMap.set(s.userId, {
+              user: s.user,
+              joinedAt: s.createdAt,
+              groups: [],
+            });
+          }
+          groupStudentsMap.get(s.userId).groups.push(g.name);
+        });
+      });
+
+      const groupStudentIds = new Set(groupStudentsMap.keys());
+
+      // 2. Managed course IDs
+      const managedCourseIds = new Set(
+        inst.coursesInstructed.map((ci) => ci.course?.id).filter(Boolean)
+      );
+
+      // All course IDs linked to this instructor
+      const allCourseIds = new Set([...taughtGroupCourseIds, ...managedCourseIds]);
+
+      let matchingPayments = [];
+      let scope = 'group_students';
+
+      if (groupStudentIds.size > 0) {
+        matchingPayments = paidPayments.filter((p) => {
+          const pUserId = p.enrollment?.userId;
+          const pCourseId = p.enrollment?.courseId;
+          return groupStudentIds.has(pUserId) && (allCourseIds.has(pCourseId) || taughtGroupCourseIds.has(pCourseId));
+        });
+      } else if (managedCourseIds.size > 0) {
+        scope = 'course_instructor';
+        matchingPayments = paidPayments.filter((p) => {
+          const pCourseId = p.enrollment?.courseId;
+          return managedCourseIds.has(pCourseId);
+        });
+      }
+
+      const totalRevenue = matchingPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+      const instructorEarnings = Number((totalRevenue * (defaultShare / 100)).toFixed(2));
+      const platformFee = Number((totalRevenue * ((100 - defaultShare) / 100)).toFixed(2));
+
+      const uniqueStudentIds = groupStudentIds.size > 0
+        ? groupStudentIds.size
+        : new Set(matchingPayments.map((p) => p.enrollment?.userId).filter(Boolean)).size;
+
+      // Course breakdown
+      const coursesSummary = Array.from(allCourseIds).map((cId) => {
+        const ci = inst.coursesInstructed.find((c) => c.course?.id === cId);
+        const groupMatch = inst.groupsTaught.find((g) => g.courseId === cId);
+        const title = ci?.course?.title || groupMatch?.course?.title || 'Cours';
+        const price = ci?.course?.price || groupMatch?.course?.price || 0;
+        const coursePayments = matchingPayments.filter((p) => p.enrollment?.courseId === cId);
+        const courseRev = coursePayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+        return {
+          courseId: cId,
+          title,
+          price: Number(price),
+          paymentsCount: coursePayments.length,
+          revenueGenerated: Number(courseRev.toFixed(2)),
+          instructorEarnings: Number((courseRev * (defaultShare / 100)).toFixed(2)),
+        };
+      });
+
+      return {
+        instructor: {
+          id: inst.id,
+          firstName: inst.firstName,
+          lastName: inst.lastName,
+          email: inst.email,
+          avatar: inst.avatar,
+          phone: inst.phone,
+          isVerified: inst.isVerified,
+          createdAt: inst.createdAt,
+          specialization: inst.instructorProfile?.specialization || 'Formateur',
+          organization: inst.instructorProfile?.organization || null,
+        },
+        teachingScope: scope,
+        metrics: {
+          coursesCount: allCourseIds.size,
+          groupsCount: inst.groupsTaught.length,
+          studentsCount: uniqueStudentIds,
+          paidTransactionsCount: matchingPayments.length,
+          totalRevenueGenerated: Number(totalRevenue.toFixed(2)),
+          instructorSharePercentage: defaultShare,
+          instructorPayoutDue: instructorEarnings,
+          platformRetention: platformFee,
+          currency: 'MAD',
+        },
+        groups: inst.groupsTaught.map((g) => ({
+          id: g.id,
+          name: g.name,
+          courseTitle: g.course?.title || 'Général',
+          studentsCount: g.students.length,
+        })),
+        courses: coursesSummary,
+        recentPayments: matchingPayments.slice(0, 5).map((p) => ({
+          id: p.id,
+          amount: Number(p.amount),
+          currency: p.currency,
+          paidAt: p.paidAt,
+          provider: p.provider,
+          studentName: `${p.enrollment?.user?.firstName || ''} ${p.enrollment?.user?.lastName || ''}`.trim(),
+          studentEmail: p.enrollment?.user?.email,
+          courseTitle: p.enrollment?.course?.title,
+        })),
+      };
+    });
+
+    // Overall summary KPIs across all instructors
+    const grandTotalRevenue = instructorReports.reduce((s, r) => s + r.metrics.totalRevenueGenerated, 0);
+    const grandTotalPayoutDue = instructorReports.reduce((s, r) => s + r.metrics.instructorPayoutDue, 0);
+    const grandTotalPlatformFee = instructorReports.reduce((s, r) => s + r.metrics.platformRetention, 0);
+    const grandTotalStudentsTaught = instructorReports.reduce((s, r) => s + r.metrics.studentsCount, 0);
+
+    const sortedByRevenue = [...instructorReports].sort((a, b) => b.metrics.totalRevenueGenerated - a.metrics.totalRevenueGenerated);
+    const topInstructor = sortedByRevenue[0]?.metrics.totalRevenueGenerated > 0 ? sortedByRevenue[0] : null;
+
+    res.status(200).json(
+      successResponse({
+        summary: {
+          totalInstructors: instructors.length,
+          totalRevenueGenerated: Number(grandTotalRevenue.toFixed(2)),
+          totalPayoutDue: Number(grandTotalPayoutDue.toFixed(2)),
+          totalPlatformRetention: Number(grandTotalPlatformFee.toFixed(2)),
+          totalStudentsTaught: grandTotalStudentsTaught,
+          defaultSharePercentage: defaultShare,
+          currency: 'MAD',
+          topInstructor: topInstructor ? {
+            id: topInstructor.instructor.id,
+            name: `${topInstructor.instructor.firstName} ${topInstructor.instructor.lastName}`,
+            revenue: topInstructor.metrics.totalRevenueGenerated,
+            payoutDue: topInstructor.metrics.instructorPayoutDue,
+            students: topInstructor.metrics.studentsCount,
+          } : null,
+        },
+        instructors: sortedByRevenue,
+      })
+    );
+  } catch (error) {
+    next(error);
+  }
+};

@@ -2,7 +2,7 @@ import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse, paginationMeta, parsePagination, parseSort } from '../utils/response.js';
 import { cloudinary } from '../config/cloudinary.js';
-import { validateUUID, validateHttpUrl } from '../utils/validation.js';
+import { validateUUID, validateHttpUrl, validatePhoneNumber } from '../utils/validation.js';
 import { toDateOrNull } from '../utils/registrationValidation.js';
 import { validatePortfolio } from '../utils/portfolioValidation.js';
 
@@ -133,6 +133,10 @@ export const updateMe = async (req, res, next) => {
     // Reject dangerous URL schemes (javascript:/data:) in the avatar field.
     if (userData.avatar) {
       validateHttpUrl(userData.avatar, 'avatar');
+    }
+
+    if (userData.phone) {
+      userData.phone = validatePhoneNumber(userData.phone);
     }
 
     // Portfolio fields (skills, languages, certifications, diplomas, socialLinks)

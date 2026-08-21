@@ -469,14 +469,15 @@ model QuizAttempt {
 // ─── Module 6: Social & Suivi (Social) ──────────────────────────────────────
 
 model LessonProgress {
-  id            String    @id @default(uuid()) @db.Uuid
-  userId        String    @db.Uuid
-  lessonId      String    @db.Uuid
-  completed     Boolean
-  videoPosition Int
-  timeSpent     Int
-  startedAt     DateTime  @default(now())
-  completedAt   DateTime?
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @db.Uuid
+  lessonId       String    @db.Uuid
+  completed      Boolean   @default(false)
+  videoCompleted Boolean   @default(false)  // true once the student watched ≥98% of the lesson video
+  videoPosition  Int       @default(0)       // last known playback position in seconds (resume point)
+  timeSpent      Int       @default(0)
+  startedAt      DateTime  @default(now())
+  completedAt    DateTime?
 
   // Relations
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)

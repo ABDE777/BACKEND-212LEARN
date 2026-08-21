@@ -6,7 +6,7 @@ import {
   verifyPayment,
 } from '../controllers/wafacash.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
-import { upload } from '../config/cloudinary.js';
+import { upload, uploadReceipt } from '../config/cloudinary.js';
 
 const router = Router();
 
@@ -16,7 +16,7 @@ router.post(
   '/submit',
   protect,
   restrictTo('student'),
-  upload.single('receipt'), // Cloudinary photo upload for cash receipt
+  uploadReceipt.single('receipt'), // up to 10 MB — no Vercel constraint here
   submitWafacashTransfer
 );
 

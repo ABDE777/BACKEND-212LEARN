@@ -1,4 +1,5 @@
 import prisma from '../config/prisma.js';
+import { v2 as cloudinary } from 'cloudinary';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { ensureCourseManager } from '../utils/authorization.js';
@@ -7,7 +8,8 @@ import { validateUUID, validateRequired } from '../utils/validation.js';
 // ─── GET /courses/:courseId/curriculum ───────────────────────────────────────
 // Returns the full section → lesson tree for a course.
 // Public preview: resource URLs are REDACTED for unenrolled users.
-// Full access: admins, instructors, and enrolled students see everything.
+// Full access: admins, instructors, and enrolled students see signed video URLs
+// that expire after 1 hour — hotlinking or sharing the URL won't work.
 export const getCurriculum = async (req, res, next) => {
   try {
     validateUUID(req.params.courseId, 'courseId');
@@ -62,14 +64,94 @@ export const getCurriculum = async (req, res, next) => {
       },
     });
 
-    // Redact resource URLs for users without full access (guests + unenrolled students)
     const hasFullAccess = isPrivileged || isEnrolled;
+
+    // ── Load per-lesson progress for the current user ──────────────────────
+    // Wrapped in try/catch so a Neon auto-suspend timeout doesn't crash the
+    // whole curriculum response — we just fall back to empty progress.
+    let progressByLessonId = {};
+    if (req.user) {
+      try {
+        const lessonIds = sections.flatMap(s => s.lessons.map(l => l.id));
+        if (lessonIds.length > 0) {
+          const progresses = await prisma.lessonProgress.findMany({
+            where: { userId: req.user.id, lessonId: { in: lessonIds } },
+            select: {
+              lessonId:       true,
+              completed:      true,
+              videoCompleted: true,
+              videoPosition:  true,
+            },
+          });
+          progressByLessonId = Object.fromEntries(
+            progresses.map(p => [p.lessonId, p])
+          );
+        }
+      } catch (progressErr) {
+        // Non-fatal: log and continue — curriculum still loads, progress resets to default
+        console.warn('[getCurriculum] Could not load lesson progress:', progressErr.message);
+      }
+    }
+
+    /**
+     * For video resources served to enrolled/privileged users, replace the raw
+     * Cloudinary URL with a signed, time-limited delivery URL (1 hour TTL).
+     * This prevents the URL from being shared, hotlinked, or downloaded externally.
+     */
+    function signVideoUrl(rawUrl) {
+      if (!rawUrl || !rawUrl.includes('cloudinary.com')) return rawUrl;
+      try {
+        // Extract the public ID path after /upload/(optional-version/)
+        const uploadIdx = rawUrl.indexOf('/upload/');
+        if (uploadIdx === -1) return rawUrl;
+        let afterUpload = rawUrl.slice(uploadIdx + '/upload/'.length);
+        // Strip version segment (v1234567890/)
+        afterUpload = afterUpload.replace(/^v\d+\//, '');
+        // Strip extension — cloudinary.url() adds it back
+        const publicId = afterUpload.replace(/\.[^.]+$/, '');
+
+        return cloudinary.url(publicId, {
+          resource_type: 'video',
+          type: 'upload',
+          sign_url: true,
+          expires_at: Math.floor(Date.now() / 1000) + 3600, // 1-hour expiry
+          secure: true,
+        });
+      } catch {
+        return rawUrl; // fallback: original URL
+      }
+    }
+
+    function protectResource(resource) {
+      if (resource.type === 'video') {
+        return { ...resource, url: signVideoUrl(resource.url) };
+      }
+      return resource;
+    }
+
+    // Attach progress fields to each lesson
+    function withProgress(lesson) {
+      const p = progressByLessonId[lesson.id];
+      return {
+        ...lesson,
+        progress: p
+          ? { completed: p.completed, videoCompleted: p.videoCompleted, videoPosition: p.videoPosition }
+          : { completed: false, videoCompleted: false, videoPosition: 0 },
+      };
+    }
+
     const sanitizedSections = hasFullAccess
-      ? sections
+      ? sections.map((section) => ({
+          ...section,
+          lessons: section.lessons.map((lesson) => ({
+            ...withProgress(lesson),
+            resources: lesson.resources.map((resource) => protectResource(resource)),
+          })),
+        }))
       : sections.map((section) => ({
           ...section,
           lessons: section.lessons.map((lesson) => ({
-            ...lesson,
+            ...withProgress(lesson),
             resources: lesson.resources.map((resource) =>
               resource.type === 'link'
                 ? resource // External links can be previewed

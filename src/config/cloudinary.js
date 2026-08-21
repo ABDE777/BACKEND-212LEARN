@@ -319,6 +319,16 @@ export const upload = multer({
   limits: { fileSize: VERCEL_SAFE_UPLOAD_BYTES },
 });
 
+/**
+ * Receipt / avatar uploads served directly from this Express server (not Vercel).
+ * Images are at most 10 MB (Cloudinary Free plan image limit).
+ */
+export const uploadReceipt = multer({
+  storage,
+  fileFilter,
+  limits: { fileSize: CLOUDINARY_MAX_BYTES.image }, // 10 MB
+});
+
 /** Lesson resources via API proxy — only safe under Vercel 4.5 MB. Prefer signed direct upload. */
 export const uploadRaw = multer({
   storage: diskStorage,

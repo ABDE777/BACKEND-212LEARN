@@ -17,6 +17,7 @@ import {
   restoreUser,
   getAdminStats,
   getAdminOverview,
+  getInstructorFinancials,
 } from '../controllers/admin.controller.js';
 import { getSettings, updateSettings } from '../controllers/settings.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
@@ -26,6 +27,9 @@ const router = Router();
 // ── Admin routes (Require admin authorization) ──────────────────────────────
 router.use(protect);
 router.use(restrictTo('admin'));
+
+// Instructor financials & payout analytics
+router.get('/admin/analytics/instructors', getInstructorFinancials);
 
 // Platform settings singleton (see settings.controller.js).
 router.get('/admin/settings', getSettings);

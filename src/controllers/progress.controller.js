@@ -94,7 +94,7 @@ export const logProgress = async (req, res, next) => {
   try {
     validateUUID(req.params.lessonId, 'lessonId');
 
-    const { completed, videoPosition, timeSpent } = req.body;
+    const { completed, videoCompleted, videoPosition, timeSpent } = req.body;
     const { lessonId } = req.params;
     const userId = req.user.id;
 
@@ -108,17 +108,19 @@ export const logProgress = async (req, res, next) => {
         userId_lessonId: { userId, lessonId },
       },
       update: {
-        ...(completed     !== undefined && { completed: Boolean(completed) }),
-        ...(videoPosition !== undefined && { videoPosition: Number(videoPosition) }),
-        ...(timeSpent     !== undefined && { timeSpent: Number(timeSpent) }),
-        ...(completed     === true      && { completedAt: new Date() }),
+        ...(completed        !== undefined && { completed:        Boolean(completed) }),
+        ...(videoCompleted   !== undefined && { videoCompleted:   Boolean(videoCompleted) }),
+        ...(videoPosition    !== undefined && { videoPosition:    Number(videoPosition) }),
+        ...(timeSpent        !== undefined && { timeSpent:        Number(timeSpent) }),
+        ...(completed        === true      && { completedAt:      new Date() }),
       },
       create: {
         userId,
         lessonId,
-        completed:     Boolean(completed) || false,
-        videoPosition: Number(videoPosition) || 0,
-        timeSpent:     Number(timeSpent) || 0,
+        completed:      Boolean(completed)      || false,
+        videoCompleted: Boolean(videoCompleted) || false,
+        videoPosition:  Number(videoPosition)   || 0,
+        timeSpent:      Number(timeSpent)       || 0,
         ...(completed === true && { completedAt: new Date() }),
       },
     });
