@@ -151,8 +151,14 @@ export const getSitemap = async (req, res, next) => {
     res.set('Content-Type', 'application/xml');
     res.set('Cache-Control', 'public, max-age=3600');
     res.status(200).send(xml);
-  } catch (error) {
-    next(error);
+  } catch {
+    // Never leak internal error details on a public endpoint.
+    // Fall back to a minimal valid sitemap containing just the core pages.
+    const SITE_URL_FALLBACK = process.env.FRONTEND_URL || 'https://212learn.ma';
+    const fallbackXml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url>\n    <loc>${SITE_URL_FALLBACK}/</loc>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n</urlset>\n`;
+    res.set('Content-Type', 'application/xml');
+    res.set('Cache-Control', 'no-store');
+    res.status(200).send(fallbackXml);
   }
 };
 
