@@ -1,0 +1,10 @@
+app:
+  applicationId: ${APP_ID:cf0ffec5-ad0b-4b10-a9a3-18e91a3e07dc}
+  env: Production
+  host: https://backend-212learn.vercel.app
+  openApiConf:
+    path: /api-docs.json
+
+tags:
+  - name: _STACKHAWK_AGENT
+    value: ${HAWK_AGENT:antigravity}
