@@ -13,6 +13,8 @@
     "prisma:migrate": "prisma migrate deploy",
     "prisma:seed": "node prisma/seed.js",
     "db:clean": "node prisma/clean-db.js",
+    "db:create-admins": "node prisma/create-admins.js",
+    "db:create-demo": "node prisma/create-demo-data.js",
     "db:check": "node scripts/db-check.js",
     "db:setup": "prisma generate && prisma migrate deploy && node prisma/seed.js",
     "db:reset": "prisma migrate reset --force",

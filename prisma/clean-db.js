@@ -1,12 +1,10 @@
 /**
  * clean-db.js — reset the database to a clean launch state.
  *
- * Wipes ALL data (courses, enrollments, payments, messages, test users, …) and
- * keeps ONLY the platform admin accounts. Use this before going live to strip
- * the seed/test data.
+ * Wipes ALL data (courses, enrollments, payments, messages, test users, …) including
+ * ALL admin accounts. Use this before going live to strip the seed/test data.
  *
- * Admins kept: KEEP_ADMIN_EMAILS (comma-separated) or, by default, the two
- * accounts created by the seed script.
+ * After running this, use `npm run db:create-admins` to recreate the admin accounts.
  *
  * SAFETY: destructive. It refuses to run unless you pass `--yes` (or set
  * CONFIRM_CLEAN=yes). Without it, it prints what it would delete and exits.
@@ -16,16 +14,6 @@
  *   npm run db:clean -- --yes          # via npm script
  */
 import prisma from '../src/config/prisma.js';
-
-const DEFAULT_ADMINS = [
-  'ibrahim.challal@212learn.com',
-  'abdelmonim.mazguora@212learn.com',
-];
-
-const keepAdminEmails = (process.env.KEEP_ADMIN_EMAILS
-  ? process.env.KEEP_ADMIN_EMAILS.split(',')
-  : DEFAULT_ADMINS
-).map((e) => e.trim().toLowerCase()).filter(Boolean);
 
 const confirmed =
   process.argv.includes('--yes') ||
@@ -70,31 +58,17 @@ const WIPE_ORDER = [
 ];
 
 async function main() {
-  console.log('\n🧹 212Learn — nettoyage de la base de données\n');
+  console.log('\n🧹 212Learn — nettoyage complet de la base de données\n');
 
-  const admins = await prisma.user.findMany({
-    where: { email: { in: keepAdminEmails }, role: 'admin' },
-    select: { id: true, email: true },
-  });
-  const keepIds = admins.map((a) => a.id);
   const totalUsers = await prisma.user.count();
-
-  console.log('Admins conservés :');
-  keepAdminEmails.forEach((e) => {
-    const found = admins.find((a) => a.email.toLowerCase() === e);
-    console.log(`  ${found ? '✓' : '✗ (introuvable)'} ${e}`);
-  });
-  console.log(`\nUtilisateurs à supprimer : ${totalUsers - admins.length} / ${totalUsers}`);
+  console.log(`Utilisateurs à supprimer : ${totalUsers}`);
   console.log(`Tables entièrement vidées : ${WIPE_ORDER.length}\n`);
-
-  if (admins.length === 0) {
-    console.warn('⚠️  Aucun admin trouvé — la base pourrait se retrouver SANS utilisateur.');
-    console.warn('    Relancez le seed (étape admin) après le nettoyage, ou vérifiez KEEP_ADMIN_EMAILS.\n');
-  }
 
   if (!confirmed) {
     console.log('DRY RUN — rien n\'a été supprimé.');
     console.log('Pour exécuter réellement : node prisma/clean-db.js --yes\n');
+    console.log('⚠️  Tous les utilisateurs (y compris les admins) seront supprimés.');
+    console.log('Après le nettoyage, exécutez : npm run db:create-admins\n');
     return;
   }
 
@@ -104,16 +78,11 @@ async function main() {
     if (res.count > 0) console.log(`  - ${model}: ${res.count} supprimé(s)`);
   }
 
-  const del = await prisma.user.deleteMany({
-    where: keepIds.length ? { id: { notIn: keepIds } } : {},
-  });
+  const del = await prisma.user.deleteMany({});
   console.log(`  - user: ${del.count} supprimé(s)`);
 
-  const remaining = await prisma.user.findMany({ select: { email: true, role: true } });
-  console.log('\n✅ Nettoyage terminé.');
-  console.log(`Utilisateurs restants (${remaining.length}) :`);
-  remaining.forEach((u) => console.log(`  • ${u.email} [${u.role}]`));
-  console.log('');
+  console.log('\n✅ Nettoyage terminé. Tous les utilisateurs ont été supprimés.');
+  console.log('Pour recréer les admins, exécutez : npm run db:create-admins\n');
 }
 
 main()
