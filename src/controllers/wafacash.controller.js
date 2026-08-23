@@ -234,6 +234,7 @@ export const submitWafacashTransfer = async (req, res, next) => {
         currency: updatedPayment.currency,
         provider: 'wafacash',
         reference: paymentReference,
+        couponId: payment.couponId,
       });
     }
 

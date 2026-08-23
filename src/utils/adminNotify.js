@@ -35,6 +35,7 @@ export const resolveAdminRecipients = async () => {
  * @param {string} [args.currency]
  * @param {string} [args.provider]  - 'wafacash' | 'transfer'
  * @param {string} [args.reference] - Payment transaction reference
+ * @param {string} [args.couponId]  - Coupon ID if used
  */
 export const notifyAdminsEnrollmentPendingApproval = async ({
   userId,
@@ -43,17 +44,22 @@ export const notifyAdminsEnrollmentPendingApproval = async ({
   currency = 'MAD',
   provider,
   reference,
+  couponId,
 }) => {
   try {
-    const [student, course, recipients] = await Promise.all([
+    const [student, course, coupon, recipients] = await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
         select: { firstName: true, lastName: true, email: true },
       }),
       prisma.course.findUnique({
         where: { id: courseId },
-        select: { title: true },
+        select: { title: true, price: true },
       }),
+      couponId ? prisma.coupon.findUnique({
+        where: { id: couponId },
+        select: { code: true, discount: true },
+      }) : null,
       resolveAdminRecipients(),
     ]);
 
@@ -64,16 +70,30 @@ export const notifyAdminsEnrollmentPendingApproval = async ({
       : 'Un étudiant';
     const studentEmail = student?.email || '—';
     const courseTitle = course?.title || 'un cours';
+    const originalPrice = course?.price ? Number(course.price) : null;
+    const finalAmount = amount != null ? Number(amount) : null;
     const providerLabel = provider === 'transfer' ? 'Virement bancaire' : provider === 'wafacash' ? 'Wafacash' : (provider || '—');
-    const amountLabel = amount != null ? `${Number(amount)} ${currency}` : '—';
     const frontendUrl = (process.env.FRONTEND_URL || 'https://212-learn.vercel.app').replace(/\/$/, '');
     const dashboardLink = `${frontendUrl}/admin/dashboard?tab=payments`;
+
+    // Build price display with coupon info if applicable
+    let priceDisplay = '';
+    if (finalAmount != null) {
+      if (coupon && originalPrice && finalAmount < originalPrice) {
+        const discountPercent = coupon.discount ? Number(coupon.discount) : 0;
+        priceDisplay = `${finalAmount} ${currency} (réduction de ${discountPercent}% - coupon: ${coupon.code})`;
+      } else {
+        priceDisplay = `${finalAmount} ${currency}`;
+      }
+    } else {
+      priceDisplay = '—';
+    }
 
     const text = `Nouvelle inscription en attente de validation sur 212Learn.
 
 Étudiant : ${studentName} (${studentEmail})
 Cours : ${courseTitle}
-Montant : ${amountLabel}
+Montant : ${priceDisplay}
 Méthode : ${providerLabel}
 Référence : ${reference || '—'}
 
@@ -91,7 +111,7 @@ ${dashboardLink}
           <p style="margin-top: 0;">Un étudiant a soumis sa preuve de paiement et attend votre validation.</p>
           <p><strong>Étudiant :</strong> ${studentName} (<a href="mailto:${studentEmail}">${studentEmail}</a>)</p>
           <p><strong>Cours :</strong> <span style="color: #C1652F; font-weight: bold;">${courseTitle}</span></p>
-          <p><strong>Montant :</strong> ${amountLabel}</p>
+          <p><strong>Montant :</strong> ${priceDisplay}</p>
           <p><strong>Méthode :</strong> ${providerLabel}</p>
           <p><strong>Référence :</strong> ${reference || '—'}</p>
           <div style="text-align:center;margin:24px 0;">
