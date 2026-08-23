@@ -49,18 +49,15 @@ export const createMeeting = async (req, res, next) => {
 
     await ensureCourseManager(req.user, courseId);
 
-    // Generate unique room slug (without AppID prefix). The slug is the only
-    // thing protecting a public-Jitsi room, so keep it unguessable.
+    // Deterministic, unguessable room slug — the slug is the only thing
+    // protecting the room, so keep it unpredictable. Shared by instructor
+    // and students so both land in the same MiroTalk room.
     const roomSlug = `212learn-${courseId}-${Date.now()}`;
 
-    // Public Jitsi: https://meet.jit.si/<slug>. JaaS: https://<domain>/<appId>/<slug>.
-    let meetingUrl;
-    if (shouldUsePublicJitsi()) {
-      meetingUrl = `https://${PUBLIC_JITSI_DOMAIN}/${roomSlug}`;
-    } else {
-      const { appId, domain } = getJaasConfig();
-      meetingUrl = `https://${domain}/${appId}/${roomSlug}`;
-    }
+    // MiroTalk SFU room (self-hosted, no active-user/month cap). Base URL from
+    // MIROTALK_URL (your server); falls back to the public MiroTalk instance.
+    const mirotalkBase = (process.env.MIROTALK_URL || 'https://sfu.mirotalk.com').replace(/\/+$/, '');
+    const meetingUrl = `${mirotalkBase}/join?room=${encodeURIComponent(roomSlug)}`;
 
     const meeting = await prisma.meeting.create({
       data: {
