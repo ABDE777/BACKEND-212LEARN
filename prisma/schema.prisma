@@ -60,7 +60,6 @@ model User {
   updateRequests    CourseUpdateRequest[]
   reviewedRequests  CourseUpdateRequest[] @relation("CourseUpdateRequestReviewer")
   groupChatMessages GroupChatMessage[]
-  courseChatMessages CourseChatMessage[]
 
   // Admin stats & user listings filter heavily on role + soft-delete state.
   @@index([role, deletedAt])
@@ -173,7 +172,6 @@ model Course {
   groups         Group[]
   updateRequests CourseUpdateRequest[]
   coupons        Coupon[]
-  chatMessages   CourseChatMessage[]
 
   @@index([status, deletedAt])
   @@index([categoryId])
@@ -658,27 +656,6 @@ model GroupChatMessage {
 
   @@index([groupId, createdAt])
   @@map("group_chat_messages")
-}
-
-// Per-course chat: the course instructor(s) and every enrolled student share
-// one conversation, scoped to the course (not to a group).
-model CourseChatMessage {
-  id        String   @id @default(uuid()) @db.Uuid
-  courseId  String   @db.Uuid
-  senderId  String   @db.Uuid
-  text      String?  @db.Text
-  fileUrl   String?  @db.VarChar(500)
-  fileType  String?  @db.VarChar(50) // 'image' | 'video' | 'audio' | 'document' | 'other'
-  fileName  String?  @db.VarChar(255)
-  status    String   @default("approved") @db.VarChar(50) // 'approved' | 'blocked_ai' | 'deleted'
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  sender User   @relation(fields: [senderId], references: [id], onDelete: Cascade)
-
-  @@index([courseId, createdAt])
-  @@map("course_chat_messages")
 }
 
 // ─── Contact Messages ──────────────────────────────────────────────────────────

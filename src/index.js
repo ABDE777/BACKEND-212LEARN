@@ -33,7 +33,6 @@ import meetingRoutes   from './routes/meeting.routes.js';
 import statsRoutes     from './routes/stats.routes.js';
 import groupRoutes     from './routes/group.routes.js';
 import groupChatRoutes from './routes/groupChat.routes.js';
-import courseChatRoutes from './routes/courseChat.routes.js';
 import courseUpdateRequestRoutes from './routes/courseUpdateRequest.routes.js';
 import aiRoutes        from './routes/ai.routes.js';
 import contactRoutes   from './routes/contact.routes.js';
@@ -208,7 +207,6 @@ app.use(`${V1}`,             resourceRoutes);   // /lessons/:id/resources, /reso
 app.use(`${V1}/uploads`,     uploadRoutes);     // /uploads/cloudinary-sign
 app.use(`${V1}`,             assignmentRoutes); // /lessons/:id/assignments, /submissions/:id/grade
 app.use(`${V1}/courses`,     courseRoutes);
-app.use(`${V1}/courses`,     courseChatRoutes); // /courses/:id/messages (course chat)
 app.use(`${V1}/enrollments`, enrollmentRoutes);
 app.use(`${V1}/categories`,  categoryRoutes);
 app.use(`${V1}/payments/wafacash`, wafacashRoutes);
