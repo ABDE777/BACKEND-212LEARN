@@ -11,6 +11,7 @@ import {
   getMeetingJoinInfo,
   getMeetingDiagnostics,
   meetingWebhook,
+  attachRecording,
 } from '../controllers/meeting.controller.js';
 import { protect, restrictTo } from '../middleware/auth.js';
 
@@ -217,6 +218,43 @@ router.patch('/meetings/:id', restrictTo('instructor', 'admin'), updateMeeting);
  *         description: Not authorized to delete meetings
  */
 router.delete('/meetings/:id', restrictTo('instructor', 'admin'), deleteMeeting);
+
+/**
+ * @swagger
+ * /meetings/{id}/recording:
+ *   post:
+ *     summary: Attach a session recording (replay) to a meeting (instructor/admin)
+ *     description: Stores a Cloudinary video URL as the meeting recording and publishes it into the course curriculum for enrolled students.
+ *     tags: [Meetings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [recordingUrl]
+ *             properties:
+ *               recordingUrl:
+ *                 type: string
+ *                 description: Cloudinary secure_url of the recorded video
+ *     responses:
+ *       200:
+ *         description: Recording attached and published to the curriculum
+ *       400:
+ *         description: recordingUrl missing or not a Cloudinary URL
+ *       403:
+ *         description: Not authorized to manage this meeting
+ *       404:
+ *         description: Meeting not found
+ */
+router.post('/meetings/:id/recording', restrictTo('instructor', 'admin'), attachRecording);
 
 /**
  * @swagger
