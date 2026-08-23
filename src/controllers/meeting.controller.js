@@ -474,6 +474,46 @@ export const saveRecordingToCurriculum = async (meeting, recordingUrl) => {
   });
 };
 
+// POST /api/v1/meetings/:id/recording — instructor/admin attaches a session
+// recording (a Cloudinary video URL from the signed direct upload). Stores it
+// on the meeting AND publishes it into the course curriculum so enrolled
+// students can watch the replay in the "Sessions enregistrées" section.
+export const attachRecording = async (req, res, next) => {
+  try {
+    validateUUID(req.params.id, 'id');
+    validateRequired(req.body, ['recordingUrl']);
+    const { recordingUrl } = req.body;
+
+    // Accept only a Cloudinary secure_url (same trust rule as lesson resources).
+    if (typeof recordingUrl !== 'string' || !/^https:\/\/res\.cloudinary\.com\//.test(recordingUrl)) {
+      return next(new AppError(
+        'recordingUrl must be a Cloudinary secure_url (upload via /uploads/cloudinary-sign first).',
+        400,
+        'VALIDATION_ERROR',
+      ));
+    }
+
+    const meeting = await prisma.meeting.findUnique({ where: { id: req.params.id } });
+    if (!meeting) {
+      return next(new AppError('Meeting not found.', 404, 'NOT_FOUND'));
+    }
+
+    await ensureCourseManager(req.user, meeting.courseId);
+
+    const updated = await prisma.meeting.update({
+      where: { id: meeting.id },
+      data: { recordingUrl },
+    });
+
+    // Publish the replay into the curriculum for students (idempotent).
+    await saveRecordingToCurriculum(updated, recordingUrl);
+
+    res.status(200).json(successResponse({ meeting: updated }));
+  } catch (error) {
+    next(error);
+  }
+};
+
 // POST /api/v1/meetings/webhook - Jitsi webhook for recording updates
 export const meetingWebhook = async (req, res, next) => {
   try {
