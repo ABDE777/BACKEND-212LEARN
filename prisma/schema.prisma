@@ -60,6 +60,9 @@ model User {
   updateRequests    CourseUpdateRequest[]
   reviewedRequests  CourseUpdateRequest[] @relation("CourseUpdateRequestReviewer")
   groupChatMessages GroupChatMessage[]
+  packCourses       PackCourse[]          @relation("PackCourseInstructor")
+  packPurchases     PackPurchase[]
+  revenueShares     RevenueShare[]        @relation("RevenueShareInstructor")
 
   // Admin stats & user listings filter heavily on role + soft-delete state.
   @@index([role, deletedAt])
@@ -172,6 +175,8 @@ model Course {
   groups         Group[]
   updateRequests CourseUpdateRequest[]
   coupons        Coupon[]
+  packCourses    PackCourse[]
+  revenueShares  RevenueShare[]
 
   @@index([status, deletedAt])
   @@index([categoryId])
@@ -672,4 +677,111 @@ model ContactMessage {
   updatedAt DateTime @updatedAt
 
   @@map("contact_messages")
+}
+
+// ─── Packs (bundles of courses at a reduced price) ───────────────────────────
+// A pack groups several existing courses under one reduced price. Each course in
+// the pack is tied to ONE instructor (chosen by the admin among that course's
+// instructors) who earns the revenue for that course. Early-bird pricing:
+// the first `launchSeats` buyers pay `launchPrice`, everyone after pays `price`.
+model Pack {
+  id          String    @id @default(uuid()) @db.Uuid
+  title       String    @db.VarChar(255)
+  description String?   @db.Text
+  thumbnail   String?   @db.VarChar(500)
+  price       Decimal   @db.Decimal(10, 2)           // prix normal (après lancement)
+  launchPrice Decimal?  @db.Decimal(10, 2)           // prix des premiers inscrits
+  launchSeats Int       @default(0)                  // nb de places au prix de lancement
+  currency    String    @default("MAD") @db.VarChar(10)
+  status      String    @default("draft") @db.VarChar(50) // draft | published | archived
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  courses   PackCourse[]
+  purchases PackPurchase[]
+
+  @@index([status, deletedAt])
+  @@map("packs")
+}
+
+model PackCourse {
+  id           String @id @default(uuid()) @db.Uuid
+  packId       String @db.Uuid
+  courseId     String @db.Uuid
+  instructorId String @db.Uuid // formateur (parmi ceux du cours) qui touche le revenu
+
+  pack       Pack   @relation(fields: [packId], references: [id], onDelete: Cascade)
+  course     Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  instructor User   @relation("PackCourseInstructor", fields: [instructorId], references: [id], onDelete: Restrict)
+
+  @@unique([packId, courseId])
+  @@index([courseId])
+  @@map("pack_courses")
+}
+
+// A student's order for a pack. Mirrors the Payment state machine but at the
+// pack level: one purchase → many course enrollments on approval. Kept separate
+// from Payment (which is 1:1 with a single-course Enrollment).
+model PackPurchase {
+  id                   String    @id @default(uuid()) @db.Uuid
+  packId               String    @db.Uuid
+  userId               String    @db.Uuid
+  amount               Decimal   @db.Decimal(10, 2) // prix effectivement facturé (lancement ou normal)
+  currency             String    @default("MAD") @db.VarChar(10)
+  provider             String    @db.VarChar(50) // 'wafacash' | 'transfer'
+  transactionReference String    @unique @db.VarChar(255)
+  status               String    @db.VarChar(50) // PENDING | WAITING_VERIFICATION | PAID | REJECTED
+  isLaunchPrice        Boolean   @default(false) // ce acheteur a-t-il eu une place de lancement ?
+
+  // Wafacash
+  mtcn       String? @db.VarChar(50)
+  receiptUrl String? @db.VarChar(500)
+  // Bank transfer
+  rib                String? @db.VarChar(50)
+  transferReceiptUrl String? @db.VarChar(500)
+  // Verification
+  verifiedBy String?   @db.Uuid
+  verifiedAt DateTime?
+  notes      String?   @db.Text
+  paidAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pack          Pack           @relation(fields: [packId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  revenueShares RevenueShare[]
+
+  @@index([status, provider])
+  @@index([packId])
+  @@index([userId])
+  @@map("pack_purchases")
+}
+
+// Accounting ledger: what each instructor is owed for a pack purchase after the
+// platform commission. Payouts are manual — `status` moves pending → paid_out.
+model RevenueShare {
+  id               String  @id @default(uuid()) @db.Uuid
+  packPurchaseId   String  @db.Uuid
+  packId           String  @db.Uuid
+  courseId         String  @db.Uuid
+  instructorId     String  @db.Uuid
+  grossAmount      Decimal @db.Decimal(10, 2) // part du prix (prix pack / nb cours)
+  commissionPct    Decimal @db.Decimal(5, 2)  // 20.00
+  commissionAmount Decimal @db.Decimal(10, 2) // commission plateforme
+  netAmount        Decimal @db.Decimal(10, 2) // dû au formateur (gross - commission)
+  currency         String  @default("MAD") @db.VarChar(10)
+  status           String  @default("pending") @db.VarChar(50) // pending | paid_out
+  paidOutAt        DateTime?
+  createdAt        DateTime @default(now())
+
+  packPurchase PackPurchase @relation(fields: [packPurchaseId], references: [id], onDelete: Cascade)
+  course       Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  instructor   User         @relation("RevenueShareInstructor", fields: [instructorId], references: [id], onDelete: Restrict)
+
+  @@index([instructorId, status])
+  @@index([packId])
+  @@index([packPurchaseId])
+  @@map("revenue_shares")
 }
