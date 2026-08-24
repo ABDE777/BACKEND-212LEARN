@@ -38,6 +38,52 @@ const verifyJaasWebhook = (req) => {
   }
 };
 
+/**
+ * Platform-wide live-session scheduling rules:
+ *   - at most 2 sessions per calendar day, and
+ *   - no two sessions overlapping in time.
+ * Throws an AppError (409) on conflict. `excludeId` skips the meeting being edited.
+ */
+const assertNoMeetingConflict = async ({ meetingDate, durationMinutes = 60, excludeId = null }) => {
+  const start = new Date(meetingDate);
+  if (Number.isNaN(start.getTime())) {
+    throw new AppError('Date de séance invalide.', 400, 'VALIDATION_ERROR');
+  }
+  const end = new Date(start.getTime() + (Number(durationMinutes) || 60) * 60000);
+
+  const dayStart = new Date(start); dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
+
+  const sameDay = await prisma.meeting.findMany({
+    where: {
+      meetingDate: { gte: dayStart, lt: dayEnd },
+      status: { in: ['SCHEDULED', 'LIVE'] },
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+    },
+    select: { id: true, meetingDate: true, durationMinutes: true, title: true },
+  });
+
+  // Rule 1 — max 2 sessions per day (platform-wide).
+  if (sameDay.length >= 2) {
+    throw new AppError(
+      'Limite atteinte : maximum 2 séances live par jour sur la plateforme.',
+      409, 'MEETING_DAILY_LIMIT',
+    );
+  }
+
+  // Rule 2 — no time overlap with another scheduled/live session.
+  for (const m of sameDay) {
+    const mStart = new Date(m.meetingDate);
+    const mEnd = new Date(mStart.getTime() + (m.durationMinutes || 60) * 60000);
+    if (start < mEnd && end > mStart) {
+      throw new AppError(
+        `Conflit d'horaire : une autre séance live (« ${m.title} ») occupe déjà ce créneau. Choisissez un autre horaire.`,
+        409, 'MEETING_TIME_CONFLICT',
+      );
+    }
+  }
+};
+
 // POST /api/v1/courses/:courseId/meetings - Create meeting (instructor/admin)
 export const createMeeting = async (req, res, next) => {
   try {
@@ -48,6 +94,9 @@ export const createMeeting = async (req, res, next) => {
     validateRequired(req.body, ['title', 'meetingDate']);
 
     await ensureCourseManager(req.user, courseId);
+
+    // Reject scheduling conflicts (max 2/day, no time overlap) platform-wide.
+    await assertNoMeetingConflict({ meetingDate, durationMinutes });
 
     // Deterministic, unguessable room slug — the slug is the only thing
     // protecting the room, so keep it unpredictable. Shared by instructor
@@ -231,6 +280,15 @@ export const updateMeeting = async (req, res, next) => {
 
     if (meeting.status !== 'SCHEDULED') {
       return next(new AppError('Only SCHEDULED meetings can be modified.', 400, 'BAD_REQUEST'));
+    }
+
+    // If the date changes, re-check scheduling conflicts (excluding this meeting).
+    if (meetingDate) {
+      await assertNoMeetingConflict({
+        meetingDate,
+        durationMinutes: meeting.durationMinutes,
+        excludeId: id,
+      });
     }
 
     const updateData = {};
