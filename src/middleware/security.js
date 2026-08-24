@@ -8,13 +8,11 @@ const sanitizeValue = (value, key = '') => {
   }
   
   if (typeof value === 'string') {
-    // Simple server-side sanitization without DOM
-    return value
-      .replace(/[<>]/g, '') // Remove < and >
-      .replace(/&/g, '&amp;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#x27;')
-      .trim();
+    // Strip angle brackets so stored text can't carry HTML/script tags. Do NOT
+    // HTML-entity-encode quotes/ampersands here: escaping is an OUTPUT concern,
+    // React already escapes on render, and encoding on input corrupted stored
+    // text (apostrophes were saved and shown as "&#x27;").
+    return value.replace(/[<>]/g, '').trim();
   }
   if (Array.isArray(value)) {
     return value.map((item, index) => sanitizeValue(item, index));
