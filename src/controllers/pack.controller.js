@@ -6,6 +6,20 @@ import { validateUUID, validateRequired } from '../utils/validation.js';
 // Platform commission applied to every course share (Phase 2 revenue split).
 export const PLATFORM_COMMISSION_PCT = 20;
 
+const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+
+/**
+ * Split a pack's paid amount equally across its courses, then take the platform
+ * commission off each share. Returns the per-course figures owed to instructors.
+ */
+export const computeRevenueSplit = (amount, numCourses, commissionPct = PLATFORM_COMMISSION_PCT) => {
+  const n = Math.max(1, Number(numCourses) || 1);
+  const grossEach = round2(Number(amount) / n);
+  const commissionEach = round2(grossEach * (commissionPct / 100));
+  const netEach = round2(grossEach - commissionEach);
+  return { grossEach, commissionEach, netEach, commissionPct };
+};
+
 /**
  * Resolve the effective price of a pack given how many have already bought it.
  * The first `launchSeats` buyers pay `launchPrice`; everyone after pays `price`.
@@ -19,8 +33,12 @@ export const computePackPricing = (pack, soldCount = 0) => {
   return { normalPrice: normal, launchPrice: launch, launchSeats: seats, seatsLeft, currentPrice };
 };
 
-// Pack purchases don't exist yet (Phase 2). Until then, no seats are consumed.
-const soldCountForPack = async () => 0;
+// A launch seat is reserved the moment a student initiates a purchase, and only
+// released if that purchase is rejected — so count every non-rejected purchase.
+export const soldCountForPack = async (packId) =>
+  prisma.packPurchase.count({
+    where: { packId, status: { in: ['PENDING', 'WAITING_VERIFICATION', 'PAID'] } },
+  });
 
 const packInclude = {
   courses: {

@@ -144,6 +144,87 @@ ${dashboardLink}
 };
 
 /**
+ * Notify all admins that a student's pack purchase is awaiting manual approval.
+ * Best-effort / non-blocking.
+ * @param {{userId:string,packTitle?:string,amount?:number|string,currency?:string,provider?:string,reference?:string}} args
+ */
+export const notifyAdminsPackPurchasePendingApproval = async ({
+  userId,
+  packTitle,
+  amount,
+  currency = 'MAD',
+  provider,
+  reference,
+}) => {
+  try {
+    const [student, recipients] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { firstName: true, lastName: true, email: true },
+      }),
+      resolveAdminRecipients(),
+    ]);
+    if (!recipients.length) return;
+
+    const studentName = student
+      ? `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.email
+      : 'Un étudiant';
+    const studentEmail = student?.email || '—';
+    const providerLabel = provider === 'transfer' ? 'Virement bancaire' : provider === 'wafacash' ? 'Wafacash' : (provider || '—');
+    const amountLabel = amount != null ? `${Number(amount)} ${currency}` : '—';
+    const frontendUrl = (process.env.FRONTEND_URL || 'https://212-learn.vercel.app').replace(/\/$/, '');
+    const dashboardLink = `${frontendUrl}/admin/dashboard?tab=payments`;
+
+    const text = `Nouvel achat de pack en attente de validation sur 212Learn.
+
+Étudiant : ${studentName} (${studentEmail})
+Pack : ${packTitle || 'un pack'}
+Montant : ${amountLabel}
+Méthode : ${providerLabel}
+Référence : ${reference || '—'}
+
+Validez ou refusez l'achat depuis le tableau de bord admin :
+${dashboardLink}
+`;
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
+        <div style="background: #1B4B5A; color: #ffffff; padding: 15px 20px; border-radius: 8px 8px 0 0;">
+          <h2 style="margin: 0; font-size: 18px;">📦 Achat de pack en attente de validation</h2>
+        </div>
+        <div style="padding: 20px; color: #1A1A2E;">
+          <p style="margin-top: 0;">Un étudiant a soumis sa preuve de paiement pour un pack.</p>
+          <p><strong>Étudiant :</strong> ${studentName} (<a href="mailto:${studentEmail}">${studentEmail}</a>)</p>
+          <p><strong>Pack :</strong> <span style="color: #C1652F; font-weight: bold;">${packTitle || 'un pack'}</span></p>
+          <p><strong>Montant :</strong> ${amountLabel}</p>
+          <p><strong>Méthode :</strong> ${providerLabel}</p>
+          <p><strong>Référence :</strong> ${reference || '—'}</p>
+          <div style="text-align:center;margin:24px 0;">
+            <a href="${dashboardLink}"
+               style="display:inline-block;padding:12px 24px;background-color:#C1652F;color:#fff;
+                      text-decoration:none;border-radius:6px;font-weight:bold;">
+              Valider l'achat
+            </a>
+          </div>
+        </div>
+        <div style="font-size: 12px; color: #64748b; text-align: center; margin-top: 20px; padding-top: 15px; border-top: 1px solid #f1f5f9;">
+          Notification automatique de la plateforme 212Learn
+        </div>
+      </div>
+    `;
+
+    await sendEmail({
+      to: recipients.join(', '),
+      subject: `[212Learn] Achat de pack à valider — ${studentName} · ${packTitle || 'pack'}`,
+      text,
+      html,
+    });
+  } catch (err) {
+    console.warn('Failed sending admin pack-purchase email:', err.message);
+  }
+};
+
+/**
  * Notify all admins that a visitor submitted the contact form. Best-effort /
  * non-blocking — resolves every active admin account and reuses the contact
  * email template.
