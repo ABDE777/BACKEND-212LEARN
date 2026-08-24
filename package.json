@@ -7,8 +7,8 @@
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
-    "build": "prisma generate",
-    "postinstall": "prisma generate",
+    "build": "prisma generate && node scripts/vercel-migrate.js",
+    "postinstall": "prisma generate && node scripts/vercel-migrate.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "prisma:seed": "node prisma/seed.js",
