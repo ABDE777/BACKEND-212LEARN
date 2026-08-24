@@ -176,7 +176,7 @@ const COURSES = [
     level: 'beginner',
     language: 'french',
     duration: 20,
-    status: 'published',
+    status: 'draft',
     instructorEmail: 'saad@212learn.com',
     categoryName: 'Algorithmique',
     sections: [
@@ -205,7 +205,7 @@ const COURSES = [
     level: 'intermediate',
     language: 'french',
     duration: 25,
-    status: 'published',
+    status: 'draft',
     instructorEmail: 'saad@212learn.com',
     categoryName: 'Programmation',
     sections: [
@@ -233,7 +233,7 @@ const COURSES = [
     level: 'beginner',
     language: 'french',
     duration: 30,
-    status: 'published',
+    status: 'draft',
     instructorEmail: 'hanane@212learn.com',
     categoryName: 'Développement Web',
     sections: [
@@ -262,7 +262,7 @@ const COURSES = [
     level: 'intermediate',
     language: 'french',
     duration: 35,
-    status: 'published',
+    status: 'draft',
     instructorEmail: 'hanane@212learn.com',
     categoryName: 'Développement Web',
     sections: [
@@ -291,7 +291,7 @@ const COURSES = [
     level: 'intermediate',
     language: 'french',
     duration: 25,
-    status: 'published',
+    status: 'draft',
     instructorEmail: 'ibrahim@212learn.com',
     categoryName: 'Bases de Données',
     sections: [
@@ -319,7 +319,7 @@ const COURSES = [
     level: 'intermediate',
     language: 'french',
     duration: 40,
-    status: 'published',
+    status: 'draft',
     instructorEmail: 'ouissal@212learn.com',
     categoryName: 'Développement Web',
     sections: [
@@ -349,7 +349,7 @@ const COURSES = [
     level: 'intermediate',
     language: 'french',
     duration: 15,
-    status: 'published',
+    status: 'draft',
     instructorEmail: 'younes@212learn.com',
     categoryName: 'Projets Web',
     sections: [
@@ -370,7 +370,7 @@ const COURSES = [
     level: 'intermediate',
     language: 'french',
     duration: 20,
-    status: 'published',
+    status: 'draft',
     instructorEmail: 'abd.el.monim@212learn.com',
     categoryName: 'Gestion de Projet',
     sections: [
@@ -398,7 +398,7 @@ const COURSES = [
     level: 'advanced',
     language: 'french',
     duration: 25,
-    status: 'published',
+    status: 'draft',
     instructorEmail: 'ibrahim@212learn.com',
     categoryName: 'Bases de Données',
     sections: [
@@ -419,7 +419,7 @@ const COURSES = [
     level: 'advanced',
     language: 'french',
     duration: 45,
-    status: 'published',
+    status: 'draft',
     instructorEmail: 'abd.el.monim@212learn.com',
     categoryName: 'Développement Web',
     sections: [
@@ -448,7 +448,7 @@ const COURSES = [
     level: 'advanced',
     language: 'french',
     duration: 45,
-    status: 'published',
+    status: 'draft',
     instructorEmail: 'ouissal@212learn.com',
     categoryName: 'Développement Web',
     sections: [
@@ -477,7 +477,7 @@ const COURSES = [
     level: 'advanced',
     language: 'french',
     duration: 30,
-    status: 'published',
+    status: 'draft',
     instructorEmail: 'younes@212learn.com',
     categoryName: 'Cloud',
     sections: [
@@ -498,7 +498,7 @@ const COURSES = [
     level: 'advanced',
     language: 'french',
     duration: 40,
-    status: 'published',
+    status: 'draft',
     instructorEmail: 'younes@212learn.com',
     categoryName: 'Projets Web',
     sections: [
@@ -520,7 +520,7 @@ const COURSES = [
     level: 'beginner',
     language: 'french',
     duration: 60,
-    status: 'published',
+    status: 'draft',
     instructorEmail: 'hanane@212learn.com',
     categoryName: 'Packs',
     sections: [
@@ -547,7 +547,7 @@ const COURSES = [
     level: 'intermediate',
     language: 'french',
     duration: 50,
-    status: 'published',
+    status: 'draft',
     instructorEmail: 'ibrahim@212learn.com',
     categoryName: 'Packs',
     sections: [
@@ -574,7 +574,7 @@ const COURSES = [
     level: 'intermediate',
     language: 'french',
     duration: 100,
-    status: 'published',
+    status: 'draft',
     instructorEmail: 'abd.el.monim@212learn.com',
     categoryName: 'Packs',
     sections: [
@@ -605,7 +605,7 @@ const COURSES = [
     level: 'advanced',
     language: 'french',
     duration: 120,
-    status: 'published',
+    status: 'draft',
     instructorEmail: 'abd.el.monim@212learn.com',
     categoryName: 'Packs',
     sections: [
@@ -787,6 +787,16 @@ async function main() {
       continue;
     }
 
+    // Check if course already exists
+    const existingCourse = await prisma.course.findFirst({
+      where: { title: course.title },
+    });
+
+    if (existingCourse) {
+      console.log(`⚠️  Cours déjà existant : ${course.title}`);
+      continue;
+    }
+
     // Find or create category
     let category = await prisma.category.findFirst({
       where: { name: course.categoryName },
@@ -821,7 +831,7 @@ async function main() {
       data: {
         courseId: createdCourse.id,
         userId: instructorId,
-        role: 'lead',
+        role: 'lead_instructor',
       },
     });
 
