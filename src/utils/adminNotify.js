@@ -76,12 +76,15 @@ export const notifyAdminsEnrollmentPendingApproval = async ({
     const frontendUrl = (process.env.FRONTEND_URL || 'https://212-learn.vercel.app').replace(/\/$/, '');
     const dashboardLink = `${frontendUrl}/admin/dashboard?tab=payments`;
 
-    // Build price display with coupon info if applicable
+    // Build price display: show the original price, the coupon, and the final
+    // amount so the admin sees the full breakdown (not just the discounted total).
     let priceDisplay = '';
     if (finalAmount != null) {
       if (coupon && originalPrice && finalAmount < originalPrice) {
         const discountPercent = coupon.discount ? Number(coupon.discount) : 0;
-        priceDisplay = `${finalAmount} ${currency} (réduction de ${discountPercent}% - coupon: ${coupon.code})`;
+        const saved = (originalPrice - finalAmount).toFixed(2);
+        priceDisplay = `${finalAmount} ${currency} `
+          + `(prix initial ${originalPrice} ${currency} · coupon ${coupon.code} −${discountPercent}% · économie ${saved} ${currency})`;
       } else {
         priceDisplay = `${finalAmount} ${currency}`;
       }
