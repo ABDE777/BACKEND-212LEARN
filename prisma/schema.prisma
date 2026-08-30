@@ -417,6 +417,9 @@ model AppSetting {
   allowRegistrations  Boolean  @default(true)
   maintenanceMode     Boolean  @default(false)
   emailNotifications  Boolean  @default(true)
+  // Global instructor payout share (%). The platform keeps the remainder.
+  // Read live by pack settlement and by the analytics/earnings endpoints.
+  instructorSharePct  Int      @default(70)
   updatedAt           DateTime @default(now()) @updatedAt
 
   @@map("app_settings")

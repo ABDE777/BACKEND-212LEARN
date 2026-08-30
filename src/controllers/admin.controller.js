@@ -10,6 +10,7 @@ import { sendPasswordResetEmail } from '../utils/email.js';
 import { getJwtSecret } from '../config/jwt.js';
 import { linkFormateurToCourse } from '../utils/groupSync.js';
 import { PAYMENT_STATUS } from '../constants/payment.js';
+import { getAppSettings } from '../utils/settings.js';
 
 // ─── GET /api/v1/admin/users/pending-kyc ─────────────────────────────────────
 // Retrieve all instructors awaiting KYC verification.
@@ -859,6 +860,7 @@ export const getAdminOverview = async (req, res, next) => {
       totalCategories, totalEnrollments, revenueAgg,
       pendingPayments, paidPayments,
       pendingKycCount, recentUsers,
+      pendingTransferCount, pendingPackCount,
     ] = await Promise.all([
       prisma.user.count({ where: { deletedAt: null } }),
       prisma.user.count({ where: { deletedAt: null, role: 'student' } }),
@@ -879,13 +881,18 @@ export const getAdminOverview = async (req, res, next) => {
         orderBy: { createdAt: 'desc' },
         take: 8,
       }),
+      prisma.payment.count({ where: { provider: 'transfer', status: 'WAITING_VERIFICATION' } }),
+      prisma.packPurchase.count({ where: { status: 'WAITING_VERIFICATION' } }),
     ]);
 
     const stats = {
       totalUsers, students, instructors, admins,
       totalCourses, activeCourses, draftCourses, totalCategories,
       totalEnrollments, totalRevenue: Number(revenueAgg._sum.amount ?? 0),
-      pendingPayments, paidPayments,
+      // All payment sources awaiting admin verification (course wafacash +
+      // transfer + pack purchases), so the pending badge reflects everything.
+      pendingPayments: pendingPayments + pendingTransferCount + pendingPackCount,
+      paidPayments,
     };
 
     res.set('Cache-Control', 'private, max-age=30');
@@ -964,7 +971,14 @@ export const getAdminStats = async (req, res, next) => {
 // along with payout due (e.g. 70% instructor share) and platform retention (30%).
 export const getInstructorFinancials = async (req, res, next) => {
   try {
-    const defaultShare = Number(req.query.sharePercentage) || 70; // 70% default payout rate
+    // Default to the global instructor share (live from settings). An explicit
+    // ?sharePercentage= override is honored for what-if previews only.
+    const settings = await getAppSettings();
+    const storedShare = Number(settings.instructorSharePct ?? 70);
+    const overrideShare = Number(req.query.sharePercentage);
+    const defaultShare = Number.isFinite(overrideShare) && req.query.sharePercentage !== undefined
+      ? overrideShare
+      : storedShare;
 
     // Fetch all active instructors with their profiles, assigned courses and groups
     const instructors = await prisma.user.findMany({

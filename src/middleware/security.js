@@ -1,4 +1,6 @@
+import jwt from 'jsonwebtoken';
 import { AppError } from './error.js';
+import { getJwtSecret } from '../config/jwt.js';
 
 // Hand-rolled server-side input sanitizer (no DOM dependency needed for text).
 const sanitizeValue = (value, key = '') => {
@@ -52,6 +54,22 @@ function clientKey(req, prefix) {
   // by sending a different fake IP on every request.
   const ip = req.ip || req.socket?.remoteAddress || 'unknown';
   return `${prefix}:${ip}`;
+}
+
+// Bucket key for the global limiter: authenticated requests are keyed per-user
+// (so one busy dashboard doesn't drain a shared-IP bucket, and many users behind
+// one NAT/office IP aren't collapsed into a single quota); anonymous requests
+// fall back to the client IP. Never returns falsy, so the limiter still applies.
+export function userOrIpKey(req) {
+  const auth = req.headers.authorization;
+  if (auth && auth.startsWith('Bearer ')) {
+    try {
+      const decoded = jwt.verify(auth.slice(7), getJwtSecret());
+      if (decoded?.id) return `u:${decoded.id}`;
+    } catch { /* invalid/expired token → fall back to IP */ }
+  }
+  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+  return `ip:${ip}`;
 }
 
 async function upstashIncr(key, windowMs) {

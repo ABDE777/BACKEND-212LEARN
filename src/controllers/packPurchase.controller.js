@@ -6,8 +6,8 @@ import { isOurCloudinaryUrl } from '../config/cloudinary.js';
 import { PAYMENT_STATUS } from '../constants/payment.js';
 import { logAuditEvent } from '../utils/audit.js';
 import { notifyAdminsPackPurchasePendingApproval } from '../utils/adminNotify.js';
+import { getAppSettings } from '../utils/settings.js';
 import {
-  PLATFORM_COMMISSION_PCT,
   computePackPricing,
   computeRevenueSplit,
   soldCountForPack,
@@ -264,7 +264,14 @@ const settlePackPurchase = async (tx, purchase, adminId) => {
     throw new AppError("Ce pack n'a aucun cours — impossible de finaliser.", 400, 'PACK_EMPTY');
   }
 
-  const { grossEach, commissionEach, netEach } = computeRevenueSplit(purchase.amount, pack.courses.length);
+  // Platform commission derives from the global instructor share, live from settings.
+  const settings = await getAppSettings();
+  const platformPct = 100 - Number(settings.instructorSharePct ?? 70);
+  const { grossEach, commissionEach, netEach, commissionPct } = computeRevenueSplit(
+    purchase.amount,
+    pack.courses.length,
+    platformPct
+  );
 
   let index = 0;
   for (const pc of pack.courses) {
@@ -325,7 +332,7 @@ const settlePackPurchase = async (tx, purchase, adminId) => {
         courseId: pc.courseId,
         instructorId: pc.instructorId,
         grossAmount: grossEach,
-        commissionPct: PLATFORM_COMMISSION_PCT,
+        commissionPct,
         commissionAmount: commissionEach,
         netAmount: netEach,
         currency: purchase.currency,
