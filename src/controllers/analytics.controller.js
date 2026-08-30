@@ -3,6 +3,7 @@ import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 import { validateUUID } from '../utils/validation.js';
+import { getAppSettings } from '../utils/settings.js';
 
 // ── Helper: courses via CourseInstructor (content-management scope) ───────────
 const getInstructorCourseIds = async (userId) => {
@@ -119,7 +120,9 @@ export const getRevenueAnalytics = async (req, res, next) => {
       growth = 100;
     }
     const averageOrderValue = totalEnrollments > 0 ? totalRevenue / totalEnrollments : 0;
-    const defaultShare = 70; // 70% instructor share
+    // Global instructor share (%), live from admin settings.
+    const settings = await getAppSettings();
+    const defaultShare = Number(settings.instructorSharePct ?? 70);
     const instructorEarnings = Number((totalRevenue * (defaultShare / 100)).toFixed(2));
     const currentMonthEarnings = Number((currentMonthRevenue * (defaultShare / 100)).toFixed(2));
     const previousMonthEarnings = Number((previousMonthRevenue * (defaultShare / 100)).toFixed(2));

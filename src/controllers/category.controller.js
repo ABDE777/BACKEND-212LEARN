@@ -2,6 +2,45 @@ import prisma from '../config/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { successResponse } from '../utils/response.js';
 
+// Pure walk: given a root id and the full list of {id, parentId} categories,
+// return the root id plus every descendant id (any depth). Returns null when
+// the root is not present in the list. Cycle-safe via a seen set.
+export const subtreeIdsFrom = (rootId, all) => {
+  if (!all.some((c) => c.id === rootId)) return null;
+
+  const childrenByParent = new Map();
+  for (const c of all) {
+    if (!c.parentId) continue;
+    const arr = childrenByParent.get(c.parentId) || [];
+    arr.push(c.id);
+    childrenByParent.set(c.parentId, arr);
+  }
+
+  const ids = [];
+  const stack = [rootId];
+  const seen = new Set();
+  while (stack.length) {
+    const id = stack.pop();
+    if (seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+    for (const childId of childrenByParent.get(id) || []) stack.push(childId);
+  }
+  return ids;
+};
+
+// Collect a category id plus all of its descendant ids (any depth), so a
+// filter by a parent category also matches courses tagged to its children.
+// Returns null when the root id does not exist (caller treats that as "no
+// results" rather than "no filter"). One query, walked in memory.
+export const collectCategorySubtreeIds = async (rootId) => {
+  const all = await prisma.category.findMany({
+    where: { deletedAt: null },
+    select: { id: true, parentId: true },
+  });
+  return subtreeIdsFrom(rootId, all);
+};
+
 // GET /api/v1/categories
 export const getCategories = async (req, res, next) => {
   try {
@@ -151,7 +190,7 @@ export const deleteCategory = async (req, res, next) => {
       where: { id },
       include: {
         _count: {
-          select: { courses: true, children: true },
+          select: { courses: true, children: true, courseCategories: true },
         },
       },
     });
@@ -159,8 +198,8 @@ export const deleteCategory = async (req, res, next) => {
       return next(new AppError(`Category with ID ${id} not found.`, 404, 'NOT_FOUND'));
     }
 
-    // Check if category has courses or subcategories
-    if (existing._count.courses > 0) {
+    // Check if category has courses (as primary or additional) or subcategories
+    if (existing._count.courses > 0 || existing._count.courseCategories > 0) {
       return next(new AppError('Cannot delete category with associated courses.', 400, 'VALIDATION_ERROR'));
     }
     if (existing._count.children > 0) {

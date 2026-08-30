@@ -18,6 +18,7 @@ const DEFAULTS = {
   allowRegistrations: true,
   maintenanceMode: false,
   emailNotifications: true,
+  instructorSharePct: 70,
 };
 
 /**

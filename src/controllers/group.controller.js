@@ -4,6 +4,7 @@ import { successResponse, paginationMeta, parsePagination, parseSort } from '../
 import { validateUUID, validateRequired } from '../utils/validation.js';
 import { linkFormateurToCourse } from '../utils/groupSync.js';
 import { PAYMENT_STATUS } from '../constants/payment.js';
+import { ensureCourseManager } from '../utils/authorization.js';
 
 const SORTABLE_FIELDS = ['createdAt', 'name', 'updatedAt'];
 
@@ -91,6 +92,11 @@ export const getGroup = async (req, res, next) => {
 
     if (!group) return next(new AppError('Group not found.', 404, 'NOT_FOUND'));
 
+    // Instructors may only read groups they lead; admins may read any.
+    if (req.user.role !== 'admin' && group.formateurId !== req.user.id) {
+      return next(new AppError('You do not have access to this group.', 403, 'FORBIDDEN'));
+    }
+
     res.status(200).json(successResponse({ group }));
   } catch (error) {
     next(error);
@@ -100,10 +106,22 @@ export const getGroup = async (req, res, next) => {
 // POST /api/v1/groups
 export const createGroup = async (req, res, next) => {
   try {
-    validateRequired(req.body, ['name', 'formateurId']);
-    validateUUID(req.body.formateurId, 'formateurId');
+    const isAdmin = req.user.role === 'admin';
+    const { name, description, courseId } = req.body;
 
-    const { name, description, courseId, formateurId } = req.body;
+    // Instructors create groups for themselves and only on courses they manage;
+    // admins may create a group for any formateur (formateurId required).
+    let formateurId;
+    if (isAdmin) {
+      validateRequired(req.body, ['name', 'formateurId']);
+      validateUUID(req.body.formateurId, 'formateurId');
+      formateurId = req.body.formateurId;
+    } else {
+      validateRequired(req.body, ['name', 'courseId']);
+      validateUUID(courseId, 'courseId');
+      formateurId = req.user.id; // force ownership to the requesting instructor
+      await ensureCourseManager(req.user, courseId); // 403 if not their course
+    }
 
     // Verify formateur exists
     const formateur = await prisma.user.findUnique({

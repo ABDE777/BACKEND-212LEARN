@@ -7,6 +7,8 @@ import { getAppSettings, updateAppSettings } from '../utils/settings.js';
 // longer editable from the UI.
 const STRING_FIELDS = [];
 const BOOL_FIELDS = ['requireKyc', 'allowRegistrations', 'maintenanceMode'];
+// Integer fields with an inclusive [min, max] range.
+const INT_FIELDS = { instructorSharePct: [0, 100] };
 
 // GET /api/v1/admin/settings
 export const getSettings = async (req, res, next) => {
@@ -32,6 +34,15 @@ export const updateSettings = async (req, res, next) => {
     }
     for (const key of BOOL_FIELDS) {
       if (req.body[key] !== undefined) patch[key] = Boolean(req.body[key]);
+    }
+    for (const [key, [min, max]] of Object.entries(INT_FIELDS)) {
+      if (req.body[key] !== undefined) {
+        const n = Number(req.body[key]);
+        if (!Number.isInteger(n) || n < min || n > max) {
+          return next(new AppError(`${key} must be an integer between ${min} and ${max}.`, 400, 'VALIDATION_ERROR'));
+        }
+        patch[key] = n;
+      }
     }
 
     if (Object.keys(patch).length === 0) {

@@ -40,7 +40,7 @@ import courseUpdateRequestRoutes from './routes/courseUpdateRequest.routes.js';
 import aiRoutes        from './routes/ai.routes.js';
 import contactRoutes   from './routes/contact.routes.js';
 import { getAiPluginManifest, getSitemap } from './controllers/ai.controller.js';
-import { xssSanitizer, preventParameterPollution, rateLimiter } from './middleware/security.js';
+import { xssSanitizer, preventParameterPollution, rateLimiter, userOrIpKey } from './middleware/security.js';
 import { requestId, accessLogger } from './middleware/requestId.js';
 import { validateJwtSecret } from './config/jwt.js';
 import { startCleanupService } from './services/cleanup.service.js';
@@ -123,7 +123,10 @@ app.use(process.env.NODE_ENV === 'development' ? morgan('dev') : morgan('combine
 // ── Security Hardening Middlewares ───────────────────────────────────────────
 app.use(preventParameterPollution); // Protect against HTTP Parameter Pollution
 app.use(xssSanitizer);              // Sanitize input body/query/params from XSS scripts
-app.use(rateLimiter(900000, 150, 'Too many requests from this IP. Please try again later.', { prefix: 'global' }));
+// Global limiter: keyed per authenticated user (IP for anonymous) so a single
+// dashboard's request fan-out — and many users behind one office/NAT IP — no
+// longer trip a shared quota. A 429 is a soft "slow down", never a logout.
+app.use(rateLimiter(900000, 600, 'Trop de requêtes. Veuillez réessayer dans un instant.', { prefix: 'global', keyBy: userOrIpKey }));
 
 // ── Public Routes (no auth required) ───────────────────────────────────────────
 // Mounted AFTER the security block so these unauthenticated DB-backed endpoints

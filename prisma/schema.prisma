@@ -142,7 +142,8 @@ model Category {
   children Category[] @relation("CategoryToCategory")
 
   // Relations
-  courses Course[]
+  courses          Course[]
+  courseCategories CourseCategory[]
 
   @@map("categories")
 }
@@ -164,6 +165,7 @@ model Course {
 
   // Relations
   category       Category              @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  categories     CourseCategory[]
   instructors    CourseInstructor[]
   sections       Section[]
   enrollments    Enrollment[]
@@ -196,6 +198,22 @@ model CourseInstructor {
   @@unique([courseId, userId])
   @@index([userId])
   @@map("course_instructors")
+}
+
+// Additional categories a course belongs to (beyond its required primary
+// categoryId). Lets a course be discoverable under several categories.
+model CourseCategory {
+  id         String @id @default(uuid()) @db.Uuid
+  courseId   String @db.Uuid
+  categoryId String @db.Uuid
+
+  // Relations
+  course   Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, categoryId])
+  @@index([categoryId])
+  @@map("course_categories")
 }
 
 // Course Update Request - for instructors to request changes to published courses
@@ -399,6 +417,9 @@ model AppSetting {
   allowRegistrations  Boolean  @default(true)
   maintenanceMode     Boolean  @default(false)
   emailNotifications  Boolean  @default(true)
+  // Global instructor payout share (%). The platform keeps the remainder.
+  // Read live by pack settlement and by the analytics/earnings endpoints.
+  instructorSharePct  Int      @default(70)
   updatedAt           DateTime @default(now()) @updatedAt
 
   @@map("app_settings")

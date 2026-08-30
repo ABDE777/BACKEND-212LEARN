@@ -63,7 +63,9 @@ const router = Router();
  *         description: Group created
  */
 router.get('/', protect, restrictTo('admin'), getAllGroups);
-router.post('/', protect, restrictTo('admin'), createGroup);
+// Instructors may create their own groups (forced to themselves, on courses
+// they manage); admins may create for any formateur.
+router.post('/', protect, restrictTo('instructor', 'admin'), createGroup);
 
 /**
  * @swagger
@@ -135,7 +137,8 @@ router.get('/my-groups', protect, getMyGroups);
  *       204:
  *         description: Deleted
  */
-router.get('/:id', protect, restrictTo('admin'), getGroup);
+// getGroup enforces owner-or-admin internally; patch/delete stay admin-only.
+router.get('/:id', protect, restrictTo('instructor', 'admin'), getGroup);
 router.patch('/:id', protect, restrictTo('admin'), updateGroup);
 router.delete('/:id', protect, restrictTo('admin'), deleteGroup);
 

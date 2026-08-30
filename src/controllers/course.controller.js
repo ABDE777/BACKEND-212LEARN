@@ -13,8 +13,37 @@ import { validateUUID, validateRequired, validateEnum, validateHttpUrl } from '.
 import { logAuditEvent } from '../utils/audit.js';
 import { getJwtSecret } from '../config/jwt.js';
 import { getAppSettings } from '../utils/settings.js';
+import { collectCategorySubtreeIds } from './category.controller.js';
 
 const SORTABLE_FIELDS = ['createdAt', 'title', 'price', 'duration'];
+
+// Replace a course's additional categories (the CourseCategory join rows) with
+// the given list. The primary categoryId lives on the course itself and is
+// excluded here to avoid a redundant join row. Validates each id exists and is
+// not soft-deleted. `tx` is a Prisma client or transaction client.
+const syncCourseCategories = async (tx, courseId, categoryIds, primaryId) => {
+  if (!Array.isArray(categoryIds)) return;
+  const wanted = [...new Set(categoryIds.filter((id) => id && id !== primaryId))];
+  for (const id of wanted) validateUUID(id, 'categoryIds');
+
+  if (wanted.length > 0) {
+    const found = await tx.category.findMany({
+      where: { id: { in: wanted }, deletedAt: null },
+      select: { id: true },
+    });
+    if (found.length !== wanted.length) {
+      throw new AppError('One or more categories were not found.', 404, 'NOT_FOUND');
+    }
+  }
+
+  await tx.courseCategory.deleteMany({ where: { courseId } });
+  if (wanted.length > 0) {
+    await tx.courseCategory.createMany({
+      data: wanted.map((categoryId) => ({ courseId, categoryId })),
+      skipDuplicates: true,
+    });
+  }
+};
 
 const resolveSoftAuthUser = async (req) => {
   if (
@@ -66,8 +95,10 @@ export const getAllCourses = async (req, res, next) => {
   try {
     const { page, limit, skip, isUnlimited } = parsePagination(req.query);
     const orderBy = parseSort(req.query, SORTABLE_FIELDS);
-    const { categoryId, level, language, status, search, instructorId } =
-      req.query;
+    const { level, language, status, search, instructorId } = req.query;
+    // The catalog sends the selected category id as `category`; older callers
+    // use `categoryId`. Accept either.
+    const categoryId = req.query.category ?? req.query.categoryId;
 
     // ── Soft authentication for catalog filters ─────────────────────────────
     const currentUser = await resolveSoftAuthUser(req);
@@ -132,9 +163,33 @@ export const getAllCourses = async (req, res, next) => {
       }
     }
 
+    // Resolve the category filter to the category itself + all its descendants
+    // (so a parent also matches courses tagged to its children). A filter for a
+    // category that does not exist yields no results — never "all courses".
+    let categoryIdSet = null;
+    if (categoryId) {
+      validateUUID(categoryId, 'category');
+      categoryIdSet = await collectCategorySubtreeIds(categoryId);
+      if (categoryIdSet === null) {
+        return res
+          .status(200)
+          .json(
+            successResponse(
+              { courses: [] },
+              paginationMeta(0, page, limit, isUnlimited)
+            )
+          );
+      }
+    }
+
     const where = {
       deletedAt: null,
-      ...(categoryId && { categoryId }),
+      ...(categoryIdSet && {
+        OR: [
+          { categoryId: { in: categoryIdSet } },
+          { categories: { some: { categoryId: { in: categoryIdSet } } } },
+        ],
+      }),
       ...(level && { level }),
       ...(language && { language }),
       ...(targetStatus && { status: targetStatus }),
@@ -239,6 +294,7 @@ export const getCourse = async (req, res, next) => {
       where: { id: req.params.id },
       include: {
         category: true,
+        categories: { include: { category: { select: { id: true, name: true } } } },
         instructors: {
           include: {
             user: {
@@ -292,6 +348,7 @@ export const createCourse = async (req, res, next) => {
       title,
       description,
       categoryId,
+      categoryIds,
       price,
       level,
       language,
@@ -357,21 +414,25 @@ export const createCourse = async (req, res, next) => {
       }
     }
 
-    const course = await prisma.course.create({
-      data: {
-        title,
-        description,
-        categoryId,
-        price: price !== undefined ? price : 0,
-        level,
-        language,
-        duration,
-        status: status || 'draft',
-        thumbnail: thumbnail || null,
-        instructors: {
-          create: { userId: targetInstructorId, role: 'lead_instructor' },
+    const course = await prisma.$transaction(async (tx) => {
+      const created = await tx.course.create({
+        data: {
+          title,
+          description,
+          categoryId,
+          price: price !== undefined ? price : 0,
+          level,
+          language,
+          duration,
+          status: status || 'draft',
+          thumbnail: thumbnail || null,
+          instructors: {
+            create: { userId: targetInstructorId, role: 'lead_instructor' },
+          },
         },
-      },
+      });
+      await syncCourseCategories(tx, created.id, categoryIds, categoryId);
+      return created;
     });
 
     logAuditEvent(req.user.id, 'CREATE_COURSE', 'Course', course.id, { title: course.title }).catch(() => {});
@@ -397,6 +458,7 @@ export const updateCourse = async (req, res, next) => {
       status,
       thumbnail,
       categoryId,
+      categoryIds,
       instructorId,
     } = req.body;
 
@@ -495,9 +557,16 @@ export const updateCourse = async (req, res, next) => {
       });
     }
 
-    const course = await prisma.course.update({
-      where: { id: req.params.id },
-      data: updateData,
+    const course = await prisma.$transaction(async (tx) => {
+      const updated = await tx.course.update({
+        where: { id: req.params.id },
+        data: updateData,
+      });
+      // Only touch additional categories when the caller sent the field.
+      if (categoryIds !== undefined) {
+        await syncCourseCategories(tx, updated.id, categoryIds, updated.categoryId);
+      }
+      return updated;
     });
 
     logAuditEvent(req.user.id, 'UPDATE_COURSE', 'Course', course.id, { title: course.title }).catch(() => {});
