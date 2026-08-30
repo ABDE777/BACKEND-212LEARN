@@ -142,7 +142,9 @@ Rules:
             'Authorization': `Bearer ${GROQ_API_KEY}`,
           },
           body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
+            // Configurable so a deprecated/renamed Groq model can be swapped via
+            // env without a redeploy of code.
+            model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
             messages: [{ role: 'user', content: aiPrompt }],
             temperature: 0.7,
             max_tokens: 4096,
@@ -165,9 +167,14 @@ Rules:
     }
 
     if (!generatedQuestions || !Array.isArray(generatedQuestions) || generatedQuestions.length === 0) {
+      // Keep the friendly message, but append the upstream reason outside
+      // production so the cause (bad key, deprecated model, quota) is visible.
+      const hint = process.env.NODE_ENV !== 'production' && groqErrorDetail
+        ? ` (${String(groqErrorDetail).slice(0, 300)})`
+        : '';
       return next(
         new AppError(
-          'AI quiz generation is temporarily unavailable. Please try again or create the quiz manually.',
+          `AI quiz generation is temporarily unavailable. Please try again or create the quiz manually.${hint}`,
           503,
           'SERVICE_UNAVAILABLE'
         )
